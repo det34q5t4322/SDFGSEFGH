@@ -72,9 +72,11 @@ const DEFAULT_GROUPS = [
   {"name": "ССА11-26оз", "course": "Очно-заочное"}
 ];
 
+const DEFAULT_GROUP = 'ИСС9-25';
+
 // ── STATE ───────────────────────────────
 const S = {
-  group:              null,
+  group:              localStorage.getItem(STORAGE_GROUP) || DEFAULT_GROUP,
   activeGid:          '',
   parity:             'auto',
   weekOffset:         0,            // 0 = текущая неделя, 1 = следующая, -1 = предыдущая
@@ -174,24 +176,40 @@ async function init() {
   setupSearchInputs();
   startLiveCardClock();
 
-  // Проверяем параметр группы в URL (например ?group=РУП9-26А) или Telegram MiniApp
+  // Проверяем параметр группы в URL (например ?group=ИСС9-25) или Telegram MiniApp
   const urlParams = new URLSearchParams(window.location.search);
   const urlGroup = urlParams.get('group') || urlParams.get('tgWebAppStartParam');
   if (urlGroup) {
     S.group = urlGroup;
-    try { localStorage.setItem(STORAGE_GROUP, urlGroup); } catch (_) {}
   } else {
-    S.group = localStorage.getItem(STORAGE_GROUP);
+    S.group = localStorage.getItem(STORAGE_GROUP) || DEFAULT_GROUP;
+  }
+  try {
+    localStorage.setItem(STORAGE_GROUP, S.group);
+  } catch (_) {}
+
+  // Поддержка облачной синхронизации Telegram MiniApp
+  if (window.Telegram?.WebApp?.CloudStorage) {
+    try {
+      window.Telegram.WebApp.CloudStorage.getItem(STORAGE_GROUP, (err, val) => {
+        if (!err && val && !urlGroup) {
+          if (val !== S.group) {
+            S.group = val;
+            try { localStorage.setItem(STORAGE_GROUP, val); } catch (_) {}
+            loadSchedule();
+          }
+        } else if (S.group) {
+          window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, S.group);
+        }
+      });
+    } catch (_) {}
   }
 
   buildDayStrip();
 
-  if (!S.group) {
-    showOnboarding();
-  } else {
-    loadSchedule();
-    startAutoRefresh();
-  }
+  // Загружаем расписание сразу по умолчанию без всяких модальных окон!
+  loadSchedule();
+  startAutoRefresh();
 }
 
 // ════════════════════════════════════════
@@ -1567,7 +1585,12 @@ function openGroupModal() {
   els.groupModal?.classList.add('open');
   buildGroupGrid(els.groupsGrid, els.groupSearchInput, els.courseChips, (grp) => {
     S.group = grp;
-    localStorage.setItem(STORAGE_GROUP, grp);
+    try {
+      localStorage.setItem(STORAGE_GROUP, grp);
+      if (window.Telegram?.WebApp?.CloudStorage) {
+        window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, grp);
+      }
+    } catch (_) {}
     closeGroupModal();
     updateSidebarGroupInfo();
     loadSchedule(true);

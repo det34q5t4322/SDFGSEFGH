@@ -76,9 +76,23 @@ def save_users(users: Dict[str, dict]) -> None:
         logger.error(f"Ошибка сохранения пользователей: {e}")
 
 
-def get_user_group(user_id: int) -> Optional[str]:
+DEFAULT_GROUP = "ИСС9-25"
+
+
+def get_user_group(user_id: int) -> str:
+    """Получение сохраненной группы пользователя. По умолчанию ИСС9-25."""
     users = load_users()
-    return users.get(str(user_id), {}).get("group")
+    saved = users.get(str(user_id), {}).get("group")
+    return saved if saved else DEFAULT_GROUP
+
+
+def get_webapp_url(group: str = DEFAULT_GROUP) -> Optional[str]:
+    """Генерация ссылки на WebApp с автоподстановкой группы."""
+    if not WEB_APP_URL:
+        return None
+    import urllib.parse
+    sep = "&" if "?" in WEB_APP_URL else "?"
+    return f"{WEB_APP_URL}{sep}group={urllib.parse.quote(group)}"
 
 
 def set_user_group(user_id: int, username: str, group: str) -> None:
@@ -101,22 +115,24 @@ def get_current_week_parity() -> str:
     return "num" if (week_num % 2 == 1) else "den"
 
 
-def build_main_keyboard(web_app_url: Optional[str] = None) -> ReplyKeyboardMarkup:
+def build_main_keyboard(group: str = DEFAULT_GROUP) -> ReplyKeyboardMarkup:
     """Нижняя панель Telegram (для быстрого доступа)."""
     keyboard = []
-    if web_app_url:
-        keyboard.append([KeyboardButton("🚀 Открыть приложение", web_app=WebAppInfo(url=web_app_url))])
+    wa_url = get_webapp_url(group)
+    if wa_url:
+        keyboard.append([KeyboardButton("🚀 Открыть приложение", web_app=WebAppInfo(url=wa_url))])
     keyboard.append([KeyboardButton("📅 Сегодня"), KeyboardButton("📆 Завтра")])
     keyboard.append([KeyboardButton("🗓 Вся неделя"), KeyboardButton("⚙️ Сменить группу")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-def build_schedule_keyboard(offset_days: int = 0) -> InlineKeyboardMarkup:
+def build_schedule_keyboard(offset_days: int = 0, group: str = DEFAULT_GROUP) -> InlineKeyboardMarkup:
     """Инлайн-кнопки под расписанием для мгновенного переключения дней на месте."""
     buttons = []
-    if WEB_APP_URL:
+    wa_url = get_webapp_url(group)
+    if wa_url:
         buttons.append([
-            InlineKeyboardButton("🚀 Открыть интерактивное приложение", web_app=WebAppInfo(url=WEB_APP_URL))
+            InlineKeyboardButton("🚀 Открыть интерактивное приложение", web_app=WebAppInfo(url=wa_url))
         ])
 
     nav_row = [
@@ -425,15 +441,16 @@ async def send_schedule_for_day(update: Update, context: ContextTypes.DEFAULT_TY
 
     day_name = DAY_MAP[target_weekday]
     text = format_day_schedule(group_name, day_name, target_date=target_date)
-    await send_or_edit(update, context, text, reply_markup=build_schedule_keyboard(offset_days))
+    await send_or_edit(update, context, text, reply_markup=build_schedule_keyboard(offset_days, group=group_name))
 
 
-def build_week_keyboard() -> InlineKeyboardMarkup:
+def build_week_keyboard(group: str = DEFAULT_GROUP) -> InlineKeyboardMarkup:
     """Инлайн-кнопки дней недели для быстрого переключения в одном сообщении."""
     buttons = []
-    if WEB_APP_URL:
+    wa_url = get_webapp_url(group)
+    if wa_url:
         buttons.append([
-            InlineKeyboardButton("🚀 Открыть приложение (Mini App)", web_app=WebAppInfo(url=WEB_APP_URL))
+            InlineKeyboardButton("🚀 Открыть приложение (Mini App)", web_app=WebAppInfo(url=wa_url))
         ])
 
     row1 = [
@@ -477,7 +494,7 @@ async def send_week_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"Нажмите на день недели ниже, чтобы сразу открыть его расписание прямо здесь:"
     )
 
-    await send_or_edit(update, context, text, reply_markup=build_week_keyboard())
+    await send_or_edit(update, context, text, reply_markup=build_week_keyboard(group=group_name))
 
 
 async def day_offset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
