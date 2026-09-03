@@ -1,1519 +1,1547 @@
-/**
- * Расписание Колледжа телекоммуникаций
- * Клиентский скрипт: логика расписания, Telegram WebApp, кэширование, перерывы и живые таймеры
- */
+/* ════════════════════════════════════════
+   COLLEGE SCHEDULE APP — app.js
+   Современный интерфейс: sidebar, day-strip,
+   live-card, плиточный выбор групп,
+   интерактивный список преподавателей и аудиторий
+════════════════════════════════════════ */
 
-// Инициализация Telegram WebApp
-const tg = window.Telegram?.WebApp;
-if (tg) {
-  tg.ready();
-  tg.expand();
-  if (tg.colorScheme === 'light') {
-    document.documentElement.setAttribute('data-theme', 'light');
-  }
-}
+'use strict';
 
-// Константы дней недели
-const DAYS_ORDER = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
-const DAY_MAP = {
-  1: "Понедельник",
-  2: "Вторник",
-  3: "Среда",
-  4: "Четверг",
-  5: "Пятница",
-  6: "Суббота",
-  0: "Воскресенье"
+// ── THEME INITIALIZATION (Zero-flicker) ─
+const STORAGE_THEME = 'college_schedule_theme';
+(function() {
+  const saved = localStorage.getItem(STORAGE_THEME) || 'obsidian';
+  document.documentElement.setAttribute('data-theme', saved);
+})();
+
+// ── CONFIG ──────────────────────────────
+const API = '/api';
+const STORAGE_GROUP   = 'schedule_group_v2';
+const STORAGE_PARITY  = 'schedule_parity';
+const STORAGE_CACHE_PREFIX = 'schedule_cache_v2_';
+const AUTO_REFRESH_MS = 30_000;
+
+const DAYS = ['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
+const DAYS_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const DAYS_EN_ORDER = [1,2,3,4,5,6]; // Пн-Сб
+
+// ── STATE ───────────────────────────────
+const S = {
+  group:              null,
+  activeGid:          '',
+  parity:             localStorage.getItem(STORAGE_PARITY) || 'auto',
+  view:               'today',      // today | week | teacher | classroom
+  selectedDay:        null,         // 1-6 (Пн-Сб), null = сегодня
+  data:               null,
+  groupsList:         [],
+  teachersList:       [],
+  classroomsList:     [],
+  selectedTeacher:    null,
+  selectedClassroom:  null,
+  tabs:               [],
+  refreshTimer:       null,
 };
 
-// Звонки пар
-const BELL_TIMES = [
-  { num: 1, start: "08:00", end: "09:35", sMin: 8 * 60, eMin: 9 * 60 + 35, display: "08:00 - 09:35" },
-  { num: 2, start: "09:45", end: "11:20", sMin: 9 * 60 + 45, eMin: 11 * 60 + 20, display: "09:45 - 11:20" },
-  { num: 3, start: "11:50", end: "13:25", sMin: 11 * 60 + 50, eMin: 13 * 60 + 25, display: "11:50 - 13:25" },
-  { num: 4, start: "13:55", end: "15:30", sMin: 13 * 60 + 55, eMin: 15 * 60 + 30, display: "13:55 - 15:30" },
-  { num: 5, start: "15:40", end: "17:15", sMin: 15 * 60 + 40, eMin: 17 * 60 + 15, display: "15:40 - 17:15" },
-  { num: 6, start: "17:25", end: "19:00", sMin: 17 * 60 + 25, eMin: 19 * 60 + 0, display: "17:25 - 19:00" }
-];
+// ── DOM REFS ────────────────────────────
+const $ = id => document.getElementById(id);
 
-// Перемены между парами
-const BREAK_TIMES = [
-  {
-    afterPair: 1,
-    beforePair: 2,
-    start: "09:35",
-    end: "09:45",
-    duration: 10,
-    isBig: false,
-    title: "Перемена 10 мин",
-    icon: "",
-    sMin: 9 * 60 + 35,
-    eMin: 9 * 60 + 45
-  },
-  {
-    afterPair: 2,
-    beforePair: 3,
-    start: "11:20",
-    end: "11:50",
-    duration: 30,
-    isBig: true,
-    title: "Большая перемена 30 мин (Обед)",
-    icon: "",
-    sMin: 11 * 60 + 20,
-    eMin: 11 * 60 + 50
-  },
-  {
-    afterPair: 3,
-    beforePair: 4,
-    start: "13:25",
-    end: "13:55",
-    duration: 30,
-    isBig: true,
-    title: "Большая перемена 30 мин",
-    icon: "",
-    sMin: 13 * 60 + 25,
-    eMin: 13 * 60 + 55
-  },
-  {
-    afterPair: 4,
-    beforePair: 5,
-    start: "15:30",
-    end: "15:40",
-    duration: 10,
-    isBig: false,
-    title: "Перемена 10 мин",
-    icon: "",
-    sMin: 15 * 60 + 30,
-    eMin: 15 * 60 + 40
-  },
-  {
-    afterPair: 5,
-    beforePair: 6,
-    start: "17:15",
-    end: "17:25",
-    duration: 10,
-    isBig: false,
-    title: "Перемена 10 мин",
-    icon: "",
-    sMin: 17 * 60 + 15,
-    eMin: 17 * 60 + 25
-  }
-];
+const els = {
+  sidebar:              $('sidebar'),
+  sidebarOverlay:       $('sidebarOverlay'),
+  menuBtn:              $('menuBtn'),
+  sidebarGroupName:     $('sidebarGroupName'),
+  sidebarGroupAvatar:   $('sidebarGroupAvatar'),
+  sidebarTabList:       $('sidebarTabList'),
+  sidebarSyncStatus:    $('sidebarSyncStatus'),
+  sidebarUpdated:       $('sidebarUpdated'),
+  sidebarChangeGroup:   $('sidebarChangeGroup'),
+  sidebarRefresh:       $('sidebarRefresh'),
 
-// Состояние приложения
-const state = {
-  allGroups: [],
-  selectedGroup: localStorage.getItem('college_selected_group') || '',
-  favorites: JSON.parse(localStorage.getItem('college_favorites') || '[]'),
-  scheduleData: null,
-  activeView: 'today', // 'today', 'tomorrow', 'week', 'teacher', 'classroom'
-  parityMode: 'auto',  // 'auto', 'num', 'den', 'all'
-  currentParity: 'num', // 'num' (числитель) или 'den' (знаменатель)
-  weekNumber: 1,
-  hideEmpty: true,      // Показывать ТОЛЬКО те пары, которые реально идут в этот день
-  lastUpdated: '',
-  timestamp: 0,
-  teachers: [],
-  classrooms: [],
-  currentCourseFilter: 'all',
+  topbarGroupName:      $('topbarGroupName'),
+  topbarParity:         $('topbarParity'),
+
+  liveCard:             $('liveCard'),
+  liveCardIcon:         $('liveCardIcon'),
+  liveCardTitle:        $('liveCardTitle'),
+  liveCardSub:          $('liveCardSub'),
+  liveCardProgress:     $('liveCardProgress'),
+  liveCardCloseBtn:     $('liveCardCloseBtn'),
+  liveCardRestoreBtn:   $('liveCardRestoreBtn'),
+  liveRestoreIcon:      $('liveRestoreIcon'),
+  liveRestoreText:      $('liveRestoreText'),
+
+  topbarThemeBtn:       $('topbarThemeBtn'),
+  sidebarThemeBtn:      $('sidebarThemeBtn'),
+  themeModal:           $('themeModal'),
+  closeThemeModal:      $('closeThemeModal'),
+  themesGrid:           $('themesGrid'),
+
+  dayStrip:             $('dayStrip'),
+
+  parityBar:            $('parityBar'),
+
+  scheduleView:         $('scheduleView'),
+
+  // Преподаватели
+  teacherView:          $('teacherView'),
+  teacherSearchInput:   $('teacherSearchInput'),
+  teacherSearchBtn:     $('teacherSearchBtn'),
+  teacherSelectWrap:    $('teacherSelectWrap'),
+  teacherCountBadge:    $('teacherCountBadge'),
+  teachersGrid:         $('teachersGrid'),
+  teacherResult:        $('teacherResult'),
+
+  // Аудитории
+  classroomView:        $('classroomView'),
+  classroomSearchInput: $('classroomSearchInput'),
+  classroomSearchBtn:   $('classroomSearchBtn'),
+  classroomSelectWrap:  $('classroomSelectWrap'),
+  classroomCountBadge:  $('classroomCountBadge'),
+  classroomsGrid:       $('classroomsGrid'),
+  classroomResult:      $('classroomResult'),
+
+  // Модальные окна
+  groupModal:           $('groupModal'),
+  closeGroupModal:      $('closeGroupModal'),
+  groupSearchInput:     $('groupSearchInput'),
+  groupsGrid:           $('groupsGrid'),
+  courseChips:          $('courseChips'),
+
+  onboardModal:         $('onboardModal'),
+  onboardSearchInput:   $('onboardSearchInput'),
+  onboardGroupsGrid:    $('onboardGroupsGrid'),
+  onboardCourseChips:   $('onboardCourseChips'),
 };
 
-// Функция всплывающих уведомлений
-function showToast(text) {
-  const existing = document.querySelector('.toast-notification');
-  if (existing) existing.remove();
+// ════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════
+async function init() {
+  setupThemes();
+  setupSidebar();
+  setupParityBar();
+  setupSidebarNav();
+  setupSearchInputs();
+  buildDayStrip();
+  startLiveCardClock();
 
-  const toast = document.createElement('div');
-  toast.className = 'toast-notification';
-  toast.innerHTML = `<span class="toast-dot"></span><span>${escapeHtml(text)}</span>`;
-  document.body.appendChild(toast);
+  S.group = localStorage.getItem(STORAGE_GROUP);
 
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(20px)';
-    toast.style.transition = 'all 0.3s ease';
-    setTimeout(() => toast.remove(), 300);
-  }, 3500);
-}
-
-// Безопасное экранирование значения для вставки в JS-атрибут onclick
-function escapeAttr(text) {
-  if (!text) return '';
-  return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
-
-// Определение номера недели и чётности (числитель / знаменатель)
-function calculateAcademicParity(targetDate = new Date()) {
-  const year = targetDate.getMonth() >= 7 ? targetDate.getFullYear() : targetDate.getFullYear() - 1;
-  const septFirst = new Date(year, 8, 1); // 1 сентября
-  const septFirstDay = septFirst.getDay(); // 0-Вс, 1-Пн...
-  const septFirstMonday = new Date(septFirst);
-  septFirstMonday.setDate(septFirst.getDate() - ((septFirstDay + 6) % 7));
-
-  const diffTime = targetDate.getTime() - septFirstMonday.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  const weekNum = Math.max(1, Math.floor(diffDays / 7) + 1);
-  const isNumerator = (weekNum % 2 === 1);
-
-  return {
-    weekNum,
-    isNumerator,
-    parity: isNumerator ? 'num' : 'den',
-    parityName: isNumerator ? 'Числитель (I)' : 'Знаменатель (II)'
-  };
-}
-
-// Обновление плашки недели в интерфейсе
-function updateParityUI() {
-  const cur = calculateAcademicParity(new Date());
-  state.currentParity = cur.parity;
-  state.weekNumber = cur.weekNum;
-
-  const autoBtn = document.querySelector('.parity-btn[data-parity="auto"]');
-  if (autoBtn) {
-    autoBtn.textContent = `Авто (${cur.parity === 'num' ? 'I Числ.' : 'II Знам.'})`;
-    autoBtn.title = `Текущая ${cur.weekNum}-я неделя семестра: ${cur.parityName}`;
-  }
-
-  const weekBadge = document.getElementById('currentWeekHeaderBadge');
-  if (weekBadge) {
-    weekBadge.textContent = `${cur.weekNum}-я нед. • ${cur.parityName}`;
+  if (!S.group) {
+    await showOnboarding();
+  } else {
+    await loadSchedule();
+    startAutoRefresh();
   }
 }
 
-// ==========================================================================
-// API Запросы и Постоянная Авто-Синхронизация
-// ==========================================================================
+// ════════════════════════════════════════
+//  THEMES & SKINS
+// ════════════════════════════════════════
+const THEMES = [
+  {
+    id: 'obsidian',
+    name: 'Obsidian Night',
+    desc: 'Классика: глубокий графит, сапфировый свет и ночная тишина',
+    bg: '#0d0d18',
+    sidebar: '#111120',
+    card: '#151525',
+    accent: '#4f8ef7',
+    dot2: '#22c55e',
+    text: '#f0f0f8'
+  },
+  {
+    id: 'carbon',
+    name: 'Midnight Carbon',
+    desc: 'Стиль Linear / Apple Stealth: матовый карбон и ледяной акцент',
+    bg: '#09090b',
+    sidebar: '#0d0d10',
+    card: '#131317',
+    accent: '#38bdf8',
+    dot2: '#34d399',
+    text: '#f4f4f5'
+  },
+  {
+    id: 'tokyo',
+    name: 'Cyber Tokyo',
+    desc: 'Нео-Токио: ночной индиго, неоновая сакура и фиолетовый вайб',
+    bg: '#0c0f1d',
+    sidebar: '#0f1224',
+    card: '#14182e',
+    accent: '#f43f5e',
+    dot2: '#8b5cf6',
+    text: '#f8fafc'
+  },
+  {
+    id: 'forest',
+    name: 'Nord Forest',
+    desc: 'Скандинавия: хвойный бор, изумрудный мох и северное сияние',
+    bg: '#0a1211',
+    sidebar: '#0c1615',
+    card: '#111f1d',
+    accent: '#10b981',
+    dot2: '#34d399',
+    text: '#ecfdf5'
+  },
+  {
+    id: 'mocha',
+    name: 'Warm Mocha',
+    desc: 'Уютный крафт: тёплый эспрессо, карамель и мягкий янтарь',
+    bg: '#131110',
+    sidebar: '#171412',
+    card: '#1c1815',
+    accent: '#f59e0b',
+    dot2: '#d97706',
+    text: '#fef3c7'
+  },
+  {
+    id: 'terminal',
+    name: 'Amber CRT',
+    desc: 'Ретро-инженерия: винтажный янтарный дисплей и тёплое свечение',
+    bg: '#070707',
+    sidebar: '#0c0c0c',
+    card: '#111111',
+    accent: '#ffb000',
+    dot2: '#4ade80',
+    text: '#ffdf80'
+  },
+  {
+    id: 'light',
+    name: 'Nordic Light',
+    desc: 'Ультра-чистая бумага: благородный титан, кобальт и лёгкость',
+    bg: '#f4f5f9',
+    sidebar: '#ebedf4',
+    card: '#ffffff',
+    accent: '#2563eb',
+    dot2: '#16a34a',
+    text: '#0f172a'
+  }
+];
 
-async function fetchStatus() {
-  try {
-    const res = await fetch('/api/status');
-    if (!res.ok) return;
-    const data = await res.json();
-    state.lastUpdated = data.last_updated;
-    state.timestamp = data.timestamp || 0;
-    
-    document.getElementById('syncStatusText').textContent = 
-      `Автообновление активно • ${data.last_updated ? data.last_updated.split(' ')[1] : ''}`;
-    
-    if (data.subtitle) {
-      document.getElementById('semesterSubtitle').textContent = data.subtitle;
+function getStoredTheme() {
+  return localStorage.getItem(STORAGE_THEME) || 'obsidian';
+}
+
+function applyTheme(themeId) {
+  document.documentElement.setAttribute('data-theme', themeId);
+  localStorage.setItem(STORAGE_THEME, themeId);
+  renderThemesGrid();
+}
+
+function setupThemes() {
+  applyTheme(getStoredTheme());
+
+  els.topbarThemeBtn?.addEventListener('click', openThemeModal);
+  els.sidebarThemeBtn?.addEventListener('click', () => {
+    closeSidebar();
+    openThemeModal();
+  });
+  els.closeThemeModal?.addEventListener('click', closeThemeModal);
+  els.themeModal?.addEventListener('click', e => {
+    if (e.target === els.themeModal) closeThemeModal();
+  });
+}
+
+function openThemeModal() {
+  renderThemesGrid();
+  els.themeModal?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeThemeModal() {
+  els.themeModal?.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function renderThemesGrid() {
+  if (!els.themesGrid) return;
+  const curTheme = getStoredTheme();
+
+  els.themesGrid.innerHTML = THEMES.map(t => {
+    const isAct = (t.id === curTheme);
+    return `
+      <div class="theme-card${isAct ? ' active' : ''}" data-theme-id="${t.id}">
+        <div class="theme-preview-box" style="background:${t.bg}; border-color:${isAct ? t.accent : 'rgba(255,255,255,0.08)'}">
+          <div class="theme-preview-mini-sidebar" style="background:${t.sidebar}"></div>
+          <div class="theme-preview-mini-cards">
+            <div class="theme-preview-mini-card" style="background:${t.card}; border-color:${t.accent}40">
+              <div class="theme-preview-mini-dot" style="background:${t.accent}"></div>
+              <div class="theme-preview-mini-bar" style="background:${t.text}"></div>
+            </div>
+            <div class="theme-preview-mini-card" style="background:${t.card}">
+              <div class="theme-preview-mini-dot" style="background:${t.dot2}"></div>
+              <div class="theme-preview-mini-bar" style="background:${t.text}60"></div>
+            </div>
+          </div>
+        </div>
+        <div class="theme-card-info">
+          <div class="theme-card-header">
+            <span class="theme-card-title">${t.name}</span>
+            <span class="theme-card-badge">✓ Выбрано</span>
+          </div>
+          <div class="theme-card-desc">${t.desc}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  els.themesGrid.querySelectorAll('.theme-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const tid = card.dataset.themeId;
+      applyTheme(tid);
+    });
+  });
+}
+
+// ════════════════════════════════════════
+//  SIDEBAR
+// ════════════════════════════════════════
+function setupSidebar() {
+  els.menuBtn?.addEventListener('click', openSidebar);
+  els.sidebarOverlay?.addEventListener('click', closeSidebar);
+  els.sidebarChangeGroup?.addEventListener('click', () => { closeSidebar(); openGroupModal(); });
+  els.sidebarRefresh?.addEventListener('click', () => { closeSidebar(); loadSchedule(true); });
+
+  let startX = 0;
+  els.sidebar?.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
+  els.sidebar?.addEventListener('touchmove', e => {
+    if (e.touches[0].clientX - startX < -50) closeSidebar();
+  }, { passive: true });
+}
+
+function openSidebar() {
+  els.sidebar?.classList.add('open');
+  els.sidebarOverlay?.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSidebar() {
+  els.sidebar?.classList.remove('open');
+  els.sidebarOverlay?.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function updateSidebarGroupInfo() {
+  if (!S.group) return;
+  if (els.sidebarGroupName) els.sidebarGroupName.textContent = S.group;
+  if (els.sidebarGroupAvatar) els.sidebarGroupAvatar.textContent = S.group.slice(0, 2).toUpperCase();
+  if (els.topbarGroupName) els.topbarGroupName.textContent = S.group;
+}
+
+function isTestTab(tabName) {
+  if (!tabName) return false;
+  return /тест|test|draft|черновик|шаблон|temp|sample|^лист\s*\d*$/i.test(String(tabName).trim());
+}
+
+function buildSidebarTabs() {
+  if (!els.sidebarTabList) return;
+  els.sidebarTabList.innerHTML = '';
+  const cleanTabs = (S.tabs || []).filter(tab => !isTestTab(tab.name));
+  cleanTabs.forEach(tab => {
+    const btn = document.createElement('button');
+    const isActive = (tab.gid === S.activeGid) || (!S.activeGid && tab.is_active);
+    btn.className = 'sidebar-tab-btn' + (isActive ? ' active' : '');
+    btn.innerHTML = `<span class="sidebar-tab-dot"></span><span>${esc(tab.name)}</span>`;
+    btn.addEventListener('click', () => {
+      S.activeGid = tab.gid;
+      closeSidebar();
+      loadSchedule(true);
+      if (S.view === 'teacher') initTeachersView(true);
+      if (S.view === 'classroom') initClassroomsView(true);
+    });
+    els.sidebarTabList.appendChild(btn);
+  });
+}
+
+// ════════════════════════════════════════
+//  SIDEBAR NAV
+// ════════════════════════════════════════
+function setupSidebarNav() {
+  document.querySelectorAll('.sidebar-nav-item[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setView(btn.dataset.view);
+      closeSidebar();
+    });
+  });
+}
+
+function setView(view) {
+  S.view = view;
+  document.querySelectorAll('.sidebar-nav-item[data-view]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === view);
+  });
+  if (els.scheduleView) els.scheduleView.style.display = (view === 'today' || view === 'week') ? 'block' : 'none';
+  if (els.teacherView) els.teacherView.style.display = view === 'teacher' ? 'block' : 'none';
+  if (els.classroomView) els.classroomView.style.display = view === 'classroom' ? 'block' : 'none';
+  if (els.dayStrip?.parentElement) els.dayStrip.parentElement.style.display = (view === 'today') ? 'block' : 'none';
+  if (els.parityBar) els.parityBar.style.display = (view === 'today' || view === 'week') ? 'flex' : 'none';
+
+  if (view === 'today' || view === 'week') renderSchedule();
+  if (view === 'teacher') initTeachersView();
+  if (view === 'classroom') initClassroomsView();
+}
+
+// ════════════════════════════════════════
+//  PARITY BAR
+// ════════════════════════════════════════
+function setupParityBar() {
+  if (!els.parityBar) return;
+  els.parityBar.querySelectorAll('.parity-chip').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.parity === S.parity);
+    btn.addEventListener('click', () => {
+      S.parity = btn.dataset.parity;
+      localStorage.setItem(STORAGE_PARITY, S.parity);
+      els.parityBar.querySelectorAll('.parity-chip').forEach(b => b.classList.toggle('active', b.dataset.parity === S.parity));
+      updateTopbarParity();
+      renderSchedule();
+      updateLiveCard();
+    });
+  });
+  updateTopbarParity();
+}
+
+function updateTopbarParity() {
+  const labels = { auto: 'Авто', num: 'I Числ.', den: 'II Знам.', all: 'Обе' };
+  if (els.topbarParity) {
+    els.topbarParity.textContent = labels[S.parity] || '';
+  }
+}
+
+function getActiveParity() {
+  if (S.parity !== 'auto') return S.parity;
+  if (S.data?.week_info?.parity) {
+    return S.data.week_info.parity;
+  }
+  return 'num';
+}
+
+// ════════════════════════════════════════
+//  DAY STRIP
+// ════════════════════════════════════════
+function buildDayStrip() {
+  if (!els.dayStrip) return;
+  const today = new Date();
+  const todayDow = today.getDay(); // 0=вс
+
+  els.dayStrip.innerHTML = '';
+
+  const mondayOffset = todayDow === 0 ? -6 : 1 - todayDow;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+
+  DAYS_EN_ORDER.forEach(dow => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + (dow - 1));
+    const isToday = d.toDateString() === today.toDateString();
+    const isActive = S.selectedDay === null ? isToday : (S.selectedDay === dow);
+
+    let dayNum = String(d.getDate()).padStart(2, '0');
+    const dayName = DAYS[dow];
+    if (S.data?.day_dates && S.data.day_dates[dayName]) {
+      const parts = S.data.day_dates[dayName].split('.');
+      if (parts[0]) dayNum = parts[0];
     }
 
-    if (data.week_info) {
-      state.currentParity = data.week_info.parity;
-      state.weekNumber = data.week_info.week_number;
-    }
-    updateParityUI();
-  } catch (err) {
-    console.error('Ошибка получения статуса:', err);
-    showToast('Сетевая ошибка: сервер недоступен');
-  }
+    const chip = document.createElement('div');
+    chip.className = 'day-chip' + (isActive ? ' active' : '') + (isToday ? ' today-chip' : '');
+    chip.dataset.dow = dow;
+    chip.innerHTML = `<span class="day-chip-name">${DAYS_SHORT[dow]}</span><span class="day-chip-num">${dayNum}</span>`;
+    chip.addEventListener('click', () => selectDay(dow));
+    els.dayStrip.appendChild(chip);
+  });
+
+  const activeChip = els.dayStrip.querySelector('.day-chip.active');
+  if (activeChip) activeChip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 }
 
-// Постоянная проверка обновлений таблицы каждые 10 секунд
-async function checkLiveUpdates() {
-  try {
-    const res = await fetch('/api/status');
-    if (!res.ok) return;
-    const data = await res.json();
+function selectDay(dow) {
+  S.selectedDay = dow;
+  buildDayStrip();
+  renderSchedule();
+  updateLiveCard();
+}
 
-    const isDifferent = (state.lastUpdated && data.last_updated && data.last_updated !== state.lastUpdated) ||
-                        (state.timestamp && data.timestamp && data.timestamp !== state.timestamp);
+// ════════════════════════════════════════
+//  LIVE STATUS CARD
+// ════════════════════════════════════════
+const STORAGE_LIVE_HIDDEN = 'college_schedule_live_hidden';
 
-    if (isDifferent) {
-      console.log('Обнаружены свежие данные в Google Таблице. Обновляем...');
-      state.lastUpdated = data.last_updated;
-      state.timestamp = data.timestamp;
+const BELL = [
+  null,
+  { s: 8 * 60,      e: 9 * 60 + 35  },  // 08:00 - 09:35 (95 мин)
+  { s: 9 * 60 + 45, e: 11 * 60 + 20 }, // 09:45 - 11:20 (95 мин)
+  { s: 11 * 60 + 50,e: 13 * 60 + 25 }, // 11:50 - 13:25 (95 мин)
+  { s: 13 * 60 + 55,e: 15 * 60 + 30 }, // 13:55 - 15:30 (95 мин)
+  { s: 15 * 60 + 40,e: 17 * 60 + 15 }, // 15:40 - 17:15 (95 мин)
+  { s: 17 * 60 + 25,e: 19 * 60 + 0  },  // 17:25 - 19:00 (95 мин)
+];
 
-      document.getElementById('syncStatusText').textContent = 
-        `Автообновление активно • ${data.last_updated ? data.last_updated.split(' ')[1] : ''}`;
-      
-      showToast('Расписание автоматически синхронизировано с Google Таблицей!');
+const BREAKS = [
+  null,
+  { s: 9 * 60 + 35,  e: 9 * 60 + 45,  dur: 10, name: 'Маленькая перемена (10 мин)', time: '09:35 – 09:45' },
+  { s: 11 * 60 + 20, e: 11 * 60 + 50, dur: 30, name: 'Большая перемена (30 мин)',    time: '11:20 – 11:50' },
+  { s: 13 * 60 + 25, e: 13 * 60 + 55, dur: 30, name: 'Большая перемена (30 мин)',    time: '13:25 – 13:55' },
+  { s: 15 * 60 + 30, e: 15 * 60 + 40, dur: 10, name: 'Маленькая перемена (10 мин)', time: '15:30 – 15:40' },
+  { s: 17 * 60 + 15, e: 17 * 60 + 25, dur: 10, name: 'Маленькая перемена (10 мин)', time: '17:15 – 17:25' },
+];
 
-      if (state.selectedGroup) {
-        const sRes = await fetch(`/api/schedule?group=${encodeURIComponent(state.selectedGroup)}`);
-        if (sRes.ok) {
-          state.scheduleData = await sRes.json();
-          renderCurrentView();
-          updateLiveTracker();
+function fmtSec(totalSeconds) {
+  if (totalSeconds < 0) totalSeconds = 0;
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  if (m > 0) {
+    return `${m} мин ${String(s).padStart(2, '0')} сек`;
+  }
+  return `${s} сек`;
+}
+
+function fmtHoursSec(totalSeconds) {
+  if (totalSeconds < 0) totalSeconds = 0;
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  if (h > 0) {
+    return `${h} ч ${m} мин ${String(s).padStart(2, '0')} сек`;
+  }
+  if (m > 0) {
+    return `${m} мин ${String(s).padStart(2, '0')} сек`;
+  }
+  return `${s} сек`;
+}
+
+function setupLiveCardToggle() {
+  const isHidden = localStorage.getItem(STORAGE_LIVE_HIDDEN) === '1';
+  if (isHidden) {
+    if (els.liveCard) els.liveCard.style.display = 'none';
+    if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'flex';
+  } else {
+    if (els.liveCard) els.liveCard.style.display = 'flex';
+    if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'none';
+  }
+
+  els.liveCardCloseBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (els.liveCard) els.liveCard.style.display = 'none';
+    if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'flex';
+    localStorage.setItem(STORAGE_LIVE_HIDDEN, '1');
+  });
+
+  els.liveCardRestoreBtn?.addEventListener('click', () => {
+    if (els.liveCard) els.liveCard.style.display = 'flex';
+    if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'none';
+    localStorage.setItem(STORAGE_LIVE_HIDDEN, '0');
+  });
+}
+
+function updateActiveBreakDividers() {
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  document.querySelectorAll('.schedule-break-divider').forEach(div => {
+    const sMin = parseInt(div.dataset.sMin, 10);
+    const eMin = parseInt(div.dataset.eMin, 10);
+    if (!isNaN(sMin) && !isNaN(eMin)) {
+      const sSec = sMin * 60;
+      const eSec = eMin * 60;
+      const isActive = (nowSec >= sSec && nowSec < eSec);
+      div.classList.toggle('break-active-glow', isActive);
+      let badge = div.querySelector('.break-active-badge');
+      if (isActive) {
+        const leftSec = eSec - nowSec;
+        const text = `▶ Идёт сейчас (${fmtSec(leftSec)})`;
+        if (badge) {
+          badge.textContent = text;
+        } else {
+          const right = div.querySelector('.break-info-right');
+          if (right) {
+            badge = document.createElement('span');
+            badge.className = 'break-active-badge';
+            badge.textContent = text;
+            right.prepend(badge);
+          }
         }
+      } else if (badge) {
+        badge.remove();
       }
-    } else if (!state.lastUpdated && data.last_updated) {
-      state.lastUpdated = data.last_updated;
-      state.timestamp = data.timestamp;
     }
-  } catch (err) {
-    // игнорируем секундные ошибки сети, но если это долгая проблема, можно показать тост
-    if (!state.networkErrorLogged) {
-      console.warn('Проблема с подключением к серверу при автообновлении');
-      state.networkErrorLogged = true;
+  });
+}
+
+let _lastCalendarDate = new Date().toDateString();
+
+function checkMidnightRollover() {
+  const now = new Date();
+  const currentDateStr = now.toDateString();
+  if (_lastCalendarDate && currentDateStr !== _lastCalendarDate) {
+    console.log('🌙 Смена календарных суток (Midnight Rollover):', _lastCalendarDate, '->', currentDateStr);
+    _lastCalendarDate = currentDateStr;
+
+    // Автоматически переключаем и обновляем расписание на новый день
+    buildDayStrip();
+    if (S.selectedDay === null) {
+      if (S.view === 'today' || S.view === 'week') {
+        renderSchedule();
+      }
     }
+    updateLiveCard();
   }
 }
 
-async function fetchGroups() {
-  try {
-    const res = await fetch('/api/groups');
-    const data = await res.json();
-    state.allGroups = data.groups || [];
+function startLiveCardClock() {
+  setupLiveCardToggle();
+  updateLiveCard();
+  _liveCardInterval = setInterval(() => {
+    checkMidnightRollover();
+    updateLiveCard();
+    if (S.view === 'today') {
+      updateActiveBreakDividers();
+    }
+  }, 1000);
 
-    // Если группа не выбрана — выбираем первую популярную или первую из списка
-    if (!state.selectedGroup && state.allGroups.length > 0) {
-      const defaultGroup = state.allGroups.find(g => g.name === 'ИСП9-24А') || state.allGroups[0];
-      selectGroup(defaultGroup.name);
-    } else if (state.selectedGroup) {
-      loadScheduleForGroup(state.selectedGroup);
+  // Когда пользователь разблокирует экран утром / возвращается на вкладку
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      checkMidnightRollover();
+      updateLiveCard();
+      if (S.group) {
+        loadSchedule(false);
+      }
+    }
+  });
+}
+
+function getGroupDayPairs(dayName) {
+  if (!S.data || !S.data.days) return [];
+  const raw = S.data.days[dayName] || [];
+  const activeParity = getActiveParity();
+  const pairs = [];
+
+  raw.forEach(slot => {
+    if (slot.is_empty) return;
+    const pn = slot.pair_num;
+    let lesson = null;
+
+    if (slot.is_split) {
+      if (activeParity === 'num' && slot.numerator) {
+        lesson = slot.numerator;
+      } else if (activeParity === 'den' && slot.denominator) {
+        lesson = slot.denominator;
+      } else {
+        lesson = slot.numerator || slot.denominator;
+      }
+    } else {
+      lesson = slot.both || slot.numerator || slot.denominator;
     }
 
-    renderGroupsGrid();
-    renderQuickFavorites();
-  } catch (err) {
-    console.error('Ошибка загрузки групп:', err);
-    document.getElementById('scheduleContent').innerHTML = 
-      `<div style="text-align: center; color: #ef4444; padding: 30px;">
-        Ошибка загрузки данных с сервера. Проверьте подключение.
-      </div>`;
-  }
+    if (lesson && lesson.subject) {
+      pairs.push({
+        ...lesson,
+        pair_num: pn,
+        pair_number: pn,
+        start: slot.start,
+        end: slot.end,
+        time: slot.time
+      });
+    }
+  });
+
+  return pairs;
 }
 
-async function loadScheduleForGroup(groupName) {
-  state.selectedGroup = groupName;
-  localStorage.setItem('college_selected_group', groupName);
-
-  // Обновляем шапку
-  document.getElementById('currentGroupDisplay').textContent = groupName;
-  const groupObj = state.allGroups.find(g => g.name === groupName);
-  document.getElementById('currentCourseTag').textContent = groupObj ? groupObj.course : 'Группа';
-
-  updateFavButton();
-
-  document.getElementById('scheduleContent').innerHTML = 
-    `<div style="text-align: center; padding: 40px; color: var(--text-muted);">
-      Загрузка расписания для ${escapeHtml(groupName)}...
-    </div>`;
-
-  try {
-    const res = await fetch(`/api/schedule?group=${encodeURIComponent(groupName)}`);
-    if (!res.ok) throw new Error('Группа не найдена');
-    const data = await res.json();
-    state.scheduleData = data;
-    renderCurrentView();
-    updateLiveTracker();
-  } catch (err) {
-    console.error('Ошибка получения расписания:', err);
-    document.getElementById('scheduleContent').innerHTML = 
-      `<div style="text-align: center; color: #ef4444; padding: 30px;">
-        Не удалось загрузить расписание для группы ${groupName}
-      </div>`;
-  }
-}
-
-// ==========================================================================
-// Рендеринг интерфейса с точным числителем/знаменателем и переменами
-// ==========================================================================
-
-function renderCurrentView() {
-  if (!state.scheduleData) return;
-
-  const content = document.getElementById('scheduleContent');
-  const teacherView = document.getElementById('teacherView');
-  const classroomView = document.getElementById('classroomView');
-
-  // Скрываем/показываем нужные контейнеры
-  if (state.activeView === 'teacher') {
-    content.style.display = 'none';
-    teacherView.style.display = 'flex';
-    classroomView.style.display = 'none';
-    loadTeachersList();
+function updateLiveCard() {
+  if (!els.liveCard) return;
+  if (!S.data || !S.group) {
+    setLiveCard('free', '⏸', 'Выберите группу', 'Нажмите "Сменить группу"', 'Выберите группу');
     return;
   }
-  if (state.activeView === 'classroom') {
-    content.style.display = 'none';
-    teacherView.style.display = 'none';
-    classroomView.style.display = 'flex';
-    loadClassroomsList();
-    return;
-  }
-
-  content.style.display = 'flex';
-  teacherView.style.display = 'none';
-  classroomView.style.display = 'none';
 
   const now = new Date();
-  const todayIndex = now.getDay(); // 0 - Вс, 1 - Пн ... 6 - Сб
-  const todayName = DAY_MAP[todayIndex];
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  const todayDow = now.getDay();
 
-  let targetDayItems = [];
+  const dayName = DAYS[todayDow];
+  const pairs = getGroupDayPairs(dayName);
 
-  if (state.activeView === 'today') {
-    if (todayIndex === 0) {
-      // Воскресенье — показываем расписание на понедельник следующей недели
-      const monDate = new Date(now);
-      monDate.setDate(now.getDate() + 1);
-      targetDayItems.push({
-        dayName: "Понедельник",
-        isToday: false,
-        targetDate: monDate,
-        note: "Сегодня воскресенье • Показываем расписание на понедельник"
-      });
-    } else {
-      targetDayItems.push({
-        dayName: todayName,
-        isToday: true,
-        targetDate: now,
-        note: null
-      });
+  // 1. Проверяем текущие пары сегодня
+  if (pairs && pairs.length > 0) {
+    for (const p of pairs) {
+      const pn = p.pair_num;
+      if (!pn || pn < 1 || pn > 6) continue;
+      const bell = BELL[pn];
+      const bellStartSec = bell.s * 60;
+      const bellEndSec = bell.e * 60;
+
+      if (nowSec >= bellStartSec && nowSec < bellEndSec) {
+        const elapsedSec = nowSec - bellStartSec;
+        const totalLeftSec = bellEndSec - nowSec;
+        const totalPct = Math.min(100, Math.max(0, (elapsedSec / (bellEndSec - bellStartSec)) * 100));
+        const subj = p.subject ? esc(p.subject.slice(0, 45)) : '';
+
+        if (elapsedSec < 45 * 60) {
+          // Первые 45 минут: два времени (до 5-минутки и до конца всей пары)
+          const to5minSec = (45 * 60) - elapsedSec;
+          setLiveCard('going', '📖',
+            `Идёт ${pn} пара: ${subj}`,
+            `⏱ До 5-минутки: <b>${fmtSec(to5minSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
+            `<b>${pn} пара</b> • До 5-мин: <b>${fmtSec(to5minSec)}</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`
+          );
+        } else if (elapsedSec < 50 * 60) {
+          // Пятиминутка внутри пары (45-50 мин)
+          const fiveLeftSec = (50 * 60) - elapsedSec;
+          setLiveCard('break', '☕',
+            `Пятиминутка (${pn} пара): ${subj}`,
+            `Пятиминутный перерыв: <b>осталось ${fmtSec(fiveLeftSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
+            `☕ <b>5-минутка (${pn} пара)</b>: осталось <b>${fmtSec(fiveLeftSec)}</b> • Конец: <b>${fmtSec(totalLeftSec)}</b>`
+          );
+        } else {
+          // Вторая половина пары (после 5-минутки)
+          setLiveCard('going', '📖',
+            `Идёт ${pn} пара (2-я часть): ${subj}`,
+            `⏱ До конца пары: <b>${fmtSec(totalLeftSec)}</b> (до ${fmtTime(bell.e)})`,
+            `<b>${pn} пара (2-я часть)</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`
+          );
+        }
+
+        if (els.liveCardProgress) els.liveCardProgress.style.width = totalPct.toFixed(1) + '%';
+        return;
+      }
+
+      // Перемена между парами сегодня
+      if (pn < 6) {
+        const brk = BREAKS[pn];
+        if (brk) {
+          const brkStartSec = brk.s * 60;
+          const brkEndSec = brk.e * 60;
+          if (nowSec >= brkStartSec && nowSec < brkEndSec) {
+            const leftSec = brkEndSec - nowSec;
+            const pct = Math.min(100, Math.max(0, ((nowSec - brkStartSec) / (brk.dur * 60)) * 100));
+            setLiveCard('break', '☕',
+              `${brk.name} • до ${fmtTime(brk.e)}`,
+              `⏱ До начала ${pn + 1} пары осталось <b>${fmtSec(leftSec)}</b>`,
+              `☕ <b>${brk.name}</b>: осталось <b>${fmtSec(leftSec)}</b>`
+            );
+            if (els.liveCardProgress) els.liveCardProgress.style.width = pct.toFixed(1) + '%';
+            return;
+          }
+        }
+      }
     }
-  } else if (state.activeView === 'tomorrow') {
-    const tomorrowDate = new Date(now);
-    tomorrowDate.setDate(now.getDate() + 1);
-    const tomorrowIndex = tomorrowDate.getDay();
 
-    if (tomorrowIndex === 0) {
-      // Завтра воскресенье — покажем понедельник
-      const mondayDate = new Date(now);
-      mondayDate.setDate(now.getDate() + 2);
-      targetDayItems.push({
-        dayName: "Понедельник",
-        isToday: false,
-        targetDate: mondayDate,
-        note: "Завтра воскресенье • Показываем расписание на понедельник"
-      });
-    } else {
-      targetDayItems.push({
-        dayName: DAY_MAP[tomorrowIndex],
-        isToday: false,
-        targetDate: tomorrowDate,
-        note: null
-      });
-    }
-  } else {
-    // Вся неделя
-    for (const dName of DAYS_ORDER) {
-      targetDayItems.push({
-        dayName: dName,
-        isToday: (dName === todayName && todayIndex !== 0),
-        targetDate: now,
-        note: null
-      });
+    // 2. До начала первой пары сегодня (утром)
+    for (const p of pairs) {
+      const pn = p.pair_num;
+      if (!pn || pn < 1 || pn > 6) continue;
+      const bell = BELL[pn];
+      const bellStartSec = bell.s * 60;
+      if (nowSec < bellStartSec) {
+        const leftSec = bellStartSec - nowSec;
+        const subj = p.subject ? esc(p.subject.slice(0, 45)) : '';
+        setLiveCard('soon', '⏱',
+          `Скоро начало занятий • ${pn} пара в ${fmtTime(bell.s)}`,
+          `⏱ До ${pn} пары осталось <b>${fmtHoursSec(leftSec)}</b> • ${subj}`,
+          `⏱ До ${pn} пары: <b>${fmtHoursSec(leftSec)}</b>`
+        );
+        if (els.liveCardProgress) els.liveCardProgress.style.width = Math.max(0, 100 - (leftSec / 3600) * 100).toFixed(1) + '%';
+        return;
+      }
     }
   }
 
+  // 3. Пары на сегодня окончены (или сегодня выходной) -> Ищем следующий учебный день и считаем время!
+  for (let offset = 1; offset <= 7; offset++) {
+    const nextDow = (todayDow + offset) % 7;
+    const nextDayName = DAYS[nextDow];
+    const nextPairs = getGroupDayPairs(nextDayName);
+    if (nextPairs && nextPairs.length > 0) {
+      const firstPair = nextPairs[0];
+      const pn = firstPair.pair_num;
+      const bell = pn >= 1 && pn <= 6 ? BELL[pn] : null;
+      if (bell) {
+        const targetDate = new Date(now);
+        targetDate.setDate(now.getDate() + offset);
+        targetDate.setHours(Math.floor(bell.s / 60), bell.s % 60, 0, 0);
+
+        const diffSec = Math.floor((targetDate.getTime() - now.getTime()) / 1000);
+        if (diffSec > 0) {
+          let dayLabel = `завтра (${nextDayName})`;
+          if (offset === 2) dayLabel = `послезавтра (${nextDayName})`;
+          else if (offset > 2) dayLabel = `в ${nextDayName}`;
+
+          const subj = firstPair.subject ? esc(firstPair.subject.slice(0, 45)) : '';
+          const timeStr = fmtHoursSec(diffSec);
+
+          setLiveCard('soon', '⏱',
+            `Следующие пары — ${dayLabel}`,
+            `⏱ До ${pn} пары (${fmtTime(bell.s)}) осталось <b>${timeStr}</b> • ${subj}`,
+            `⏱ ${pn} пара ${dayLabel}: <b>${timeStr}</b>`
+          );
+          if (els.liveCardProgress) els.liveCardProgress.style.width = '0%';
+          return;
+        }
+      }
+    }
+  }
+
+  // 4. Если на неделю вперёд пар нет
+  setLiveCard('free', '🌙', 'Пары на сегодня окончены', 'Хорошего отдыха!', 'Пары окончены');
+}
+
+function setLiveCard(type, icon, title, sub, restoreText = '') {
+  if (!els.liveCard) return;
+  els.liveCard.className = 'live-card ' + type;
+  if (els.liveCardIcon) els.liveCardIcon.textContent = icon;
+  if (els.liveCardTitle) els.liveCardTitle.innerHTML = title;
+  if (els.liveCardSub) els.liveCardSub.innerHTML = sub;
+  if (type === 'free' && els.liveCardProgress) els.liveCardProgress.style.width = '0';
+  if (els.liveRestoreIcon) els.liveRestoreIcon.textContent = icon;
+  if (els.liveRestoreText) els.liveRestoreText.innerHTML = restoreText || title;
+}
+
+function fmtTime(min) {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+// ════════════════════════════════════════
+//  LOAD DATA
+// ════════════════════════════════════════
+async function loadSchedule(force = false) {
+  if (!S.group) return;
+
+  const cacheKey = STORAGE_CACHE_PREFIX + S.group + '_' + (S.activeGid || 'active');
+
+  // 1. ОФФЛАЙН-КЭШ: Мгновенно отображаем последнее расписание (0 мс)
+  if (!S.data) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        S.data = JSON.parse(cached);
+        updateSidebarGroupInfo();
+        buildDayStrip();
+        renderSchedule();
+        updateLiveCard();
+        updateSyncStatus(true, true); // (ok=true, isCached=true)
+      }
+    } catch (err) {
+      console.warn('Cache read error:', err);
+    }
+  }
+
+  // 2. СЕТЕВОЙ ЗАПРОС В ФОНЕ (Stale-While-Revalidate)
+  try {
+    const tabsRes = await fetch(`${API}/tabs`);
+    if (tabsRes.ok) {
+      const tabsData = await tabsRes.json();
+      S.tabs = (tabsData.tabs || []).filter(tab => !isTestTab(tab.name));
+      const activeExists = S.tabs.some(t => t.gid === S.activeGid);
+      if (!S.activeGid || S.activeGid === 'active' || !activeExists) {
+        const foundActive = S.tabs.find(t => t.is_active);
+        S.activeGid = foundActive ? foundActive.gid : (S.tabs[0]?.gid || tabsData.active_gid || '');
+      }
+    }
+
+    const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
+    const forceParam = force ? '&force=true' : '';
+    const url = `${API}/schedule?group=${encodeURIComponent(S.group)}${tabParam}${forceParam}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const freshData = await res.json();
+    S.data = freshData;
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(freshData));
+    } catch (err) {
+      console.warn('Cache write error:', err);
+    }
+
+    updateSidebarGroupInfo();
+    buildSidebarTabs();
+    buildDayStrip();
+    renderSchedule();
+    updateLiveCard();
+    updateSyncStatus(true, false);
+  } catch (e) {
+    console.error('loadSchedule error:', e);
+    const hasCachedData = Boolean(S.data);
+    updateSyncStatus(false, hasCachedData);
+    if (!hasCachedData && els.scheduleView) {
+      els.scheduleView.innerHTML = `<div class="empty-pairs-hint">⚠️ Не удалось загрузить расписание.<br>Проверьте соединение с интернетом.</div>`;
+    }
+  }
+}
+
+function updateSyncStatus(ok, isCached = false) {
+  if (!els.sidebarSyncStatus) return;
+  if (!ok) {
+    els.sidebarSyncStatus.textContent = isCached ? '● Офлайн-копия (нет связи)' : '● Нет связи';
+    els.sidebarSyncStatus.style.color = isCached ? 'var(--yellow)' : 'var(--red)';
+  } else if (isCached) {
+    els.sidebarSyncStatus.textContent = '● Загружено из памяти';
+    els.sidebarSyncStatus.style.color = 'var(--accent)';
+  } else {
+    els.sidebarSyncStatus.textContent = '● Синхронизировано';
+    els.sidebarSyncStatus.style.color = 'var(--green)';
+  }
+  if (S.data?.last_updated && els.sidebarUpdated) {
+    els.sidebarUpdated.textContent = 'Обновлено: ' + S.data.last_updated;
+  }
+}
+
+function startAutoRefresh() {
+  clearInterval(S.refreshTimer);
+  S.refreshTimer = setInterval(() => loadSchedule(), AUTO_REFRESH_MS);
+}
+
+// ════════════════════════════════════════
+//  RENDER SCHEDULE
+// ════════════════════════════════════════
+function renderSchedule() {
+  if (!els.scheduleView) return;
+  if (!S.data || !S.group) {
+    els.scheduleView.innerHTML = `<div class="empty-pairs-hint">Группа не выбрана</div>`;
+    return;
+  }
+
+  if (S.view === 'week') {
+    renderWeek();
+  } else {
+    renderDay();
+  }
+}
+
+function getActiveDow() {
+  if (S.selectedDay !== null) return S.selectedDay;
+  const dow = new Date().getDay();
+  return dow === 0 ? 1 : dow;
+}
+
+function renderDay() {
+  const dow = getActiveDow();
+  const dayName = DAYS[dow];
+  const html = renderDayPairs(dayName);
+  els.scheduleView.innerHTML = html || `<div class="empty-pairs-hint">На ${dayName.toLowerCase()} пар нет</div>`;
+}
+
+function renderWeek() {
+  let html = '';
+  DAYS_EN_ORDER.forEach(dow => {
+    const dayName = DAYS[dow];
+    const today = new Date().getDay();
+    const isToday = dow === today;
+    const d = getDayDate(dow);
+    let dateStr = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (S.data?.day_dates && S.data.day_dates[dayName]) {
+      dateStr = S.data.day_dates[dayName];
+    }
+    html += `<div class="week-day-header">
+      <span class="week-day-name">${dayName}</span>
+      <span class="week-day-date">${dateStr}</span>
+      ${isToday ? '<span class="week-day-today-tag">Сегодня</span>' : ''}
+    </div>`;
+    const dayHtml = renderDayPairs(dayName);
+    html += dayHtml || `<div class="empty-pairs-hint" style="padding:12px 0">Пар нет</div>`;
+  });
+  els.scheduleView.innerHTML = html;
+}
+
+function getDayDate(dow) {
+  const today = new Date();
+  const todayDow = today.getDay() || 7;
+  const diff = dow - todayDow;
+  const d = new Date(today);
+  d.setDate(today.getDate() + diff);
+  return d;
+}
+
+function renderDayPairs(dayName) {
+  if (!S.data || !S.data.days) return '';
+  const slots = S.data.days[dayName] || [];
+
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  const nowMin = Math.floor(nowSec / 60);
+  const isToday = (DAYS[now.getDay()] === dayName);
+
+  const activeParity = getActiveParity();
   let html = '';
 
-  for (const item of targetDayItems) {
-    const dayName = item.dayName;
-    const isToday = item.isToday;
-    const targetDate = item.targetDate;
-    const dayParityInfo = calculateAcademicParity(targetDate);
-    
-    // Эффективная четность: если 'auto', то берем реальную четность даты этого дня
-    const effectiveParity = (state.parityMode === 'auto') ? dayParityInfo.parity : state.parityMode;
-    const parityBadgeText = (effectiveParity === 'num') ? 'Числитель (I)' : (effectiveParity === 'den' ? 'Знаменатель (II)' : 'Все недели');
-    const parityBadgeClass = (effectiveParity === 'num') ? 'week-type-num' : (effectiveParity === 'den' ? 'week-type-den' : 'week-type-both');
+  const validSlots = [];
+  slots.forEach(slot => {
+    if (slot.is_empty) return;
+    const hasNum = slot.numerator && slot.numerator.subject;
+    const hasDen = slot.denominator && slot.denominator.subject;
+    const hasBoth = slot.both && slot.both.subject;
+    if (hasNum || hasDen || hasBoth) {
+      validSlots.push(slot);
+    }
+  });
 
-    const pairs = state.scheduleData.days[dayName] || [];
-    const dateStr = state.scheduleData.day_dates?.[dayName] || '';
+  validSlots.forEach((slot, idx) => {
+    const pn = slot.pair_num;
+    const bell = pn >= 1 && pn <= 6 ? BELL[pn] : null;
+    const bellStartSec = bell ? bell.s * 60 : 0;
+    const bellEndSec = bell ? bell.e * 60 : 0;
+    const isGoing = bell && isToday && nowSec >= bellStartSec && nowSec < bellEndSec;
 
-    // Подсчет актуальных пар на этот день
-    const activeLessons = pairs.filter(p => getActiveLessonForPair(p, effectiveParity) !== null);
+    // Разделитель перемены между парами
+    if (idx > 0) {
+      const prevPn = validSlots[idx - 1].pair_num;
+      if (prevPn >= 1 && prevPn < pn && prevPn < 6) {
+        const brk = BREAKS[prevPn];
+        if (brk) {
+          const brkStartSec = brk.s * 60;
+          const brkEndSec = brk.e * 60;
+          const isBreakActive = isToday && nowSec >= brkStartSec && nowSec < brkEndSec;
+          const leftSec = isBreakActive ? (brkEndSec - nowSec) : 0;
+          const glowClass = isBreakActive ? ' break-active-glow' : '';
+          const activeBadge = isBreakActive ? `<span class="break-active-badge">▶ Идёт сейчас (${fmtSec(leftSec)})</span>` : '';
 
-    // Подсчет замен и отмен на этот день
-    let replacementsCount = 0;
-    for (const p of pairs) {
-      const act = getActiveLessonForPair(p, effectiveParity);
-      if (act) {
-        if (act.lesson && (act.lesson.is_replacement || act.lesson.is_cancelled)) {
-          replacementsCount++;
-        } else if (act.isSplitAll) {
-          if (act.numerator && (act.numerator.is_replacement || act.numerator.is_cancelled)) replacementsCount++;
-          if (act.denominator && (act.denominator.is_replacement || act.denominator.is_cancelled)) replacementsCount++;
+          html += `<div class="schedule-break-divider${glowClass}" data-s-min="${brk.s}" data-e-min="${brk.e}">
+            <div class="break-info-left">
+              <span class="break-icon">☕</span>
+              <span class="break-name">${brk.name}</span>
+            </div>
+            <div class="break-info-right">
+              ${activeBadge}
+              <span class="break-time">${brk.time}</span>
+            </div>
+          </div>`;
         }
       }
     }
 
-    html += `
-      <div class="day-card ${isToday ? 'today' : ''}">
-        <div class="day-header">
-          <div class="day-name-wrapper">
-            <h3 class="day-name">${dayName}</h3>
-            ${dateStr ? `<span class="day-date-badge">${dateStr}</span>` : ''}
-            ${isToday ? `<span class="today-badge">СЕГОДНЯ</span>` : ''}
-            <span class="week-type-badge ${parityBadgeClass}" style="margin-left: 4px;">${parityBadgeText}</span>
-          </div>
-          <div class="day-pairs-count">
-            ${activeLessons.length} ${getNoun(activeLessons.length, 'пара', 'пары', 'пар')}
-          </div>
-        </div>
-
-        ${item.note ? `
-          <div style="padding: 8px 20px; background: rgba(99, 102, 241, 0.08); font-size: 0.82rem; color: var(--accent-primary); border-bottom: 1px solid var(--border-color);">
-            ${item.note}
-          </div>
-        ` : ''}
-
-        ${replacementsCount > 0 ? `
-          <div class="day-replacement-alert" style="margin: 12px 20px 0 20px;">
-            <span class="day-replacement-alert-icon">
-              <svg class="svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                <line x1="12" y1="9" x2="12" y2="13"></line>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-              </svg>
-            </span>
-            <div class="day-replacement-alert-text">
-              Внимание! На ${dayName} ${dateStr} действуют замены и отмены занятий.
-              <span class="day-replacement-alert-count">${replacementsCount} ${getNoun(replacementsCount, 'замена/отмена', 'замены/отмены', 'замен/отмен')}</span>
-            </div>
-          </div>
-        ` : ''}
-
-        <div class="pairs-list">
-          ${renderPairsListWithBreaks(pairs, isToday, effectiveParity)}
-        </div>
-      </div>
-    `;
-  }
-
-  content.innerHTML = html || `<div style="text-align: center; padding: 40px; color: var(--text-muted);">Нет занятий</div>`;
-}
-
-// Вспомогательная функция для склонения числительных
-function getNoun(number, one, two, five) {
-  let n = Math.abs(number);
-  n %= 100;
-  if (n >= 5 && n <= 20) return five;
-  n %= 10;
-  if (n === 1) return one;
-  if (n >= 2 && n <= 4) return two;
-  return five;
-}
-
-// Определение активного занятия для пары с учетом недели
-function getActiveLessonForPair(p, effectiveParity) {
-  if (!p || p.is_empty) return null;
-  if (p.both) {
-    return { lesson: p.both, label: 'Каждую неделю', badgeClass: 'week-type-both' };
-  }
-  if (effectiveParity === 'num') {
-    if (p.numerator) return { lesson: p.numerator, label: 'Числитель (I)', badgeClass: 'week-type-num' };
-    return null;
-  }
-  if (effectiveParity === 'den') {
-    if (p.denominator) return { lesson: p.denominator, label: 'Знаменатель (II)', badgeClass: 'week-type-den' };
-    return null;
-  }
-  // 'all' - если обе недели
-  if (p.numerator || p.denominator) {
-    return { isSplitAll: true, numerator: p.numerator, denominator: p.denominator };
-  }
-  return null;
-}
-
-// Рендеринг списка пар с разделителями перемен
-function renderPairsListWithBreaks(pairs, isToday, effectiveParity) {
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-
-  // Собираем список активных пар
-  const activePairsList = [];
-  for (const p of pairs) {
-    const active = getActiveLessonForPair(p, effectiveParity);
-    if (active) {
-      activePairsList.push({ pair: p, active: active });
-    }
-  }
-
-  // Если включен режим "Только пары на день" и пар нет
-  if (state.hideEmpty) {
-    if (activePairsList.length === 0) {
-      return `
-        <div class="empty-day-banner" style="padding: 35px; text-align: center; color: var(--text-muted);">
-          <div class="empty-day-icon" style="margin-bottom: 8px; color: var(--text-muted);">
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="16" y1="2" x2="16" y2="6"></line>
-              <line x1="8" y1="2" x2="8" y2="6"></line>
-              <line x1="3" y1="10" x2="21" y2="10"></line>
-            </svg>
-          </div>
-          <span style="font-weight: 600; font-size: 1.05rem;">В этот день занятий нет. Свободный день.</span>
-        </div>
-      `;
-    }
-
-    let rowsHtml = '';
-    let prevPairNum = null;
-    let prevPairEnd = null;
-
-    for (let i = 0; i < activePairsList.length; i++) {
-      const item = activePairsList[i];
-      const p = item.pair;
-      const active = item.active;
-      const bell = BELL_TIMES.find(b => b.num === p.pair_num) || { sMin: 0, eMin: 0, start: p.start, end: p.end, display: p.time };
-      const isCurrent = isToday && (nowMin >= bell.sMin && nowMin <= bell.eMin);
-
-      // Если это не первая пара — вставляем плашку перемены
-      if (prevPairNum !== null) {
-        rowsHtml += renderBreakRow(prevPairNum, p.pair_num, prevPairEnd, bell.start, isToday, nowMin);
-      }
-
-      // Отрисовка самой пары
-      if (active.isSplitAll) {
-        rowsHtml += renderSplitPairRow(p, active, isCurrent);
+    if (slot.is_split) {
+      const num = slot.numerator;
+      const den = slot.denominator;
+      if (activeParity === 'all') {
+        html += renderSplitCard(num, den, pn, bell, isGoing);
+      } else if (activeParity === 'num' && num && num.subject) {
+        html += renderSingleCard(num, pn, bell, isGoing);
+      } else if (activeParity === 'den' && den && den.subject) {
+        html += renderSingleCard(den, pn, bell, isGoing);
       } else {
-        rowsHtml += renderSinglePairRow(p, active.lesson, active.label, active.badgeClass, isCurrent);
+        html += renderSplitCard(num, den, pn, bell, isGoing);
       }
-
-      prevPairNum = p.pair_num;
-      prevPairEnd = bell.end;
-    }
-
-    return rowsHtml;
-  }
-
-  // Если режим "Все 6 слотов"
-  let rowsHtml = '';
-  for (let pairNum = 1; pairNum <= 6; pairNum++) {
-    const p = pairs.find(x => x.pair_num === pairNum) || { pair_num: pairNum, time: BELL_TIMES[pairNum - 1]?.display, is_empty: true };
-    const bell = BELL_TIMES.find(b => b.num === pairNum);
-    const isCurrent = isToday && bell && (nowMin >= bell.sMin && nowMin <= bell.eMin);
-    const active = getActiveLessonForPair(p, effectiveParity);
-
-    if (pairNum > 1) {
-      const prevBell = BELL_TIMES.find(b => b.num === pairNum - 1);
-      rowsHtml += renderBreakRow(pairNum - 1, pairNum, prevBell?.end, bell?.start, isToday, nowMin);
-    }
-
-    if (!active) {
-      rowsHtml += `
-        <div class="pair-item is-empty">
-          <div class="pair-time-col">
-            <span class="pair-number">Пара ${p.pair_num}</span>
-            <span class="pair-time-str">${p.time || bell?.display}</span>
-          </div>
-          <div class="pair-content-col">
-            <span class="empty-pair-text">— Окно (нет пары) —</span>
-          </div>
-        </div>
-      `;
-    } else if (active.isSplitAll) {
-      rowsHtml += renderSplitPairRow(p, active, isCurrent);
-    } else {
-      rowsHtml += renderSinglePairRow(p, active.lesson, active.label, active.badgeClass, isCurrent);
-    }
-  }
-
-  return rowsHtml;
-}
-
-// Отрисовка строки перемены между парами
-function renderBreakRow(afterPair, beforePair, startTime, endTime, isToday, nowMin) {
-  const breakDef = BREAK_TIMES.find(b => b.afterPair === afterPair && b.beforePair === beforePair);
-
-  let icon = "";
-  let title = "Перемена 10 мин";
-  let isBig = false;
-  let isWindow = false;
-  let sMin = 0;
-  let eMin = 0;
-  let durationStr = "10 мин";
-  let timeStr = `${startTime} - ${endTime}`;
-
-  if (breakDef) {
-    icon = breakDef.icon;
-    title = breakDef.title;
-    isBig = breakDef.isBig;
-    durationStr = `${breakDef.duration} мин`;
-    sMin = breakDef.sMin;
-    eMin = breakDef.eMin;
-    timeStr = `${breakDef.start} - ${breakDef.end}`;
-  } else {
-    // Длительное окно между парами (например, пропущена 2-я пара)
-    isWindow = true;
-    icon = "";
-    title = "Окно между парами (Свободное время)";
-    
-    // Рассчитаем длительность окна
-    const pPrev = BELL_TIMES.find(b => b.num === afterPair);
-    const pNext = BELL_TIMES.find(b => b.num === beforePair);
-    if (pPrev && pNext) {
-      sMin = pPrev.eMin;
-      eMin = pNext.sMin;
-      const diffMin = Math.max(0, eMin - sMin);
-      const hours = Math.floor(diffMin / 60);
-      const mins = diffMin % 60;
-      durationStr = hours > 0 ? `${hours} ч ${mins} мин` : `${mins} мин`;
-      timeStr = `${pPrev.end} - ${pNext.start}`;
-    }
-  }
-
-  const isActive = isToday && (nowMin >= sMin && nowMin < eMin);
-
-  return `
-    <div class="break-divider ${isBig ? 'is-big' : ''} ${isWindow ? 'is-window' : ''} ${isActive ? 'is-active' : ''}">
-      <div class="break-divider-left">
-        <span class="break-icon">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-        </span>
-        <span class="break-title">${title}</span>
-        <span class="break-duration-badge">${durationStr}</span>
-        ${isActive ? '<span class="status-dot" style="margin-left: 4px;" title="Идёт сейчас"></span>' : ''}
-      </div>
-      <div class="break-divider-time">
-        ${timeStr}
-      </div>
-    </div>
-  `;
-}
-
-// Отрисовка обычной пары с поддержкой замен, отмен и дистанта
-function renderSinglePairRow(pair, details, weekLabel, weekClass, isCurrent) {
-  const isRep = details.is_replacement;
-  const isCanc = details.is_cancelled;
-  const isDist = details.is_distant;
-  const repDate = details.date || '';
-  // Если предмет не указан — показываем fallback
-  const subjectText = details.subject || (isCanc ? 'Пара отменена' : (isRep ? 'Замена' : ''));
-
-  let itemExtraClass = '';
-  if (isCanc) itemExtraClass = 'is-cancelled';
-  else if (isRep) itemExtraClass = 'is-replacement';
-  else if (isDist) itemExtraClass = 'is-distant';
-
-  return `
-    <div class="pair-item ${itemExtraClass} ${isCurrent ? 'is-current' : ''}">
-      <div class="pair-time-col">
-        <span class="pair-number">Пара ${pair.pair_num}</span>
-        <span class="pair-time-str">${pair.time}</span>
-      </div>
-
-      <div class="pair-content-col">
-        ${isCanc || isRep || isDist ? `
-        <div class="pair-status-bar">
-          ${isCanc ? `<span class="badge-cancelled">ОТМЕНА ${repDate ? `[${escapeHtml(repDate)}]` : ''}</span>` : ''}
-          ${isRep ? `<span class="badge-replacement">ЗАМЕНА ${repDate ? `[${escapeHtml(repDate)}]` : ''}</span>` : ''}
-          ${isDist ? `<span class="badge-distant">ДИСТАНТ</span>` : ''}
-          <span class="week-type-badge ${weekClass}" style="margin-left: auto;">${weekLabel}</span>
-        </div>
-        ` : `
-        <div class="pair-status-bar" style="justify-content: flex-end;">
-          <span class="week-type-badge ${weekClass}">${weekLabel}</span>
-        </div>
-        `}
-
-        <div class="pair-subject">
-          ${details.code ? `<span class="subject-code-tag">${escapeHtml(details.code)}</span>` : ''}
-          <span class="subject-name ${isCanc ? 'text-cancelled' : ''}">${escapeHtml(subjectText)}</span>
-        </div>
-
-        <div class="pair-chips">
-          ${details.teacher ? `
-            <span class="meta-chip meta-chip-teacher" onclick="searchTeacher('${escapeAttr(details.teacher)}')" title="Расписание преподавателя">
-              Преподаватель: ${escapeHtml(details.teacher)}
-            </span>
-          ` : ''}
-          ${isCanc ? '' : (details.classroom ? `
-            <span class="meta-chip meta-chip-room" onclick="searchClassroom('${escapeAttr(details.classroom)}')" title="Занятость аудитории">
-              ${details.classroom.toLowerCase().includes('дистант') ? 'Дистант' : 'Ауд.'} ${escapeHtml(details.classroom)}
-            </span>
-          ` : '')}
-        </div>
-
-        ${isRep && details.cancelled_subject ? `
-          <div class="replacement-card">
-            <span class="replacement-label">Было:</span>
-            <span class="replacement-old">${details.cancelled_code ? `[${escapeHtml(details.cancelled_code)}] ` : ''}${escapeHtml(details.cancelled_subject)}${details.cancelled_teacher ? ` (${escapeHtml(details.cancelled_teacher)})` : ''}</span>
-          </div>
-        ` : ''}
-      </div>
-    </div>
-  `;
-}
-
-function renderSplitPairRow(pair, active, isCurrent) {
-  return `
-    <div class="pair-item split-parent ${isCurrent ? 'is-current' : ''}">
-      <div class="pair-time-col">
-        <span class="pair-number">Пара ${pair.pair_num}</span>
-        <span class="pair-time-str">${pair.time}</span>
-      </div>
-      <div class="pair-content-col">
-        <div class="split-pair-container">
-          ${active.numerator ? renderSplitSubRow(active.numerator, 'I Числ.', 'week-type-num') : '<div class="split-sub-card empty-sub"><span class="week-type-badge week-type-num">I Числ.</span><span class="empty-pair-text" style="margin-left: 8px;">Нет пары</span></div>'}
-          ${active.denominator ? renderSplitSubRow(active.denominator, 'II Знам.', 'week-type-den') : '<div class="split-sub-card empty-sub"><span class="week-type-badge week-type-den">II Знам.</span><span class="empty-pair-text" style="margin-left: 8px;">Нет пары</span></div>'}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderSplitSubRow(item, label, labelClass) {
-  const isRep = item.is_replacement;
-  const isCanc = item.is_cancelled;
-  const isDist = item.is_distant;
-  const repDate = item.date || '';
-  // Если предмет не указан — показываем fallback
-  const subjectText = item.subject || (isCanc ? 'Пара отменена' : (isRep ? 'Замена' : ''));
-
-  return `
-    <div class="split-row ${isCanc ? 'is-cancelled' : ''} ${isRep ? 'is-replacement' : ''}">
-      <div style="flex: 1;">
-        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 3px;">
-          <span class="week-type-badge ${labelClass}">${label}</span>
-          ${isCanc ? `<span class="badge-cancelled">ОТМЕНА ${repDate ? `[${escapeHtml(repDate)}]` : ''}</span>` : ''}
-          ${isRep ? `<span class="badge-replacement">ЗАМЕНА ${repDate ? `[${escapeHtml(repDate)}]` : ''}</span>` : ''}
-          ${isDist ? `<span class="badge-distant">ДИСТАНТ</span>` : ''}
-          ${item.code ? `<span class="subject-code-tag">${escapeHtml(item.code)}</span>` : ''}
-          <span class="subject-name ${isCanc ? 'text-cancelled' : ''}">${escapeHtml(subjectText)}</span>
-        </div>
-        ${isRep && item.cancelled_subject ? `
-          <div class="replacement-origin" style="margin-top: 2px;">
-            Было: <s>${item.cancelled_code ? `[${escapeHtml(item.cancelled_code)}] ` : ''}${escapeHtml(item.cancelled_subject)}${item.cancelled_teacher ? ` (${escapeHtml(item.cancelled_teacher)})` : ''}</s>
-          </div>
-        ` : ''}
-        ${isCanc ? `
-          <div class="cancelled-notice" style="margin-top: 2px;">Пара отменена</div>
-        ` : ''}
-        ${item.teacher ? `<span class="teacher-tag" onclick="searchTeacher('${escapeAttr(item.teacher)}')">Преподаватель: ${escapeHtml(item.teacher)}</span>` : ''}
-      </div>
-      ${isCanc ? '' : (item.classroom ? `<span class="classroom-badge" onclick="searchClassroom('${escapeAttr(item.classroom)}')">Ауд. ${escapeHtml(item.classroom)}</span>` : '')}
-    </div>
-  `;
-}
-
-// ==========================================================================
-// Живой трекер текущей пары и перемен (Live Status)
-// ==========================================================================
-
-function updateLiveTracker() {
-  const container = document.getElementById('liveLessonContainer');
-  if (!container || !state.scheduleData) return;
-
-  const now = new Date();
-  const todayIndex = now.getDay();
-
-  if (todayIndex === 0) {
-    container.innerHTML = `
-      <div class="live-lesson-card" style="border-color: var(--border-color);">
-        <div class="live-left">
-          <span class="live-badge" style="background: var(--accent-primary);">Выходной</span>
-          <div>
-            <div class="live-text">Сегодня воскресенье — занятий нет.</div>
-            <div class="live-timer">Отличного отдыха перед новой учебной неделей!</div>
-          </div>
-        </div>
-      </div>
-    `;
-    return;
-  }
-
-  const todayName = DAY_MAP[todayIndex];
-  const pairs = state.scheduleData.days[todayName] || [];
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const effectiveParity = state.parityMode === 'auto' ? state.currentParity : state.parityMode;
-
-  const activeToday = [];
-  for (const b of BELL_TIMES) {
-    const pData = pairs.find(p => p.pair_num === b.num);
-    let item = null;
-    if (pData) {
-      if (pData.both) {
-        item = pData.both;
-      } else if (effectiveParity === 'num') {
-        item = pData.numerator;
-      } else if (effectiveParity === 'den') {
-        item = pData.denominator;
-      } else {
-        // 'all' — берём числитель если есть, иначе знаменатель
-        item = pData.numerator || pData.denominator;
-      }
-    }
-    if (item && (item.subject || item.is_cancelled)) {
-      activeToday.push({ bell: b, item: item, pair_num: b.num });
-    }
-  }
-
-  if (activeToday.length === 0) {
-    container.innerHTML = `
-      <div class="live-lesson-card" style="border-color: var(--border-color);">
-        <div class="live-left">
-          <span class="live-badge" style="background: var(--text-muted);">Свободный день</span>
-          <div>
-            <div class="live-text">На сегодня у группы ${escapeHtml(state.selectedGroup)} нет пар!</div>
-          </div>
-        </div>
-      </div>
-    `;
-    return;
-  }
-
-  let currentLesson = null;
-  for (const act of activeToday) {
-    if (nowMin >= act.bell.sMin && nowMin <= act.bell.eMin) {
-      currentLesson = act;
-      break;
-    }
-  }
-
-  if (currentLesson) {
-    const leftMin = currentLesson.bell.eMin - nowMin;
-    const totalDuration = currentLesson.bell.eMin - currentLesson.bell.sMin;
-    const elapsed = nowMin - currentLesson.bell.sMin;
-    const percent = Math.min(100, Math.max(0, Math.round((elapsed / totalDuration) * 100)));
-
-    if (currentLesson.item.is_cancelled) {
-
-      container.innerHTML = `
-        <div class="live-lesson-card" style="border-left: 4px solid #ef4444; background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(30, 41, 59, 0.8) 100%);">
-          <div style="width: 100%;">
-            <div class="live-left" style="justify-content: space-between;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span class="live-badge" style="background: #ef4444;">ОТМЕНА ПАРЫ</span>
-                <span class="live-text" style="text-decoration: line-through; opacity: 0.85;">
-                  ${escapeHtml(currentLesson.item.subject || 'Пара отменена')}
-                </span>
-              </div>
-              <div class="live-timer" style="font-weight: 700; color: #ef4444;">
-                Свободное время: <b>${leftMin} мин</b> (до ${currentLesson.bell.end})
-              </div>
-            </div>
-            <div style="font-size: 0.82rem; color: #f87171; margin-top: 4px;">
-              Занятие отменено колледжем. Аудитория свободна.
-            </div>
-          </div>
-        </div>
-      `;
       return;
     }
 
-    const badgeText = currentLesson.item.is_replacement ? `ЗАМЕНА • ${currentLesson.pair_num} ПАРА` : `ИДЁТ ${currentLesson.pair_num} ПАРА`;
-    const badgeBg = currentLesson.item.is_replacement ? 'background: #f59e0b;' : '';
+    const p = slot.both || slot.numerator || slot.denominator;
+    if (!p || !p.subject) return;
 
-    container.innerHTML = `
-      <div class="live-lesson-card" ${currentLesson.item.is_replacement ? 'style="border-left: 4px solid #f59e0b;"' : ''}>
-        <div style="width: 100%;">
-          <div class="live-left" style="justify-content: space-between;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span class="live-badge" ${badgeBg ? `style="${badgeBg}"` : ''}>${badgeText}</span>
-              <span class="live-text">
-                ${escapeHtml(currentLesson.item.subject)}
-                ${currentLesson.item.classroom ? `<b>[каб. ${currentLesson.item.classroom}]</b>` : ''}
-              </span>
-            </div>
-            <div class="live-timer" style="font-weight: 700; color: var(--success);">
-              До конца: <b>${leftMin} мин</b> (до ${currentLesson.bell.end})
-            </div>
-          </div>
-          ${currentLesson.item.cancelled_subject ? `
-            <div style="font-size: 0.8rem; color: #f87171; margin-top: 3px;">
-              Было: <s>${escapeHtml(currentLesson.item.cancelled_subject)}</s>
-            </div>
-          ` : ''}
-          ${currentLesson.item.teacher ? `
-            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">
-              Преподаватель: ${escapeHtml(currentLesson.item.teacher)}
-            </div>
-          ` : ''}
-          <div class="live-progress-container">
-            <div class="live-progress-bar" style="width: ${percent}%;"></div>
-          </div>
-        </div>
+    html += renderSingleCard(p, pn, bell, isGoing);
+  });
+
+  return html;
+}
+
+function renderSingleCard(p, pn, bell, isGoing) {
+  const cancelled = p.is_cancelled || (p.subject && /отмена/i.test(p.subject));
+  const replacement = p.is_replacement || (p.subject && /замена/i.test(p.subject));
+  const classroom = p.classroom || p.room || '';
+  const distant = p.is_distant || /дист/i.test(classroom);
+
+  const timeStr = bell ? `${fmtTime(bell.s)}–${fmtTime(bell.e)}` : (p.time || '');
+  const cardClass = ['pair-card',
+    isGoing ? 'going' : '',
+    cancelled ? 'cancelled' : '',
+    replacement ? 'replacement' : '',
+  ].filter(Boolean).join(' ');
+
+  const badges = [
+    isGoing    ? `<span class="pair-badge badge-going">▶ Идёт</span>` : '',
+    cancelled  ? `<span class="pair-badge badge-cancelled">Отмена</span>` : '',
+    replacement? `<span class="pair-badge badge-replacement">Замена</span>` : '',
+    distant    ? `<span class="pair-badge badge-distant">Дистант</span>` : '',
+  ].filter(Boolean).join('');
+
+  const teacher = p.teacher || '';
+  const teacherHtml = teacher
+    ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="openTeacher(this.dataset.teacher)">${esc(teacher)}</button>`
+    : '';
+  const roomHtml = classroom
+    ? `<button class="pair-room-btn" data-room="${esc(classroom)}" onclick="openRoom(this.dataset.room)">${esc(classroom)}</button>`
+    : '';
+
+  return `<div class="${cardClass}">
+    <div class="pair-num-col">
+      ${pn ? `<div class="pair-num">${pn}</div>` : ''}
+      <div class="pair-time-small">${timeStr ? timeStr.split('–')[0] : ''}</div>
+    </div>
+    <div class="pair-body">
+      <div class="pair-subject${cancelled ? ' cancelled-text' : ''}">${esc(p.subject || '')}</div>
+      <div class="pair-meta">
+        ${teacherHtml}${roomHtml}${badges}
       </div>
-    `;
-    return;
-  }
+    </div>
+    <div class="pair-time-right">
+      <div class="pair-time-display">${timeStr.includes('–') ? (timeStr.split('–')[1] || '') : (timeStr.split('-')[1] || '')}</div>
+    </div>
+  </div>`;
+}
 
-  // 2. Проверяем, идет ли сейчас перемена
-  let currentBreak = null;
-  let nextLesson = null;
+function renderSplitCard(num, den, pn, bell, isGoing) {
+  const timeStr = bell ? `${fmtTime(bell.s)}–${fmtTime(bell.e)}` : '';
 
-  for (const b of BREAK_TIMES) {
-    if (nowMin >= b.sMin && nowMin < b.eMin) {
-      // Идет перемена, проверим, есть ли следующая пара у студента
-      const nxt = activeToday.find(a => a.pair_num === b.beforePair || a.pair_num > b.afterPair);
-      if (nxt) {
-        currentBreak = b;
-        nextLesson = nxt;
-        break;
+  const mkRow = (p, type, label) => {
+    if (!p || !p.subject) return '';
+    const teacher = p.teacher || '';
+    const room = p.classroom || p.room || '';
+    const teacherHtml = teacher
+      ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="openTeacher(this.dataset.teacher)">${esc(teacher)}</button>`
+      : '';
+    const roomHtml = room
+      ? `<button class="pair-room-btn" data-room="${esc(room)}" onclick="openRoom(this.dataset.room)">${esc(room)}</button>`
+      : '';
+    return `<div class="split-row ${type}-row">
+      <div class="pair-num-col">
+        ${pn ? `<div class="pair-num">${pn}</div>` : ''}
+      </div>
+      <div class="pair-body">
+        <div class="split-label">${label}</div>
+        <div class="pair-subject">${esc(p.subject)}</div>
+        <div class="pair-meta">${teacherHtml}${roomHtml}</div>
+      </div>
+      <div class="pair-time-right"><div class="pair-time-display">${timeStr.split('–')[1] || ''}</div></div>
+    </div>`;
+  };
+
+  const numRow = mkRow(num, 'num', 'I Числ.');
+  const denRow = mkRow(den, 'den', 'II Знам.');
+
+  if (!numRow && !denRow) return '';
+  return `<div class="split-pair-wrap${isGoing ? ' going' : ''}">${numRow}${denRow}</div>`;
+}
+
+// ════════════════════════════════════════
+//  TEACHER & ROOM SELECTION & SEARCH
+// ════════════════════════════════════════
+window.openTeacher = function(name) {
+  setView('teacher');
+  selectTeacher(name);
+  closeSidebar();
+};
+
+window.openRoom = function(room) {
+  setView('classroom');
+  selectClassroom(room);
+  closeSidebar();
+};
+
+window.clearTeacherSelection = function() {
+  S.selectedTeacher = null;
+  if (els.teacherSearchInput) els.teacherSearchInput.value = '';
+  if (els.teacherResult) els.teacherResult.innerHTML = '';
+  renderTeachersList('');
+};
+
+window.clearClassroomSelection = function() {
+  S.selectedClassroom = null;
+  if (els.classroomSearchInput) els.classroomSearchInput.value = '';
+  if (els.classroomResult) els.classroomResult.innerHTML = '';
+  renderClassroomsList('');
+};
+
+async function initTeachersView(force = false) {
+  if (S.teachersList.length === 0 || force) {
+    try {
+      const tabParam = S.activeGid ? `?tab=${encodeURIComponent(S.activeGid)}` : '';
+      const res = await fetch(`${API}/teachers${tabParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        S.teachersList = data.teachers || [];
       }
+    } catch (e) {
+      console.error('Ошибка загрузки преподавателей:', e);
     }
   }
+  renderTeachersList(els.teacherSearchInput?.value || '');
+}
 
-  // Проверим также свободные окна между парами
-  if (!currentBreak) {
-    for (let i = 0; i < activeToday.length - 1; i++) {
-      const prevL = activeToday[i];
-      const nextL = activeToday[i + 1];
-      if (nowMin >= prevL.bell.eMin && nowMin < nextL.bell.sMin) {
-        currentBreak = {
-          title: "Перерыв между парами",
-          icon: "",
-          sMin: prevL.bell.eMin,
-          eMin: nextL.bell.sMin,
-          duration: nextL.bell.sMin - prevL.bell.eMin,
-          start: prevL.bell.end,
-          end: nextL.bell.start,
-        };
-        nextLesson = nextL;
-        break;
-      }
+function renderTeachersList(query = '') {
+  if (!els.teachersGrid) return;
+  const q = query.toLowerCase().trim();
+  const filtered = S.teachersList.filter(t => !q || t.toLowerCase().includes(q));
+
+  if (els.teacherCountBadge) {
+    els.teacherCountBadge.textContent = `${filtered.length} из ${S.teachersList.length}`;
+  }
+
+  if (filtered.length === 0) {
+    els.teachersGrid.innerHTML = `<div class="empty-pairs-hint" style="grid-column: 1/-1; padding: 16px 0;">Преподаватели не найдены</div>`;
+    return;
+  }
+
+  let html = '';
+  filtered.forEach(t => {
+    const isAct = (t === S.selectedTeacher);
+    html += `<button class="teacher-chip-btn${isAct ? ' active' : ''}" data-teacher="${esc(t)}">
+      <span class="teacher-chip-icon">👨‍🏫</span>
+      <span class="teacher-chip-name" title="${esc(t)}">${esc(t)}</span>
+    </button>`;
+  });
+
+  els.teachersGrid.innerHTML = html;
+
+  els.teachersGrid.querySelectorAll('.teacher-chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectTeacher(btn.dataset.teacher);
+    });
+  });
+}
+
+async function selectTeacher(teacherName) {
+  if (!teacherName) return;
+  S.selectedTeacher = teacherName;
+  if (els.teacherSearchInput) els.teacherSearchInput.value = teacherName;
+  renderTeachersList(teacherName);
+
+  if (!els.teacherResult) return;
+  els.teacherResult.innerHTML = '<div class="loading-placeholder"><div class="loading-spinner"></div><div>Загрузка расписания преподавателя...</div></div>';
+
+  try {
+    const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
+    const res = await fetch(`${API}/teacher-schedule?teacher=${encodeURIComponent(teacherName.trim())}${tabParam}`);
+    if (!res.ok) {
+      els.teacherResult.innerHTML = `<div class="empty-pairs-hint">Преподаватель "${esc(teacherName)}" не найден</div>`;
+      return;
     }
-  }
 
-  if (currentBreak && nextLesson) {
-    const leftMin = nextLesson.bell.sMin - nowMin;
-    const totalBreakMin = Math.max(1, currentBreak.eMin - currentBreak.sMin);
-    const elapsedBreak = Math.max(0, nowMin - currentBreak.sMin);
-    const percent = Math.min(100, Math.max(0, Math.round((elapsedBreak / totalBreakMin) * 100)));
+    const data = await res.json();
+    const byDay = data.days || {};
 
-    const nextIsRep = nextLesson.item.is_replacement;
-    const nextIsCanc = nextLesson.item.is_cancelled;
-    const nextStatusTag = nextIsCanc ? '<span class="badge-cancelled" style="margin-left: 4px;">ПАРА ОТМЕНЕНА</span>' : (nextIsRep ? '<span class="badge-replacement" style="margin-left: 4px;">ЗАМЕНА</span>' : '');
-
-    container.innerHTML = `
-      <div class="live-lesson-card" style="border-color: rgba(245, 158, 11, 0.6); background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%);">
-        <div style="width: 100%;">
-          <div class="live-left" style="justify-content: space-between;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span class="live-badge" style="background: var(--warning);">СЕЙЧАС ПЕРЕМЕНА</span>
-              <span class="live-text">
-                Следующая: Пара ${nextLesson.pair_num} (${nextLesson.bell.start}) — <b>${escapeHtml(nextLesson.item.subject)}</b>
-                ${nextStatusTag}
-              </span>
-            </div>
-            <div class="live-timer" style="font-weight: 700; color: var(--warning);">
-              До звонка: <b>${leftMin} мин</b>
-            </div>
-          </div>
-          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; display: flex; justify-content: space-between;">
-            <span>Кабинет: <b>${escapeHtml(nextLesson.item.classroom || (nextIsCanc ? 'Отменена' : 'Не указан'))}</b> ${nextLesson.item.teacher ? `• Преподаватель: ${escapeHtml(nextLesson.item.teacher)}` : ''}</span>
-            <span>Перемена: ${currentBreak.start} - ${currentBreak.end}</span>
-          </div>
-          <div class="live-progress-container">
-            <div class="live-progress-bar" style="width: ${percent}%; background: linear-gradient(90deg, #f59e0b, #6366f1);"></div>
-          </div>
+    let html = `
+      <div class="selected-target-banner">
+        <div class="selected-target-title">
+          <span>👨‍🏫 ${esc(teacherName)}</span>
         </div>
+        <button class="selected-target-clear-btn" onclick="clearTeacherSelection()">✕ Сбросить</button>
       </div>
     `;
-    return;
-  }
 
-  // 3. До начала первой пары дня
-  const firstLesson = activeToday[0];
-  if (nowMin < firstLesson.bell.sMin) {
-    const untilMin = firstLesson.bell.sMin - nowMin;
-    const hours = Math.floor(untilMin / 60);
-    const mins = untilMin % 60;
-    const timeUntilStr = hours > 0 ? `${hours} ч ${mins} мин` : `${mins} мин`;
-
-    const isRep = firstLesson.item.is_replacement;
-    const isCanc = firstLesson.item.is_cancelled;
-    const firstStatusBadge = isCanc ? '<span class="badge-cancelled" style="margin-left: 6px;">ОТМЕНА</span>' : (isRep ? '<span class="badge-replacement" style="margin-left: 6px;">ЗАМЕНА</span>' : '');
-
-    container.innerHTML = `
-      <div class="live-lesson-card" style="border-color: rgba(99, 102, 241, 0.5);">
-        <div class="live-left">
-          <span class="live-badge" style="background: var(--accent-primary);">СКОРО</span>
-          <div>
-            <div class="live-text">
-              1-я пара начнется в <b>${firstLesson.bell.start}</b>: <span class="${isCanc ? 'text-cancelled' : ''}">${escapeHtml(firstLesson.item.subject)}</span>
-              ${firstLesson.item.classroom ? `<b>[каб. ${escapeHtml(firstLesson.item.classroom)}]</b>` : ''}
-              ${firstStatusBadge}
+    let totalLessons = 0;
+    ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'].forEach(day => {
+      const rows = byDay[day];
+      if (!rows || rows.length === 0) return;
+      totalLessons += rows.length;
+      html += `<div class="week-day-header"><span class="week-day-name">${day}</span></div>`;
+      rows.forEach(r => {
+        const pn = r.pair_num || '?';
+        const timeStr = r.time || '';
+        const room = r.classroom || '';
+        html += `<div class="pair-card">
+          <div class="pair-num-col"><div class="pair-num">${pn}</div><div class="pair-time-small">${timeStr.split('-')[0] || ''}</div></div>
+          <div class="pair-body">
+            <div class="pair-subject">${esc(r.subject)}</div>
+            <div class="pair-meta">
+              <span class="pair-badge badge-going">${esc(r.group)}</span>
+              ${room ? `<button class="pair-room-btn" onclick="openRoom('${esc(room)}')">🚪 ${esc(room)}</button>` : ''}
+              ${r.week ? `<span class="pair-badge">${esc(r.week)}</span>` : ''}
             </div>
-            <div class="live-timer">До начала занятий: <b>${timeUntilStr}</b></div>
           </div>
-        </div>
-      </div>
-    `;
-    return;
-  }
+        </div>`;
+      });
+    });
 
-  // 4. Пары на сегодня закончились
-  const lastLesson = activeToday[activeToday.length - 1];
-  if (nowMin > lastLesson.bell.eMin) {
-    container.innerHTML = `
-      <div class="live-lesson-card" style="border-color: var(--border-color);">
-        <div class="live-left">
-          <span class="live-badge" style="background: var(--text-muted);">ЗАВЕРШЕНО</span>
-          <div>
-            <div class="live-text">Все учебные пары на сегодня окончены.</div>
-            <div class="live-timer">Отличного отдыха перед завтрашним днем.</div>
-          </div>
-        </div>
-      </div>
-    `;
+    if (totalLessons === 0) {
+      html += `<div class="empty-pairs-hint">Занятий на текущую неделю не найдено</div>`;
+    }
+
+    els.teacherResult.innerHTML = html;
+    els.teacherResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    els.teacherResult.innerHTML = `<div class="empty-pairs-hint">Ошибка поиска: ${esc(e.message)}</div>`;
   }
 }
 
-// Запускаем обновление таймера раз в 10 секунд
-setInterval(updateLiveTracker, 10000);
+async function initClassroomsView(force = false) {
+  if (S.classroomsList.length === 0 || force) {
+    try {
+      const tabParam = S.activeGid ? `?tab=${encodeURIComponent(S.activeGid)}` : '';
+      const res = await fetch(`${API}/classrooms${tabParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        S.classroomsList = data.classrooms || [];
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки аудиторий:', e);
+    }
+  }
+  renderClassroomsList(els.classroomSearchInput?.value || '');
+}
 
-// ==========================================================================
-// Модальное окно групп и поиск
-// ==========================================================================
+function renderClassroomsList(query = '') {
+  if (!els.classroomsGrid) return;
+  const q = query.toLowerCase().trim();
+  const filtered = S.classroomsList.filter(c => !q || c.toLowerCase().includes(q));
 
-function openGroupModal() {
-  document.getElementById('groupModal').classList.add('open');
-  document.getElementById('groupSearchInput').value = '';
-  document.getElementById('groupSearchInput').focus();
-  renderGroupsGrid();
-  if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+  if (els.classroomCountBadge) {
+    els.classroomCountBadge.textContent = `${filtered.length} из ${S.classroomsList.length}`;
+  }
+
+  if (filtered.length === 0) {
+    els.classroomsGrid.innerHTML = `<div class="empty-pairs-hint" style="grid-column: 1/-1; padding: 16px 0;">Аудитории не найдены</div>`;
+    return;
+  }
+
+  let html = '';
+  filtered.forEach(c => {
+    const isAct = (c === S.selectedClassroom);
+    html += `<button class="classroom-chip-btn${isAct ? ' active' : ''}" data-room="${esc(c)}">
+      ${esc(c)}
+    </button>`;
+  });
+
+  els.classroomsGrid.innerHTML = html;
+
+  els.classroomsGrid.querySelectorAll('.classroom-chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectClassroom(btn.dataset.room);
+    });
+  });
+}
+
+async function selectClassroom(roomName) {
+  if (!roomName) return;
+  S.selectedClassroom = roomName;
+  if (els.classroomSearchInput) els.classroomSearchInput.value = roomName;
+  renderClassroomsList(roomName);
+
+  if (!els.classroomResult) return;
+  els.classroomResult.innerHTML = '<div class="loading-placeholder"><div class="loading-spinner"></div><div>Загрузка занятости аудитории...</div></div>';
+
+  try {
+    const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
+    const res = await fetch(`${API}/classroom-schedule?room=${encodeURIComponent(roomName.trim())}${tabParam}`);
+    if (!res.ok) {
+      els.classroomResult.innerHTML = `<div class="empty-pairs-hint">Аудитория "${esc(roomName)}" не найдена</div>`;
+      return;
+    }
+
+    const data = await res.json();
+    const byDay = data.days || {};
+
+    let html = `
+      <div class="selected-target-banner">
+        <div class="selected-target-title">
+          <span>🚪 Аудитория ${esc(roomName)}</span>
+        </div>
+        <button class="selected-target-clear-btn" onclick="clearClassroomSelection()">✕ Сбросить</button>
+      </div>
+    `;
+
+    let totalLessons = 0;
+    ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'].forEach(day => {
+      const rows = byDay[day];
+      if (!rows || rows.length === 0) return;
+      totalLessons += rows.length;
+      html += `<div class="week-day-header"><span class="week-day-name">${day}</span></div>`;
+      rows.forEach(r => {
+        const pn = r.pair_num || '?';
+        const timeStr = r.time || '';
+        const teacher = r.teacher || '';
+        html += `<div class="pair-card">
+          <div class="pair-num-col"><div class="pair-num">${pn}</div><div class="pair-time-small">${timeStr.split('-')[0] || ''}</div></div>
+          <div class="pair-body">
+            <div class="pair-subject">${esc(r.subject)}</div>
+            <div class="pair-meta">
+              <span class="pair-badge badge-going">${esc(r.group)}</span>
+              ${teacher ? `<button class="pair-teacher-btn" onclick="openTeacher('${esc(teacher)}')">👨‍🏫 ${esc(teacher)}</button>` : ''}
+              ${r.week ? `<span class="pair-badge">${esc(r.week)}</span>` : ''}
+            </div>
+          </div>
+        </div>`;
+      });
+    });
+
+    if (totalLessons === 0) {
+      html += `<div class="empty-pairs-hint">Занятий в аудитории не найдено</div>`;
+    }
+
+    els.classroomResult.innerHTML = html;
+    els.classroomResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    els.classroomResult.innerHTML = `<div class="empty-pairs-hint">Ошибка поиска: ${esc(e.message)}</div>`;
+  }
+}
+
+function setupSearchInputs() {
+  // Живая фильтрация преподавателей при вводе
+  els.teacherSearchInput?.addEventListener('input', () => {
+    renderTeachersList(els.teacherSearchInput.value);
+  });
+  els.teacherSearchInput?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const q = els.teacherSearchInput.value.trim();
+      if (q) selectTeacher(q);
+    }
+  });
+  els.teacherSearchBtn?.addEventListener('click', () => {
+    const q = els.teacherSearchInput?.value.trim();
+    if (q) selectTeacher(q);
+  });
+
+  // Живая фильтрация аудиторий при вводе
+  els.classroomSearchInput?.addEventListener('input', () => {
+    renderClassroomsList(els.classroomSearchInput.value);
+  });
+  els.classroomSearchInput?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const q = els.classroomSearchInput.value.trim();
+      if (q) selectClassroom(q);
+    }
+  });
+  els.classroomSearchBtn?.addEventListener('click', () => {
+    const q = els.classroomSearchInput?.value.trim();
+    if (q) selectClassroom(q);
+  });
+}
+
+// ════════════════════════════════════════
+//  GROUP SELECTION (ПЛИТКИ / КВАДРАТИКИ)
+// ════════════════════════════════════════
+async function ensureGroupsLoaded() {
+  if (S.groupsList && S.groupsList.length > 0) return S.groupsList;
+  try {
+    const tabParam = S.activeGid ? `?tab=${encodeURIComponent(S.activeGid)}` : '';
+    const res = await fetch(`${API}/groups${tabParam}`);
+    if (res.ok) {
+      const data = await res.json();
+      S.groupsList = data.groups || [];
+    }
+  } catch (e) {
+    console.error('Ошибка загрузки списка групп:', e);
+  }
+  return S.groupsList || [];
+}
+
+async function openGroupModal() {
+  els.groupModal?.classList.add('open');
+  await ensureGroupsLoaded();
+  buildGroupGrid(els.groupsGrid, els.groupSearchInput, els.courseChips, (grp) => {
+    S.group = grp;
+    localStorage.setItem(STORAGE_GROUP, grp);
+    closeGroupModal();
+    updateSidebarGroupInfo();
+    loadSchedule(true);
+    startAutoRefresh();
+  });
 }
 
 function closeGroupModal() {
-  document.getElementById('groupModal').classList.remove('open');
+  els.groupModal?.classList.remove('open');
 }
 
-function selectGroup(groupName) {
-  state.selectedGroup = groupName;
-  closeGroupModal();
-  loadScheduleForGroup(groupName);
-  if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-}
+els.closeGroupModal?.addEventListener('click', closeGroupModal);
+els.groupModal?.addEventListener('click', e => { if (e.target === els.groupModal) closeGroupModal(); });
 
-function renderGroupsGrid() {
-  const container = document.getElementById('groupsGrid');
-  const search = document.getElementById('groupSearchInput').value.trim().toLowerCase();
-  const filter = state.currentCourseFilter;
-
-  const filtered = state.allGroups.filter(g => {
-    const matchesSearch = !search || g.name.toLowerCase().includes(search) || g.section.toLowerCase().includes(search);
-    const matchesCourse = (filter === 'all') || (g.course === filter);
-    return matchesSearch && matchesCourse;
+async function showOnboarding() {
+  await ensureGroupsLoaded();
+  els.onboardModal?.classList.add('open');
+  buildGroupGrid(els.onboardGroupsGrid, els.onboardSearchInput, els.onboardCourseChips, (grp) => {
+    S.group = grp;
+    localStorage.setItem(STORAGE_GROUP, grp);
+    els.onboardModal?.classList.remove('open');
+    updateSidebarGroupInfo();
+    loadSchedule(true);
+    startAutoRefresh();
   });
+}
 
-  if (filtered.length === 0) {
-    container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text-muted);">Группы не найдены</div>`;
+function buildGroupGrid(gridEl, searchEl, chipsEl, onSelect) {
+  if (!gridEl) return;
+  const groups = S.groupsList || [];
+
+  if (groups.length === 0) {
+    gridEl.innerHTML = '<div class="empty-pairs-hint">Загрузка групп...</div>';
     return;
   }
 
-  container.innerHTML = filtered.map(g => `
-    <div class="group-card-select ${g.name === state.selectedGroup ? 'selected' : ''}" onclick="selectGroup('${escapeAttr(g.name)}')">
-      <div class="group-card-name">${escapeHtml(g.name)}</div>
-      <div class="group-card-course">${escapeHtml(g.course)}</div>
-    </div>
-  `).join('');
-}
+  let activeFilter = 'all';
 
-// ==========================================================================
-// Избранные группы
-// ==========================================================================
-
-function toggleFavorite() {
-  if (!state.selectedGroup) return;
-  const idx = state.favorites.indexOf(state.selectedGroup);
-  if (idx >= 0) {
-    state.favorites.splice(idx, 1);
-  } else {
-    state.favorites.push(state.selectedGroup);
-  }
-  localStorage.setItem('college_favorites', JSON.stringify(state.favorites));
-  updateFavButton();
-  renderQuickFavorites();
-  if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-}
-
-function updateFavButton() {
-  const btn = document.getElementById('favToggleBtn');
-  const favText = document.getElementById('favBtnText');
-  const favIcon = btn ? btn.querySelector('.fav-icon') : null;
-  if (!btn || !state.selectedGroup) return;
-
-  const isFav = state.favorites.includes(state.selectedGroup);
-  if (favText) {
-    favText.textContent = isFav ? 'В избранном' : 'В избранное';
-  }
-  if (isFav) {
-    btn.classList.add('active');
-    btn.style.borderColor = 'var(--accent-primary)';
-    btn.style.color = 'var(--accent-primary)';
-    if (favIcon) favIcon.setAttribute('fill', 'currentColor');
-  } else {
-    btn.classList.remove('active');
-    btn.style.borderColor = '';
-    btn.style.color = '';
-    if (favIcon) favIcon.setAttribute('fill', 'none');
-  }
-}
-
-function renderQuickFavorites() {
-  const container = document.getElementById('quickFavorites');
-  if (!container) return;
-  if (state.favorites.length === 0) {
-    container.innerHTML = '';
-    return;
+  function detectCourse(gName) {
+    if (gName.includes('9-') || gName.startsWith('10-') || gName.includes('-26')) return '1 курс';
+    if (gName.includes('-25') || gName.includes('-24')) return '2 курс';
+    if (gName.includes('-23')) return '3 курс';
+    if (gName.includes('-22')) return '4 курс';
+    if (gName.toLowerCase().includes('оз') || gName.toLowerCase().includes('заоч')) return 'Очно-заочное';
+    return 'Другое';
   }
 
-  container.innerHTML = state.favorites.map(g => `
-    <span class="quick-fav-chip ${g === state.selectedGroup ? 'active' : ''}" onclick="selectGroup('${escapeAttr(g)}')">
-      ${escapeHtml(g)}
-    </span>
-  `).join('');
-}
+  function render(filter, query) {
+    const q = (query || '').toLowerCase().trim();
+    const filtered = groups.filter(item => {
+      const name = typeof item === 'string' ? item : item.name;
+      const course = (typeof item === 'object' && item.course) ? item.course : detectCourse(name);
+      const matchQ = !q || name.toLowerCase().includes(q);
+      const matchF = filter === 'all' || course === filter;
+      return matchQ && matchF;
+    });
 
-// ==========================================================================
-// Поиск преподавателей и аудиторий
-// ==========================================================================
+    const byCourse = {};
+    filtered.forEach(item => {
+      const name = typeof item === 'string' ? item : item.name;
+      const course = (typeof item === 'object' && item.course) ? item.course : detectCourse(name);
+      (byCourse[course] = byCourse[course] || []).push({ name, course });
+    });
 
-async function loadTeachersList(forceRefresh = false) {
-  if (!forceRefresh && state.teachers.length > 0) return;
-  try {
-    const res = await fetch('/api/teachers');
-    const data = await res.json();
-    state.teachers = data.teachers || [];
-    renderTeacherAutocomplete();
-  } catch (err) {
-    console.error('Ошибка загрузки преподавателей:', err);
-  }
-}
+    let html = '<div class="groups-container">';
+    const order = ['1 курс', '2 курс', '3 курс', '4 курс', 'Очно-заочное', 'Другое'];
+    let anyGroups = false;
 
-function renderTeacherAutocomplete() {
-  const input = document.getElementById('teacherSearchInput');
-  if (!input || !state.teachers.length) return;
-  // Инпут сам подсказывает из list
-  let dl = document.getElementById('teacherDatalist');
-  if (!dl) {
-    dl = document.createElement('datalist');
-    dl.id = 'teacherDatalist';
-    input.setAttribute('list', 'teacherDatalist');
-    input.parentNode.appendChild(dl);
-  }
-  dl.innerHTML = state.teachers.map(t => `<option value="${escapeAttr(t)}"></option>`).join('');
-}
+    order.forEach(course => {
+      const items = byCourse[course];
+      if (!items || items.length === 0) return;
+      anyGroups = true;
 
-async function loadClassroomsList(forceRefresh = false) {
-  if (!forceRefresh && state.classrooms.length > 0) return;
-  try {
-    const res = await fetch('/api/classrooms');
-    const data = await res.json();
-    state.classrooms = data.classrooms || [];
-    renderClassroomAutocomplete();
-  } catch (err) {
-    console.error('Ошибка загрузки аудиторий:', err);
-  }
-}
-
-function renderClassroomAutocomplete() {
-  const input = document.getElementById('classroomSearchInput');
-  if (!input || !state.classrooms.length) return;
-  let dl = document.getElementById('classroomDatalist');
-  if (!dl) {
-    dl = document.createElement('datalist');
-    dl.id = 'classroomDatalist';
-    input.setAttribute('list', 'classroomDatalist');
-    input.parentNode.appendChild(dl);
-  }
-  dl.innerHTML = state.classrooms.map(r => `<option value="${escapeAttr(r)}"></option>`).join('');
-}
-
-async function searchTeacher(teacherName) {
-  switchView('teacher');
-  document.getElementById('teacherSearchInput').value = teacherName;
-
-  const resultContainer = document.getElementById('teacherScheduleResult');
-  resultContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--text-muted);">Поиск...</div>`;
-
-  try {
-    const res = await fetch(`/api/teacher-schedule?teacher=${encodeURIComponent(teacherName)}`);
-    if (!res.ok) throw new Error('Преподаватель не найден');
-    const data = await res.json();
-
-    let html = '';
-    for (const d of DAYS_ORDER) {
-      const lessons = data.days[d] || [];
-      if (lessons.length === 0) continue;
-
-      html += `
-        <div class="day-card">
-          <div class="day-header">
-            <h4 class="day-name">${d}</h4>
-            <span class="day-pairs-count">${lessons.length} пар</span>
-          </div>
-          <div class="pairs-list">
-            ${lessons.map(l => `
-              <div class="pair-item">
-                <div class="pair-time-col">
-                  <span class="pair-number">Пара ${l.pair_num}</span>
-                  <span class="pair-time-str">${l.time}</span>
-                </div>
-                <div class="pair-content-col">
-                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                    ${l.is_replacement ? '<span class="badge-replacement">ЗАМЕНА</span>' : ''}
-                    <span class="subject-name">${escapeHtml(l.subject)}</span>
-                  </div>
-                  <div class="pair-meta">
-                    <span class="teacher-tag" onclick="selectGroup('${escapeAttr(l.group)}')">Группа: <b>${escapeHtml(l.group)}</b></span>
-                    <span class="week-type-badge week-type-both">${l.week}</span>
-                  </div>
-                </div>
-                <div class="pair-action-col">
-                  ${l.classroom ? `<span class="classroom-badge">Ауд. ${escapeHtml(l.classroom)}</span>` : ''}
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    }
-    resultContainer.innerHTML = html || `<div style="text-align: center; padding: 20px; color: var(--text-muted);">Пар не найдено</div>`;
-  } catch (err) {
-    resultContainer.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 20px;">Преподаватель не найден</div>`;
-  }
-}
-
-async function searchClassroom(roomName) {
-  switchView('classroom');
-  document.getElementById('classroomSearchInput').value = roomName;
-
-  const resultContainer = document.getElementById('classroomScheduleResult');
-  resultContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--text-muted);">Поиск...</div>`;
-
-  try {
-    const res = await fetch(`/api/classroom-schedule?room=${encodeURIComponent(roomName)}`);
-    if (!res.ok) throw new Error('Аудитория не найдена');
-    const data = await res.json();
-
-    let html = '';
-    for (const d of DAYS_ORDER) {
-      const lessons = data.days[d] || [];
-      if (lessons.length === 0) continue;
-
-      html += `
-        <div class="day-card">
-          <div class="day-header">
-            <h4 class="day-name">${d}</h4>
-            <span class="day-pairs-count">${lessons.length} занятий</span>
-          </div>
-          <div class="pairs-list">
-            ${lessons.map(l => `
-              <div class="pair-item ${l.is_replacement ? 'is-replacement' : ''}">
-                <div class="pair-time-col">
-                  <span class="pair-number">Пара ${l.pair_num}</span>
-                  <span class="pair-time-str">${l.time}</span>
-                </div>
-                <div class="pair-content-col">
-                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                    ${l.is_replacement ? '<span class="badge-replacement">ЗАМЕНА</span>' : ''}
-                    <span class="subject-name">${escapeHtml(l.subject)}</span>
-                  </div>
-                  <div class="pair-meta">
-                    <span class="teacher-tag" onclick="selectGroup('${escapeAttr(l.group)}')">Группа: <b>${escapeHtml(l.group)}</b></span>
-                    ${l.teacher ? `<span class="teacher-tag">Преподаватель: <b>${escapeHtml(l.teacher)}</b></span>` : ''}
-                  </div>
-                </div>
-                <div class="pair-action-col">
-                  <span class="week-type-badge week-type-both">${l.week}</span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    }
-    resultContainer.innerHTML = html || `<div style="text-align: center; padding: 20px; color: var(--text-muted);">Занятость не найдена</div>`;
-  } catch (err) {
-    resultContainer.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 20px;">Аудитория не найдена</div>`;
-  }
-}
-
-function switchView(viewName) {
-  state.activeView = viewName;
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === viewName);
-  });
-  document.querySelectorAll('.bottom-nav-item').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.nav === viewName);
-  });
-  renderCurrentView();
-  if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
-}
-
-// ==========================================================================
-// Утилиты
-// ==========================================================================
-
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// ==========================================================================
-// Привязка обработчиков событий
-// ==========================================================================
-
-document.addEventListener('DOMContentLoaded', () => {
-  updateParityUI();
-  fetchStatus();
-  fetchGroups();
-
-  // Кнопки смены группы
-  document.getElementById('openGroupModalBtn').addEventListener('click', openGroupModal);
-  document.getElementById('closeGroupModalBtn').addEventListener('click', closeGroupModal);
-  document.getElementById('groupModal').addEventListener('click', (e) => {
-    if (e.target.id === 'groupModal') closeGroupModal();
-  });
-
-  // Поиск в модалке
-  document.getElementById('groupSearchInput').addEventListener('input', renderGroupsGrid);
-
-  // Фильтр курсов в модалке
-  document.getElementById('courseFilterChips').addEventListener('click', (e) => {
-    const chip = e.target.closest('.filter-chip');
-    if (!chip) return;
-    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-    state.currentCourseFilter = chip.dataset.filter;
-    renderGroupsGrid();
-  });
-
-  // Вкладки расписания
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => switchView(btn.dataset.view));
-  });
-
-  // Мобильная нижняя навигация
-  document.querySelectorAll('.bottom-nav-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const nav = btn.dataset.nav;
-      if (nav === 'group') {
-        openGroupModal();
-      } else {
-        switchView(nav);
+      if (filter === 'all') {
+        html += `<div class="course-section-title">🎓 ${esc(course)} (${items.length})</div>`;
       }
+      html += '<div class="groups-tiles-grid">';
+      items.forEach(item => {
+        const isSel = (item.name === S.group);
+        html += `<button class="group-tile${isSel ? ' selected' : ''}" data-group="${esc(item.name)}">
+          <span class="group-tile-name">${esc(item.name)}</span>
+          <span class="group-tile-tag">${esc(item.course)}</span>
+        </button>`;
+      });
+      html += '</div>';
     });
-  });
 
-  // Переключатель числителя / знаменателя
-  document.getElementById('parityControls').addEventListener('click', (e) => {
-    const btn = e.target.closest('.parity-btn');
-    if (!btn) return;
-    document.querySelectorAll('.parity-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    state.parityMode = btn.dataset.parity;
-    renderCurrentView();
-    updateLiveTracker();
-  });
+    html += '</div>';
 
-  // Кнопка избранного
-  document.getElementById('favToggleBtn').addEventListener('click', toggleFavorite);
+    gridEl.innerHTML = anyGroups ? html : `<div class="empty-pairs-hint">Группы не найдены</div>`;
 
-  // Кнопка принудительного обновления
-  document.getElementById('refreshBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('refreshBtn');
-    btn.classList.add('is-refreshing');
-    try {
-      const res = await fetch('/api/refresh', { method: 'POST' });
-      const data = await res.json();
-      // Сбрасываем кэши преподавателей и аудиторий
-      state.teachers = [];
-      state.classrooms = [];
-      await fetchStatus();
-      if (state.selectedGroup) {
-        await loadScheduleForGroup(state.selectedGroup);
-      }
-      showToast('Расписание успешно обновлено из Google Sheets!');
-    } catch (err) {
-      showToast('Ошибка при обновлении — проверьте соединение');
-    } finally {
-      btn.classList.remove('is-refreshing');
-    }
-  });
-
-  // Функция обновления UI переключателя темы
-  function updateThemeUI(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('college_theme', theme);
-    const sunIcon = document.querySelector('.theme-sun-icon');
-    const moonIcon = document.querySelector('.theme-moon-icon');
-    const textSpan = document.getElementById('themeBtnText');
-    if (theme === 'dark') {
-      if (sunIcon) sunIcon.style.display = 'block';
-      if (moonIcon) moonIcon.style.display = 'none';
-      if (textSpan) textSpan.textContent = 'Светлая';
-    } else {
-      if (sunIcon) sunIcon.style.display = 'none';
-      if (moonIcon) moonIcon.style.display = 'block';
-      if (textSpan) textSpan.textContent = 'Тёмная';
-    }
-  }
-
-  const savedTheme = localStorage.getItem('college_theme') || 'dark';
-  updateThemeUI(savedTheme);
-
-  const themeBtn = document.getElementById('themeToggleBtn');
-  if (themeBtn) {
-    themeBtn.addEventListener('click', () => {
-      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      updateThemeUI(newTheme);
-      if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    gridEl.querySelectorAll('.group-tile').forEach(btn => {
+      btn.addEventListener('click', () => onSelect(btn.dataset.group));
     });
   }
 
-  // Поиск преподавателей — Enter + кнопка
-  const teacherInput = document.getElementById('teacherSearchInput');
-  teacherInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      const val = e.target.value.trim();
-      if (val) searchTeacher(val);
-    }
-  });
-  // Кнопка поиска преподавателя
-  const teacherSearchBtn = document.getElementById('teacherSearchBtn');
-  if (teacherSearchBtn) {
-    teacherSearchBtn.addEventListener('click', () => {
-      const val = teacherInput.value.trim();
-      if (val) searchTeacher(val);
+  if (chipsEl) {
+    chipsEl.querySelectorAll('.course-chip').forEach(chip => {
+      chip.classList.toggle('active', chip.dataset.filter === 'all');
+      chip.onclick = () => {
+        activeFilter = chip.dataset.filter;
+        chipsEl.querySelectorAll('.course-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === activeFilter));
+        render(activeFilter, searchEl?.value);
+      };
     });
   }
 
-  // Поиск аудиторий — Enter + кнопка
-  const classroomInput = document.getElementById('classroomSearchInput');
-  classroomInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      const val = e.target.value.trim();
-      if (val) searchClassroom(val);
-    }
-  });
-  // Кнопка поиска аудитории
-  const classroomSearchBtn = document.getElementById('classroomSearchBtn');
-  if (classroomSearchBtn) {
-    classroomSearchBtn.addEventListener('click', () => {
-      const val = classroomInput.value.trim();
-      if (val) searchClassroom(val);
-    });
+  if (searchEl) {
+    searchEl.value = '';
+    searchEl.oninput = () => render(activeFilter, searchEl.value);
   }
 
-  // Кнопка переключения "Только пары на день" / "Показать окна"
-  const togglePairsBtn = document.getElementById('toggleOnlyPairsBtn');
-  if (togglePairsBtn) {
-    togglePairsBtn.addEventListener('click', () => {
-      state.hideEmpty = !state.hideEmpty;
-      togglePairsBtn.classList.toggle('active', state.hideEmpty);
-      togglePairsBtn.textContent = state.hideEmpty ? 'Только пары на день' : 'Все 6 слотов с окнами';
-      renderCurrentView();
-      if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-    });
-  }
+  render('all', '');
+}
 
-  // Запуск постоянного автообновления данных (каждые 10 секунд опрос сервера)
-  setInterval(checkLiveUpdates, 10000);
+// ── UTILS ───────────────────────────────
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
-  // Мгновенная проверка при возврате пользователя на вкладку браузера
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      checkLiveUpdates();
-      updateLiveTracker();
-    }
-  });
-  window.addEventListener('focus', () => {
-    checkLiveUpdates();
-    updateLiveTracker();
-  });
-});
+document.addEventListener('DOMContentLoaded', init);

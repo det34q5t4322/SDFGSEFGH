@@ -15,7 +15,242 @@ DEFAULT_SHEET_URL = (
     "https://docs.google.com/spreadsheets/d/1RRrdDgLjqfFRYhjbxTdcJY_iNvP3ZEuu/export?format=csv"
 )
 CACHE_FILE = os.path.join(os.path.dirname(__file__), "schedule_cache.json")
+KNOWN_TABS_FILE = os.path.join(os.path.dirname(__file__), "known_tabs.json")
+TEACHERS_FIO_FILE = os.path.join(os.path.dirname(__file__), "teachers_fio.json")
 CACHE_TTL_SECONDS = 30  # Сверхбыстрое обновление для живой синхронизации (30 сек)
+
+
+def load_teachers_fio() -> Dict[str, str]:
+    """Загрузка словаря сопоставления инициалов преподавателей в полные ФИО."""
+    if not os.path.exists(TEACHERS_FIO_FILE):
+        return {}
+    try:
+        with open(TEACHERS_FIO_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.warning(f"Не удалось прочитать teachers_fio.json: {e}")
+        return {}
+
+
+def get_full_teacher_name(short_name: str) -> str:
+    """Возвращает полное ФИО преподавателя из справочника, если есть, иначе исходное имя."""
+    if not short_name:
+        return ""
+    clean = short_name.strip()
+    mapping = load_teachers_fio()
+    return mapping.get(clean, clean)
+
+
+def enrich_schedule_teachers(sheet_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Заменяет инициалы преподавателей на полные ФИО во всех парах и списках."""
+    mapping = load_teachers_fio()
+    if not mapping:
+        return sheet_data
+
+    # 1. Список преподавателей
+    teachers = sheet_data.get("teachers", [])
+    if teachers:
+        sheet_data["teachers"] = sorted(list({mapping.get(t, t) for t in teachers}))
+
+    # 2. Расписания преподавателей
+    if "teacher_schedules" in sheet_data:
+        new_ts = {}
+        for t, lessons in sheet_data["teacher_schedules"].items():
+            full = mapping.get(t, t)
+            for item in lessons:
+                if item.get("teacher") and item["teacher"] in mapping:
+                    item["teacher"] = mapping[item["teacher"]]
+            new_ts.setdefault(full, []).extend(lessons)
+        sheet_data["teacher_schedules"] = new_ts
+
+    # 3. Расписание по группам
+    for g_data in sheet_data.get("schedules", {}).values():
+        for pairs in g_data.get("days", {}).values():
+            for pair in pairs:
+                for side in ["both", "numerator", "denominator"]:
+                    item = pair.get(side)
+                    if item and item.get("teacher") and item["teacher"] in mapping:
+                        item["teacher"] = mapping[item["teacher"]]
+                    if item and item.get("cancelled_teacher") and item["cancelled_teacher"] in mapping:
+                        item["cancelled_teacher"] = mapping[item["cancelled_teacher"]]
+
+    return sheet_data
+
+
+# ─────────────────────────────────────────────
+#  Circuit Breaker — защита от шторма запросов
+# ─────────────────────────────────────────────
+class CircuitBreaker:
+    """Защищает от шторма запросов к Google когда он лежит.
+
+    Состояния:
+      CLOSED     — всё норм, запросы проходят.
+      OPEN       — слишком много ошибок, запросы блокируются на OPEN_TIMEOUT сек.
+      HALF_OPEN  — пауза прошла, пробуем один запрос.
+    """
+    FAILURE_THRESHOLD = 5       # ошибок подряд → OPEN
+    OPEN_TIMEOUT = 300          # сек в OPEN (5 минут)
+    SUCCESS_THRESHOLD = 2       # успехов в HALF_OPEN → CLOSED
+
+    def __init__(self):
+        self._failures = 0
+        self._successes = 0
+        self._state = "CLOSED"
+        self._opened_at: float = 0
+
+    @property
+    def state(self) -> str:
+        if self._state == "OPEN":
+            if time.time() - self._opened_at >= self.OPEN_TIMEOUT:
+                self._state = "HALF_OPEN"
+                self._successes = 0
+                logger.info("CircuitBreaker → HALF_OPEN: пробуем один запрос")
+        return self._state
+
+    def allow_request(self) -> bool:
+        return self.state in ("CLOSED", "HALF_OPEN")
+
+    def record_success(self):
+        self._failures = 0
+        if self._state == "HALF_OPEN":
+            self._successes += 1
+            if self._successes >= self.SUCCESS_THRESHOLD:
+                self._state = "CLOSED"
+                logger.info("CircuitBreaker → CLOSED: сервис восстановлен")
+        elif self._state == "OPEN":
+            self._state = "CLOSED"
+
+    def record_failure(self):
+        self._failures += 1
+        if self._state == "HALF_OPEN":
+            self._state = "OPEN"
+            self._opened_at = time.time()
+            logger.warning("CircuitBreaker → OPEN (повтор): сервис нестабилен, пауза 5 мин")
+        elif self._state == "CLOSED" and self._failures >= self.FAILURE_THRESHOLD:
+            self._state = "OPEN"
+            self._opened_at = time.time()
+            logger.warning(
+                f"CircuitBreaker → OPEN: {self._failures} ошибок подряд, "
+                f"запросы блокированы на {self.OPEN_TIMEOUT} сек"
+            )
+
+    def status_dict(self) -> dict:
+        return {
+            "state": self.state,
+            "failures": self._failures,
+            "open_since": datetime.fromtimestamp(self._opened_at).strftime("%H:%M:%S") if self._opened_at else None,
+        }
+
+
+# Глобальный circuit breaker (один на весь процесс)
+_circuit_breaker = CircuitBreaker()
+
+
+# ─────────────────────────────────────────────
+#  Retry с экспоненциальным backoff
+# ─────────────────────────────────────────────
+def fetch_with_retry(url: str, retries: int = 3, timeout: int = 20) -> bytes:
+    """Загружает URL с повторными попытками при сбое (backoff: 2с → 4с → 8с).
+    Уважает CircuitBreaker: если OPEN — сразу бросает исключение.
+    """
+    if not _circuit_breaker.allow_request():
+        raise RuntimeError(
+            f"CircuitBreaker OPEN — запросы к Google заблокированы "
+            f"(восстановление через ~{max(0, int(_circuit_breaker.OPEN_TIMEOUT - (time.time() - _circuit_breaker._opened_at)))} сек)"
+        )
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+    last_exc: Exception = RuntimeError("No attempts made")
+    for attempt in range(1, retries + 1):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+            _circuit_breaker.record_success()
+            if attempt > 1:
+                logger.info(f"Успех на попытке {attempt}: {url[:80]}")
+            return data
+        except Exception as exc:
+            last_exc = exc
+            wait = 2 ** attempt  # 2, 4, 8 сек
+            if attempt < retries:
+                logger.warning(f"Попытка {attempt}/{retries} не удалась ({exc}), повтор через {wait}с: {url[:80]}")
+                time.sleep(wait)
+            else:
+                logger.error(f"Все {retries} попытки исчерпаны: {url[:80]} — {exc}")
+
+    _circuit_breaker.record_failure()
+    raise last_exc
+
+
+# ─────────────────────────────────────────────
+#  Тестовые вкладки и known_tabs.json
+# ─────────────────────────────────────────────
+def is_test_tab(name: Optional[str]) -> bool:
+    """Проверка, является ли вкладка тестовой, служебной или черновиком."""
+    if not name:
+        return False
+    lower = str(name).strip().lower()
+    patterns = [
+        r"тест",
+        r"test",
+        r"draft",
+        r"черновик",
+        r"шаблон",
+        r"\btemp\b",
+        r"sample",
+        r"^лист\s*\d*$",
+        r"^sheet\s*\d*$",
+    ]
+    return any(re.search(p, lower) for p in patterns)
+
+
+def _load_known_tabs() -> List[Dict[str, Any]]:
+    """Читает все когда-либо найденные вкладки из known_tabs.json (исключая тестовые)."""
+    if not os.path.exists(KNOWN_TABS_FILE):
+        return []
+    try:
+        with open(KNOWN_TABS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        tabs = data.get("tabs", [])
+        clean_tabs = [t for t in tabs if not is_test_tab(t.get("name"))]
+        logger.info(f"known_tabs.json: загружено {len(clean_tabs)} известных вкладок")
+        return clean_tabs
+    except Exception as e:
+        logger.warning(f"Не удалось прочитать known_tabs.json: {e}")
+        return []
+
+
+def _save_known_tabs(new_tabs: List[Dict[str, Any]]) -> None:
+    """Добавляет новые вкладки в known_tabs.json (не дублирует по GID и не сохраняет тестовые)."""
+    existing = _load_known_tabs()
+    existing_gids = {t["gid"] for t in existing}
+    added = 0
+    for tab in new_tabs:
+        name = tab.get("name", "")
+        if is_test_tab(name):
+            continue
+        if tab["gid"] not in existing_gids:
+            existing.append({
+                "gid": tab["gid"],
+                "name": name,
+                "discovered_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            })
+            existing_gids.add(tab["gid"])
+            added += 1
+    if added:
+        try:
+            with open(KNOWN_TABS_FILE, "w", encoding="utf-8") as f:
+                json.dump({"tabs": existing, "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
+                          f, ensure_ascii=False, indent=2)
+            logger.info(f"known_tabs.json: добавлено {added} новых вкладок (всего {len(existing)})")
+        except Exception as e:
+            logger.warning(f"Не удалось сохранить known_tabs.json: {e}")
 
 BELL_TIMES = {
     1: {"start": "08:00", "end": "09:35", "display": "08:00 - 09:35", "s_min": 8 * 60, "e_min": 9 * 60 + 35},
@@ -176,7 +411,7 @@ def parse_lesson_entry(text: str) -> Tuple[str, str, str]:
     else:
         subject_name = subject_raw
 
-    return code, subject_name, teacher
+    return code, subject_name, get_full_teacher_name(teacher)
 
 
 def parse_schedule_cell(raw_text: str, aud: str = "") -> Optional[Dict[str, Any]]:
@@ -339,49 +574,407 @@ def parse_schedule_cell(raw_text: str, aud: str = "") -> Optional[Dict[str, Any]
         }
 
 
+def extract_spreadsheet_id(url_or_id: str) -> str:
+    """Извлечение ID таблицы из полного URL или строки."""
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url_or_id)
+    if m:
+        return m.group(1)
+    return url_or_id.strip()
+
+
+def check_parity_override(tab_name: str) -> Optional[bool]:
+    """Проверяет, указана ли четность недели прямо в названии вкладки."""
+    t_lower = tab_name.lower()
+    if "числитель" in t_lower:
+        return True
+    elif "знаменатель" in t_lower:
+        return False
+    return None
+
+
+# Fallback-вкладки — обновляй этот список каждую неделю!
+# Формат: {"name": "<название вкладки>", "gid": "<GID из URL Google Sheets>"}
+KNOWN_FALLBACK_SHEETS = [
+    {"name": "02.09-05.09 (Числитель -вверх)", "gid": "390445764"},
+    {"name": "Основное", "gid": "502140416"},
+]
+
+
+def _discover_via_htmlview(spreadsheet_id: str) -> List[Dict[str, Any]]:
+    """Метод 1: обнаружение вкладок через htmlview (парсинг HTML)."""
+    html_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/htmlview"
+    req = urllib.request.Request(
+        html_url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/120.0.0.0"
+            )
+        },
+    )
+    sheets = []
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        html = resp.read().decode("utf-8", errors="ignore")
+    # Попытка 1: items.push({name:"...", gid:"..."})
+    pattern = r'items\.push\(\{\s*name:\s*"([^"]+)"[^}]+gid:\s*"([^"]+)"'
+    raw_matches = re.findall(pattern, html)
+    for name, gid in raw_matches:
+        name_clean = name.replace(r"\'", "'").replace(r'\"', '"').strip()
+        sheets.append({"name": name_clean, "gid": str(gid)})
+    if sheets:
+        return sheets
+    # Попытка 2: data-sheet-id и aria-label (новая структура Google Sheets)
+    pattern2 = r'data-sheet-id="(\d+)"[^>]*aria-label="([^"]+)"'
+    raw_matches2 = re.findall(pattern2, html)
+    for gid, name in raw_matches2:
+        sheets.append({"name": name.strip(), "gid": str(gid)})
+    if sheets:
+        return sheets
+    # Попытка 3: sheetnames массив в JS
+    pattern3 = r'"sheetnames"\s*:\s*\[([^\]]+)\]'
+    sn_match = re.search(pattern3, html)
+    pattern_gid = r'"gid=(\d+)"'
+    gid_matches = re.findall(pattern_gid, html)
+    if sn_match and gid_matches:
+        names_raw = re.findall(r'"([^"]+)"', sn_match.group(1))
+        for i, gid in enumerate(gid_matches[:len(names_raw)]):
+            sheets.append({"name": names_raw[i], "gid": gid})
+    if sheets:
+        return sheets
+    # Попытка 4: собираем ВСЕ уникальные gid= из HTML + сливаем с KNOWN_FALLBACK_SHEETS
+    all_gids_in_html = list(dict.fromkeys(re.findall(r'\bgid=(\d+)', html)))
+    known_gid_map = {s["gid"]: s["name"] for s in KNOWN_FALLBACK_SHEETS}
+    for gid in all_gids_in_html:
+        name = known_gid_map.get(gid, f"Вкладка {gid}")
+        sheets.append({"name": name, "gid": gid})
+    return sheets
+
+
+def _discover_via_json_feed(spreadsheet_id: str) -> List[Dict[str, Any]]:
+    """Метод 2: обнаружение вкладок через Google Sheets JSON feed (резервный)."""
+    json_url = (
+        f"https://spreadsheets.google.com/feeds/worksheets/{spreadsheet_id}/public/basic?alt=json"
+    )
+    req = urllib.request.Request(
+        json_url,
+        headers={"User-Agent": "Mozilla/5.0"},
+    )
+    sheets = []
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    entries = data.get("feed", {}).get("entry", [])
+    for entry in entries:
+        title = entry.get("title", {}).get("$t", "")
+        links = entry.get("link", [])
+        gid = ""
+        for link in links:
+            href = link.get("href", "")
+            m = re.search(r"gid=(\d+)", href)
+            if m:
+                gid = m.group(1)
+                break
+        if title and gid:
+            sheets.append({"name": title.strip(), "gid": gid})
+    return sheets
+
+
+def discover_sheets(spreadsheet_id: str) -> List[Dict[str, Any]]:
+    """Динамическое обнаружение всех вкладок таблицы.
+    Использует два метода последовательно и берёт тот, что нашёл больше вкладок.
+    При полном провале возвращает жёстко прописанный fallback KNOWN_FALLBACK_SHEETS.
+    """
+    sheets_htmlview: List[Dict[str, Any]] = []
+    sheets_json: List[Dict[str, Any]] = []
+
+    try:
+        sheets_htmlview = _discover_via_htmlview(spreadsheet_id)
+        logger.info(f"htmlview нашёл {len(sheets_htmlview)} вкладок")
+    except Exception as e:
+        logger.warning(f"Метод htmlview не сработал: {e}")
+
+    try:
+        sheets_json = _discover_via_json_feed(spreadsheet_id)
+        logger.info(f"JSON feed нашёл {len(sheets_json)} вкладок")
+    except Exception as e:
+        logger.warning(f"Метод JSON feed не сработал: {e}")
+
+    # Выбираем результат с наибольшим количеством вкладок
+    if sheets_htmlview and sheets_json:
+        if len(sheets_json) >= len(sheets_htmlview):
+            logger.info("Используем результат JSON feed (больше вкладок)")
+            best = sheets_json
+        else:
+            logger.info("Используем результат htmlview")
+            best = sheets_htmlview
+    elif sheets_json:
+        best = sheets_json
+    elif sheets_htmlview:
+        best = sheets_htmlview
+    else:
+        # Полный fallback: сначала known_tabs.json, затем KNOWN_FALLBACK_SHEETS
+        known = _load_known_tabs()
+        if known:
+            logger.warning("Оба метода не сработали — используем known_tabs.json")
+            return [{"gid": t["gid"], "name": t["name"]} for t in known]
+        logger.warning("Оба метода не сработали — используем KNOWN_FALLBACK_SHEETS")
+        return list(KNOWN_FALLBACK_SHEETS)
+
+    found_gids = {s["gid"] for s in best}
+
+    # Подмешиваем вкладки из known_tabs.json (накоплены за весь год)
+    for kt in _load_known_tabs():
+        if kt["gid"] not in found_gids:
+            best.append({"gid": kt["gid"], "name": kt["name"]})
+            found_gids.add(kt["gid"])
+            logger.info(f"Добавлена вкладка из known_tabs: {kt['name']} (gid={kt['gid']})")
+
+    # Подмешиваем KNOWN_FALLBACK_SHEETS для гарантии «Основное» и т.д.
+    for fallback_sheet in KNOWN_FALLBACK_SHEETS:
+        if fallback_sheet["gid"] not in found_gids:
+            best.append(dict(fallback_sheet))
+            found_gids.add(fallback_sheet["gid"])
+            logger.info(f"Добавлена вкладка из fallback: {fallback_sheet['name']} (gid={fallback_sheet['gid']})")
+
+    # Исключаем любые тестовые вкладки из результатов обнаружения
+    clean_best = [s for s in best if not is_test_tab(s.get("name"))]
+
+    # Сохраняем все найденные вкладки в known_tabs.json для будущих запусков
+    _save_known_tabs(clean_best)
+
+    return clean_best
+
+
+def determine_active_tab(sheets: List[Dict[str, Any]], target_date: Optional[datetime] = None) -> str:
+    """Выбор gid активной вкладки с максимальной защитой от будущих изменений.
+    1. Проверяет ручной FORCED_TAB_GID из .env (если администратор захочет жестко закрепить вкладку).
+    2. Ищет вкладку с диапазоном дат для текущего дня (или для понедельника, если сегодня воскресенье).
+    3. Если точного совпадения нет — выбирает вкладку с самыми свежими датами.
+    4. Если дат в названиях нет — выбирает любую вкладку, отличную от «Основное».
+    """
+    valid_sheets = [s for s in sheets if not is_test_tab(s.get("name"))]
+    if not valid_sheets:
+        valid_sheets = sheets
+    if not valid_sheets:
+        return ""
+
+    # 1. Ручное принудительное закрепление из .env (если задано)
+    forced_gid = os.getenv("FORCED_TAB_GID", "").strip()
+    if forced_gid:
+        for s in valid_sheets:
+            if s["gid"] == forced_gid or s["name"].lower() == forced_gid.lower():
+                return s["gid"]
+
+    if target_date is None:
+        target_date = datetime.now()
+
+    # Если сегодня воскресенье — студенты уже смотрят расписание на понедельник
+    check_dates = [target_date]
+    if target_date.weekday() == 6:  # Воскресенье
+        check_dates.append(target_date + timedelta(days=1))
+
+    # Гибкий поиск дат: 02.09-05.09, 02.09 - 05.09, с 02.09 по 05.09
+    date_range_regex = re.compile(r"(\d{1,2})\.(\d{1,2})\s*(?:[-–—]|по|до)\s*(\d{1,2})\.(\d{1,2})", re.IGNORECASE)
+    
+    parsed_date_tabs = []
+
+    for s in valid_sheets:
+        name = s["name"]
+        m = date_range_regex.search(name)
+        if m:
+            d1, m1, d2, m2 = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+            try:
+                year = target_date.year
+                start_dt = datetime(year, m1, d1)
+                end_dt = datetime(year, m2, d2, 23, 59, 59)
+                # Если период переходит через новый год (например, декабрь-январь)
+                if end_dt < start_dt:
+                    end_dt = datetime(year + 1, m2, d2, 23, 59, 59)
+
+                parsed_date_tabs.append({
+                    "gid": s["gid"],
+                    "name": name,
+                    "start": start_dt,
+                    "end": end_dt,
+                })
+
+                # Проверяем попадание текущей даты или завтрашнего понедельника
+                for c_dt in check_dates:
+                    if start_dt <= c_dt <= end_dt:
+                        return s["gid"]
+            except Exception:
+                pass
+
+    # Если точного совпадения по дате нет, сортируем датированные вкладки и берем самую свежую
+    if parsed_date_tabs:
+        parsed_date_tabs.sort(key=lambda x: x["start"])
+        return parsed_date_tabs[-1]["gid"]
+
+    # Если вкладок с датами нет — берем любую вкладку, где нет слова "основное"
+    non_main = [s["gid"] for s in valid_sheets if "основное" not in s["name"].lower()]
+    if non_main:
+        return non_main[0]
+
+    return valid_sheets[0]["gid"]
+
+
 class ScheduleParser:
     def __init__(self, sheet_url: str = DEFAULT_SHEET_URL, cache_file: str = CACHE_FILE):
-        self.sheet_url = sheet_url
+        self.sheet_url = os.getenv("SHEET_URL", sheet_url)
+        self.spreadsheet_id = extract_spreadsheet_id(self.sheet_url)
         self.cache_file = cache_file
-        self.data: Optional[Dict[str, Any]] = None
+        self.available_tabs: List[Dict[str, Any]] = []
+        # Дефолтный active_gid: берём из known_tabs.json если есть, иначе пустая строка.
+        # Жёстко прописанный GID не используем — он устаревает каждую неделю.
+        known = _load_known_tabs()
+        self.active_gid: str = known[0]["gid"] if known else ""
+        self.sheets_cache: Dict[str, Dict[str, Any]] = {}
+        self.last_tabs_check: float = 0
         self.last_updated: float = 0
 
-    def fetch_csv(self) -> str:
-        """Загрузка живой таблицы через Google Sheets export."""
-        logger.info(f"Загрузка таблицы: {self.sheet_url}")
-        req = urllib.request.Request(
-            self.sheet_url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                )
-            },
+        self.load_cache()
+        self.refresh_tabs()
+
+    @property
+    def data(self) -> Optional[Dict[str, Any]]:
+        """Для обратной совместимости: данные активной вкладки."""
+        if self.active_gid in self.sheets_cache:
+            return self.sheets_cache[self.active_gid]
+        if self.sheets_cache:
+            return next(iter(self.sheets_cache.values()))
+        return None
+
+    def refresh_tabs(self, force: bool = False) -> List[Dict[str, Any]]:
+        """Обновление списка вкладок и определение активной недели."""
+        now = time.time()
+        if not force and self.available_tabs and (now - self.last_tabs_check < 120):
+            return self.available_tabs
+
+        raw_tabs = [t for t in discover_sheets(self.spreadsheet_id) if not is_test_tab(t.get("name"))]
+        active_gid = determine_active_tab(raw_tabs)
+        self.active_gid = active_gid
+
+        tabs_formatted = []
+        for t in raw_tabs:
+            gid = t["gid"]
+            name = t["name"]
+            is_active = (gid == active_gid)
+            tabs_formatted.append({
+                "name": name,
+                "gid": gid,
+                "is_active": is_active,
+                "is_main": ("основное" in name.lower()),
+                "parity": "num" if "числитель" in name.lower() else ("den" if "знаменатель" in name.lower() else "auto")
+            })
+
+        self.available_tabs = tabs_formatted
+        self.last_tabs_check = now
+        return tabs_formatted
+
+    def get_tabs(self) -> Dict[str, Any]:
+        """Получить список всех доступных вкладок с пометкой активной."""
+        self.refresh_tabs()
+        return {
+            "tabs": self.available_tabs,
+            "active_gid": self.active_gid,
+        }
+
+    def _resolve_gid(self, gid: Optional[str]) -> str:
+        """Преобразует имя вкладки или None в числовой GID."""
+        if not gid or gid == "active":
+            return self.active_gid
+
+        gid_str = str(gid).strip()
+        for t in self.available_tabs:
+            if t["gid"] == gid_str:
+                return gid_str
+            if t["name"].lower() == gid_str.lower():
+                return t["gid"]
+
+        return gid_str
+
+    def fetch_csv(self, gid: Optional[str] = None) -> str:
+        """Загрузка живой таблицы через Google Sheets export (с retry и CircuitBreaker)."""
+        target_gid = self._resolve_gid(gid)
+        csv_url = (
+            f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}"
+            f"/export?format=csv&gid={target_gid}"
         )
-        with urllib.request.urlopen(req, timeout=25) as resp:
-            return resp.read().decode("utf-8")
+        logger.info(f"Загрузка вкладки [gid={target_gid}]")
+        return fetch_with_retry(csv_url, retries=3, timeout=25).decode("utf-8")
 
-    def parse(self, raw_csv: Optional[str] = None) -> Dict[str, Any]:
-        """Парсинг CSV в структурированный JSON."""
+    def _build_empty_schedule(self, tab_name: str, gid: str) -> Dict[str, Any]:
+        """Безопасная заглушка расписания для новых или нестандартных вкладок (предотвращает сбои бэкенда)."""
+        clean_tabs = [t for t in self.available_tabs if not is_test_tab(t.get("name"))]
+        current_week = get_academic_week_info()
+        return {
+            "title": "Колледж телекоммуникаций",
+            "tab_name": tab_name,
+            "gid": gid,
+            "is_active_tab": (gid == self.active_gid),
+            "available_tabs": clean_tabs,
+            "active_gid": self.active_gid,
+            "subtitle": f"Расписание учебных занятий • {tab_name}",
+            "last_updated": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+            "timestamp": time.time(),
+            "groups_count": 0,
+            "groups": [],
+            "courses": ["1 курс", "2 курс", "3 курс", "4 курс", "Очно-заочное"],
+            "day_dates": {},
+            "schedules": {},
+            "teachers": [],
+            "teacher_schedules": {},
+            "classrooms": [],
+            "classroom_schedules": {},
+            "bell_times": BELL_TIMES,
+            "break_times": BREAK_TIMES,
+            "week_info": current_week,
+            "stale": False,
+        }
+
+    def parse(self, raw_csv: Optional[str] = None, gid: Optional[str] = None) -> Dict[str, Any]:
+        """Парсинг CSV в структурированный JSON с полной защитой от сбоев."""
+        target_gid = self._resolve_gid(gid)
         if raw_csv is None:
-            raw_csv = self.fetch_csv()
+            raw_csv = self.fetch_csv(target_gid)
 
+        tab_name = ""
+        for t in self.available_tabs:
+            if t["gid"] == target_gid:
+                tab_name = t["name"]
+                break
+        if not tab_name:
+            tab_name = "Актуальное расписание" if target_gid == self.active_gid else f"Вкладка {target_gid}"
+
+        try:
+            return self._parse_internal(raw_csv, target_gid, tab_name)
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка парсинга вкладки '{tab_name}' (gid={target_gid}): {e}", exc_info=True)
+            return self._build_empty_schedule(tab_name, target_gid)
+
+    def _parse_internal(self, raw_csv: str, target_gid: str, tab_name: str) -> Dict[str, Any]:
         reader = list(csv.reader(io.StringIO(raw_csv)))
         if len(reader) < 6:
-            raise ValueError("Недостаточно строк в таблице расписания")
+            logger.warning(f"Вкладка '{tab_name}' содержит мало строк ({len(reader)}) — возвращаем безопасную структуру")
+            return self._build_empty_schedule(tab_name, target_gid)
 
         # Поиск строки групп и курсов
         courses_row_idx = 3
         groups_row_idx = 4
+        found_groups = False
 
-        for idx, r in enumerate(reader[:10]):
-            if any("9-" in c or "11-" in c for c in r):
+        for idx, r in enumerate(reader[:15]):
+            if any("9-" in c or "11-" in c or "гр." in c.lower() or "группа" in c.lower() for c in r):
                 groups_row_idx = idx
                 courses_row_idx = max(0, idx - 1)
+                found_groups = True
                 break
 
-        courses_row = reader[courses_row_idx]
-        groups_row = reader[groups_row_idx]
+        if groups_row_idx >= len(reader):
+            logger.warning(f"Вкладка '{tab_name}': строка групп не найдена")
+            return self._build_empty_schedule(tab_name, target_gid)
+
+        courses_row = reader[courses_row_idx] if courses_row_idx < len(reader) else []
+        groups_row = reader[groups_row_idx] if groups_row_idx < len(reader) else []
 
         # Карта категорий колонок
         col_to_course: Dict[int, str] = {}
@@ -639,10 +1232,20 @@ class ScheduleParser:
         classrooms_sorted = sorted(all_classrooms.keys())
 
         current_week = get_academic_week_info()
+        parity_override = check_parity_override(tab_name)
+        if parity_override is not None:
+            current_week["is_numerator"] = parity_override
+            current_week["parity"] = "num" if parity_override else "den"
+            current_week["parity_name"] = "Числитель (I)" if parity_override else "Знаменатель (II)"
 
         result = {
             "title": "Колледж телекоммуникаций",
-            "subtitle": "Расписание учебных занятий на 2026-2027 учебный год 1 семестр",
+            "tab_name": tab_name,
+            "gid": target_gid,
+            "is_active_tab": (target_gid == self.active_gid),
+            "available_tabs": self.available_tabs,
+            "active_gid": self.active_gid,
+            "subtitle": f"Расписание учебных занятий • {tab_name}",
             "last_updated": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
             "timestamp": time.time(),
             "groups_count": len(groups_list),
@@ -658,55 +1261,138 @@ class ScheduleParser:
             "week_info": current_week,
         }
 
-        self.data = result
+        # Защита от затирания хороших данных пустышкой при редактировании таблицы
+        prev_data = self.sheets_cache.get(target_gid)
+        if len(groups_list) == 0 and prev_data and prev_data.get("groups_count", 0) > 0:
+            logger.warning(f"Внимание: парсинг вернул 0 групп для вкладки {target_gid}, сохраняем существующие данные")
+            return prev_data
+
+        self.sheets_cache[target_gid] = result
         self.last_updated = time.time()
         self.save_cache()
         return result
 
     def save_cache(self) -> None:
-        """Сохранение кэша в файл."""
+        """Сохранение кэша всех вкладок в файл (исключая тестовые)."""
         try:
-            if self.data:
-                with open(self.cache_file, "w", encoding="utf-8") as f:
-                    json.dump(self.data, f, ensure_ascii=False, indent=2)
-                logger.info(f"Кэш сохранён в {self.cache_file}")
+            clean_tabs = [t for t in self.available_tabs if not is_test_tab(t.get("name"))]
+            clean_sheets = {}
+            for g, s in self.sheets_cache.items():
+                if is_test_tab(s.get("tab_name")):
+                    continue
+                s_copy = dict(s)
+                if "available_tabs" in s_copy:
+                    s_copy["available_tabs"] = [t for t in s_copy["available_tabs"] if not is_test_tab(t.get("name"))]
+                clean_sheets[g] = s_copy
+
+            payload = {
+                "available_tabs": clean_tabs,
+                "active_gid": self.active_gid,
+                "last_updated": self.last_updated,
+                "sheets": clean_sheets,
+            }
+            with open(self.cache_file, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            logger.info(f"Кэш сохранён в {self.cache_file} ({len(clean_sheets)} вкладок)")
         except Exception as e:
             logger.error(f"Ошибка сохранения кэша: {e}")
 
     def load_cache(self) -> Optional[Dict[str, Any]]:
-        """Загрузка кэша из файла."""
+        """Загрузка кэша из файла (исключая тестовые вкладки)."""
         if not os.path.exists(self.cache_file):
             return None
         try:
             mtime = os.path.getmtime(self.cache_file)
             with open(self.cache_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            self.data = data
-            self.last_updated = mtime
-            return data
+
+            if "sheets" in data:
+                clean_sheets = {}
+                for g, s in data["sheets"].items():
+                    if is_test_tab(s.get("tab_name")):
+                        continue
+                    if "available_tabs" in s:
+                        s["available_tabs"] = [t for t in s["available_tabs"] if not is_test_tab(t.get("name"))]
+                    clean_sheets[g] = s
+                self.sheets_cache = clean_sheets
+                raw_tabs = data.get("available_tabs", [])
+                self.available_tabs = [t for t in raw_tabs if not is_test_tab(t.get("name"))]
+                self.active_gid = data.get("active_gid", self.active_gid)
+                self.last_updated = data.get("last_updated", mtime)
+                return self.sheets_cache.get(self.active_gid)
+            elif "schedules" in data:
+                if not is_test_tab(data.get("tab_name")):
+                    self.sheets_cache[self.active_gid] = data
+                self.last_updated = mtime
+                return data
+            return None
         except Exception as e:
             logger.error(f"Ошибка чтения кэша: {e}")
             return None
 
-    def get_data(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """Получение данных (из памяти, кэша или живой загрузки)."""
-        if not force_refresh and self.data and (time.time() - self.last_updated < CACHE_TTL_SECONDS):
-            return self.data
-
-        if not force_refresh:
-            cached = self.load_cache()
-            if cached and (time.time() - self.last_updated < CACHE_TTL_SECONDS):
-                return cached
-
+    def get_data(self, gid: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
+        """Получение данных для конкретной вкладки. Никогда не падает — 4 уровня защиты:
+        1. Свежий кэш (< CACHE_TTL_SECONDS) — возвращаем моментально.
+        2. Живые данные из Google Sheets — парсим и кэшируем.
+        3. Устаревший кэш этой вкладки — возвращаем с флагом stale=True.
+        4. Любые данные из sheets_cache — возвращаем с флагом stale=True.
+        """
         try:
-            return self.parse()
+            self.refresh_tabs(force=force_refresh)
         except Exception as e:
-            logger.error(f"Ошибка парсинга живой таблицы: {e}")
-            cached = self.load_cache()
-            if cached:
-                logger.warning("Используем устаревший кэш из-за ошибки сети")
-                return cached
-            raise
+            logger.warning(f"refresh_tabs не удался: {e} — продолжаем с текущим списком вкладок")
+
+        target_gid = self._resolve_gid(gid)
+        cached_sheet = self.sheets_cache.get(target_gid)
+        now = time.time()
+
+        # Уровень 1: свежий кэш
+        if not force_refresh and cached_sheet:
+            age = now - cached_sheet.get("timestamp", 0)
+            if age < CACHE_TTL_SECONDS:
+                cached_sheet["available_tabs"] = self.available_tabs
+                cached_sheet["active_gid"] = self.active_gid
+                cached_sheet["stale"] = False
+                return enrich_schedule_teachers(cached_sheet)
+
+        # Уровень 2: живые данные из Google
+        try:
+            result = self.parse(gid=target_gid)
+            result["stale"] = False
+            return enrich_schedule_teachers(result)
+        except Exception as e:
+            logger.error(f"Ошибка получения живых данных gid={target_gid}: {e}")
+
+        # Уровень 3: устаревший кэш именно этой вкладки
+        if cached_sheet:
+            age_min = int((now - cached_sheet.get("timestamp", now)) / 60)
+            logger.warning(f"Уровень 3: устаревший кэш вкладки {target_gid} (возраст ~{age_min} мин)")
+            cached_sheet["available_tabs"] = self.available_tabs
+            cached_sheet["active_gid"] = self.active_gid
+            cached_sheet["stale"] = True
+            cached_sheet["stale_reason"] = f"Нет связи с Google Sheets, данные {age_min} мин назад"
+            return enrich_schedule_teachers(cached_sheet)
+
+        # Уровень 4: любые данные из sheets_cache
+        if self.sheets_cache:
+            fallback = (
+                self.sheets_cache.get(self.active_gid)
+                or next(iter(self.sheets_cache.values()))
+            )
+            age_min = int((now - fallback.get("timestamp", now)) / 60)
+            logger.warning(f"Уровень 4: другая вкладка из кэша (возраст ~{age_min} мин)")
+            fallback = dict(fallback)  # копия чтобы не мутировать кэш
+            fallback["available_tabs"] = self.available_tabs
+            fallback["active_gid"] = self.active_gid
+            fallback["stale"] = True
+            fallback["stale_reason"] = f"Нет связи с Google Sheets, резервные данные {age_min} мин назад"
+            return enrich_schedule_teachers(fallback)
+
+        # Если кэша нет вообще — бросаем понятное исключение
+        raise RuntimeError(
+            "Нет данных расписания: кэш пуст и Google Sheets недоступен. "
+            "Дождитесь восстановления соединения или перезапустите сервер."
+        )
 
 
 # Синглтон парсера

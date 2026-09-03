@@ -1,272 +1,242 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Расписание | Колледж телекоммуникаций</title>
-  <meta name="description" content="Удобное интерактивное расписание учебных занятий Колледжа телекоммуникаций для студентов и преподавателей">
-  
-  <!-- Telegram WebApp SDK -->
+  <meta name="description" content="Расписание учебных занятий Колледжа телекоммуникаций">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
-  <!-- Шапка сайта -->
-  <header class="header">
-    <div class="container">
-      <div class="header-top">
-        <a href="#" class="brand" id="brandLogo">
-          <div class="brand-icon">К</div>
-          <div>
-            <div class="brand-title">Расписание Колледжа</div>
-            <div class="brand-subtitle" id="semesterSubtitle">Колледж телекоммуникаций • 1 семестр</div>
+  <!-- ═══ AMBIENT GLOW & TEXTURE (Glassmorphism & Depth) ═══ -->
+  <div class="ambient-glow-wrap" aria-hidden="true">
+    <div class="ambient-blob blob-1"></div>
+    <div class="ambient-blob blob-2"></div>
+    <div class="ambient-blob blob-3"></div>
+  </div>
+  <div class="texture-overlay" aria-hidden="true"></div>
+
+  <!-- ═══ SIDEBAR OVERLAY ═══ -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ═══ SIDEBAR / DRAWER ═══ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-group-avatar" id="sidebarGroupAvatar">ГР</div>
+      <div class="sidebar-group-info">
+        <div class="sidebar-group-label">Ваша группа</div>
+        <div class="sidebar-group-name" id="sidebarGroupName">Не выбрана</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="sidebar-nav-item active" data-view="today" id="sidebarToday">
+        <span class="sidebar-nav-icon">📅</span>
+        <span>Сегодня</span>
+      </button>
+      <button class="sidebar-nav-item" data-view="week" id="sidebarWeek">
+        <span class="sidebar-nav-icon">📆</span>
+        <span>Вся неделя</span>
+      </button>
+      <button class="sidebar-nav-item" data-view="teacher" id="sidebarTeacher">
+        <span class="sidebar-nav-icon">👨‍🏫</span>
+        <span>Преподаватели</span>
+      </button>
+      <button class="sidebar-nav-item" data-view="classroom" id="sidebarClassroom">
+        <span class="sidebar-nav-icon">🚪</span>
+        <span>Аудитории</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section-label">Неделя</div>
+    <div class="sidebar-tab-list" id="sidebarTabList">
+      <!-- вкладки недель подгружаются динамически -->
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <button class="sidebar-nav-item" id="sidebarThemeBtn">
+      <span class="sidebar-nav-icon">🎨</span>
+      <span>Оформление и темы</span>
+    </button>
+
+    <button class="sidebar-nav-item" id="sidebarChangeGroup">
+      <span class="sidebar-nav-icon">⚙️</span>
+      <span>Сменить группу</span>
+    </button>
+
+    <button class="sidebar-nav-item" id="sidebarRefresh">
+      <span class="sidebar-nav-icon">🔄</span>
+      <span>Обновить расписание</span>
+    </button>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-sync-status" id="sidebarSyncStatus">● Синхронизировано</div>
+      <div class="sidebar-updated" id="sidebarUpdated"></div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN APP ═══ -->
+  <div class="app-wrapper">
+
+    <!-- ─── TOP BAR ─── -->
+    <header class="topbar">
+      <button class="topbar-menu-btn" id="menuBtn" aria-label="Меню">
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+      </button>
+      <div class="topbar-title">
+        <span id="topbarGroupName">Расписание</span>
+      </div>
+      <div class="topbar-parity" id="topbarParity">
+        <!-- числитель/знаменатель -->
+      </div>
+      <button class="topbar-theme-btn" id="topbarThemeBtn" title="Сменить тему оформления" aria-label="Темы оформления">🎨</button>
+    </header>
+
+    <!-- ─── LIVE STATUS CARD ─── -->
+    <div class="live-card-wrap" id="liveCardWrap">
+      <div class="live-card" id="liveCard">
+        <button class="live-card-close-btn" id="liveCardCloseBtn" title="Скрыть карточку" aria-label="Скрыть">✕</button>
+        <div class="live-card-icon" id="liveCardIcon">⏱</div>
+        <div class="live-card-text">
+          <div class="live-card-title" id="liveCardTitle">Загрузка...</div>
+          <div class="live-card-sub" id="liveCardSub"></div>
+        </div>
+        <div class="live-card-progress-wrap">
+          <div class="live-card-progress" id="liveCardProgress"></div>
+        </div>
+      </div>
+      <button class="live-card-restore-btn" id="liveCardRestoreBtn" style="display:none;" title="Развернуть статус">
+        <span class="live-restore-icon" id="liveRestoreIcon">⏱</span>
+        <span class="live-restore-text" id="liveRestoreText">Статус</span>
+        <span class="live-restore-arrow">▾</span>
+      </button>
+    </div>
+
+    <!-- ─── DAY STRIP ─── -->
+    <div class="day-strip-wrap">
+      <div class="day-strip" id="dayStrip">
+        <!-- Пн 02 … Сб 07 -->
+      </div>
+    </div>
+
+    <!-- ─── PARITY TOGGLE (compact) ─── -->
+    <div class="parity-bar" id="parityBar">
+      <button class="parity-chip active" data-parity="auto">Авто</button>
+      <button class="parity-chip" data-parity="num">I Числ.</button>
+      <button class="parity-chip" data-parity="den">II Знам.</button>
+      <button class="parity-chip" data-parity="all">Обе</button>
+    </div>
+
+    <!-- ─── SCHEDULE CONTENT ─── -->
+    <main class="main-content" id="mainContent">
+      <div id="scheduleView">
+        <div class="loading-placeholder">
+          <div class="loading-spinner"></div>
+          <div>Загружаем расписание...</div>
+        </div>
+      </div>
+
+      <!-- Поиск по преподавателю -->
+      <div id="teacherView" style="display:none">
+        <div class="search-bar-wrap">
+          <input type="text" id="teacherSearchInput" class="search-input" placeholder="🔍 Начните вводить фамилию преподавателя...">
+          <button class="search-btn" id="teacherSearchBtn">Найти</button>
+        </div>
+        <!-- Список всех преподавателей для быстрого выбора -->
+        <div class="quick-select-wrap" id="teacherSelectWrap">
+          <div class="quick-select-header">
+            <span class="quick-select-title">👨‍🏫 Выберите преподавателя</span>
+            <span class="quick-select-count" id="teacherCountBadge">0</span>
           </div>
-        </a>
-
-        <div class="header-actions">
-          <button class="header-action-btn" id="refreshBtn" title="Обновить из Google Sheets">
-            <svg class="svg-icon btn-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-            </svg>
-            <span class="btn-text">Обновить</span>
-          </button>
-          <button class="header-action-btn" id="themeToggleBtn" title="Сменить тему оформления">
-            <svg class="svg-icon btn-icon theme-sun-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="5"></circle>
-              <line x1="12" y1="1" x2="12" y2="3"></line>
-              <line x1="12" y1="21" x2="12" y2="23"></line>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-              <line x1="1" y1="12" x2="3" y2="12"></line>
-              <line x1="21" y1="12" x2="23" y2="12"></line>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </svg>
-            <svg class="svg-icon btn-icon theme-moon-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
-            <span class="btn-text" id="themeBtnText">Тема</span>
-          </button>
+          <div class="teachers-grid" id="teachersGrid"></div>
         </div>
+        <div id="teacherResult"></div>
       </div>
 
-      <div class="status-pill" id="syncStatus">
-        <span class="status-dot"></span>
-        <span id="syncStatusText">Автообновление активно • Синхронизировано</span>
-        <span class="day-date-badge" id="currentWeekHeaderBadge" style="margin-left: 6px; font-weight: 700; color: var(--accent-primary);">Загрузка недели...</span>
-      </div>
-    </div>
-  </header>
-
-  <main class="container">
-
-    <!-- Предупреждение об ошибках (Disclaimer) -->
-    <div class="disclaimer-alert">
-      <div class="disclaimer-header">
-        <svg class="alert-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-          <line x1="12" y1="9" x2="12" y2="13"></line>
-          <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-        <strong>ВНИМАНИЕ: ОФИЦИАЛЬНОЕ УВЕДОМЛЕНИЕ</strong>
-      </div>
-      <p class="disclaimer-text">
-        Сайт формирует расписание в автоматическом режиме на основе официальной Google Таблицы колледжа. 
-        <strong>Администрация и разработчики сервиса не несут ответственности</strong> за возможные ошибки в исходной таблице, 
-        внезапные отмены, неверно указанные кабинеты или любые несовпадения в расписании.
-      </p>
-    </div>
-
-    <!-- Выбранная группа / Панель выбора -->
-    <section class="hero-selector">
-      <div class="selected-group-info">
-        <div class="group-avatar" id="groupAvatar">ГР</div>
-        <div>
-          <div class="group-title-label">Текущая группа</div>
-          <div class="group-name">
-            <span id="currentGroupDisplay">Загрузка...</span>
-            <span class="group-tag" id="currentCourseTag">...</span>
+      <!-- Поиск по аудитории -->
+      <div id="classroomView" style="display:none">
+        <div class="search-bar-wrap">
+          <input type="text" id="classroomSearchInput" class="search-input" placeholder="🔍 Номер аудитории (например 110л, 205)...">
+          <button class="search-btn" id="classroomSearchBtn">Найти</button>
+        </div>
+        <!-- Список всех аудиторий для быстрого выбора -->
+        <div class="quick-select-wrap" id="classroomSelectWrap">
+          <div class="quick-select-header">
+            <span class="quick-select-title">🚪 Выберите аудиторию</span>
+            <span class="quick-select-count" id="classroomCountBadge">0</span>
           </div>
-          <!-- Быстрые избранные группы -->
-          <div class="quick-favorites" id="quickFavorites"></div>
+          <div class="classrooms-grid" id="classroomsGrid"></div>
         </div>
+        <div id="classroomResult"></div>
       </div>
+    </main>
 
-      <div class="selector-buttons">
-        <button class="btn btn-secondary" id="favToggleBtn" title="Добавить или убрать группу из избранного">
-          <svg class="svg-icon fav-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-          </svg>
-          <span id="favBtnText">В избранное</span>
-        </button>
-        <button class="btn btn-primary" id="openGroupModalBtn">
-          <svg class="svg-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="16 3 21 3 21 8"></polyline>
-            <line x1="4" y1="20" x2="21" y2="3"></line>
-            <polyline points="21 16 21 21 16 21"></polyline>
-            <line x1="15" y1="15" x2="21" y2="21"></line>
-            <line x1="4" y1="4" x2="9" y2="9"></line>
-          </svg>
-          <span>Сменить группу</span>
-        </button>
-      </div>
-    </section>
+  </div><!-- /app-wrapper -->
 
-    <!-- Активная пара прямо сейчас (Live Status) -->
-    <div id="liveLessonContainer"></div>
-
-    <!-- Панель управления и фильтры -->
-    <section class="controls-bar">
-      <!-- Основные вкладки -->
-      <div class="tabs-segmented" role="tablist">
-        <button class="tab-btn active" data-view="today" id="tabToday">Сегодня</button>
-        <button class="tab-btn" data-view="tomorrow" id="tabTomorrow">Завтра</button>
-        <button class="tab-btn" data-view="week" id="tabWeek">Вся неделя</button>
-        <button class="tab-btn" data-view="teacher" id="tabTeacher">Преподаватели</button>
-        <button class="tab-btn" data-view="classroom" id="tabClassroom">Аудитории</button>
-      </div>
-
-      <!-- Переключатель числителя / знаменателя -->
-      <div class="parity-toggle" id="parityControls">
-        <button class="parity-btn active" data-parity="auto" title="Автоматически по текущей неделе">Авто</button>
-        <button class="parity-btn" data-parity="num" title="Только числитель (I неделя)">I Числ.</button>
-        <button class="parity-btn" data-parity="den" title="Только знаменатель (II неделя)">II Знам.</button>
-        <button class="parity-btn" data-parity="all" title="Показывать обе недели">Все недели</button>
-      </div>
-
-      <!-- Фильтр: только реальные пары / показывать окна -->
-      <div class="only-pairs-toggle">
-        <button class="filter-chip active" id="toggleOnlyPairsBtn" title="Показывать только те пары, которые реально идут в этот день">
-          Только пары на день
-        </button>
-      </div>
-    </section>
-
-    <!-- Основной контейнер расписания группы -->
-    <div id="scheduleContent" class="schedule-grid">
-      <div style="text-align: center; padding: 40px; color: var(--text-muted);">
-        Загрузка расписания занятий...
-      </div>
-    </div>
-
-    <!-- Виджет поиска по преподавателям (показывается при клике на вкладку) -->
-    <div id="teacherView" class="search-widget-view" style="display: none;">
-      <div class="search-widget-header">
-        <h3>Поиск расписания преподавателя</h3>
-        <div style="display: flex; gap: 10px;">
-          <input type="text" id="teacherSearchInput" class="search-input" placeholder="Введите фамилию (например: Сальникова, Куцебо, Олифиров)..." autocomplete="on" style="flex: 1;">
-          <button class="btn btn-primary" id="teacherSearchBtn" style="white-space: nowrap;">Найти</button>
-        </div>
-      </div>
-      <div id="teacherScheduleResult" class="schedule-grid"></div>
-    </div>
-
-    <!-- Виджет поиска по аудиториям -->
-    <div id="classroomView" class="search-widget-view" style="display: none;">
-      <div class="search-widget-header">
-        <h3>Занятость аудиторий</h3>
-        <div style="display: flex; gap: 10px;">
-          <input type="text" id="classroomSearchInput" class="search-input" placeholder="Введите номер аудитории (например: 218, 313, 405)..." autocomplete="on" style="flex: 1;">
-          <button class="btn btn-primary" id="classroomSearchBtn" style="white-space: nowrap;">Найти</button>
-        </div>
-      </div>
-      <div id="classroomScheduleResult" class="schedule-grid"></div>
-    </div>
-
-    <!-- Футер -->
-    <footer class="footer">
-      <div class="footer-content">
-        <div class="footer-title">Расписание учебных занятий • Колледж телекоммуникаций</div>
-        <div class="footer-disclaimer">Данные синхронизируются в реальном времени с официальной таблицей учебной части. Сайт не несёт ответственности за неточности в исходном документе.</div>
-      </div>
-    </footer>
-
-  </main>
-
-  <!-- Мобильная нижняя панель навигации -->
-  <nav class="bottom-nav">
-    <button class="bottom-nav-item active" data-nav="today">
-      <span class="bottom-nav-icon">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="16" y1="2" x2="16" y2="6"></line>
-          <line x1="8" y1="2" x2="8" y2="6"></line>
-          <line x1="3" y1="10" x2="21" y2="10"></line>
-          <circle cx="12" cy="15" r="1.5" fill="currentColor"></circle>
-        </svg>
-      </span>
-      <span>Сегодня</span>
-    </button>
-    <button class="bottom-nav-item" data-nav="tomorrow">
-      <span class="bottom-nav-icon">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polyline points="12 6 12 12 16 14"></polyline>
-        </svg>
-      </span>
-      <span>Завтра</span>
-    </button>
-    <button class="bottom-nav-item" data-nav="week">
-      <span class="bottom-nav-icon">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="16" y1="2" x2="16" y2="6"></line>
-          <line x1="8" y1="2" x2="8" y2="6"></line>
-          <line x1="3" y1="10" x2="21" y2="10"></line>
-          <line x1="8" y1="14" x2="8" y2="14.01"></line>
-          <line x1="12" y1="14" x2="12" y2="14.01"></line>
-          <line x1="16" y1="14" x2="16" y2="14.01"></line>
-          <line x1="8" y1="18" x2="8" y2="18.01"></line>
-          <line x1="12" y1="18" x2="12" y2="18.01"></line>
-          <line x1="16" y1="18" x2="16" y2="18.01"></line>
-        </svg>
-      </span>
-      <span>Неделя</span>
-    </button>
-    <button class="bottom-nav-item" data-nav="group">
-      <span class="bottom-nav-icon">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-        </svg>
-      </span>
-      <span>Группа</span>
-    </button>
-  </nav>
-
-  <!-- Модальное окно выбора группы -->
+  <!-- ═══ MODAL: Выбор группы ═══ -->
   <div class="modal-backdrop" id="groupModal">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 class="modal-title">Выберите учебную группу</h3>
-        <button class="close-btn" id="closeGroupModalBtn">&times;</button>
+    <div class="modal-sheet">
+      <div class="modal-sheet-handle"></div>
+      <div class="modal-sheet-header">
+        <h2 class="modal-sheet-title">Выберите группу</h2>
+        <button class="modal-close-btn" id="closeGroupModal">✕</button>
       </div>
-
-      <div class="modal-search-box">
-        <input type="text" id="groupSearchInput" class="search-input" placeholder="Поиск по названию (ИСП, ССА, ОИБ, 9-24...)" autocomplete="off">
-        
-        <div class="course-filter-chips" id="courseFilterChips">
-          <span class="filter-chip active" data-filter="all">Все группы</span>
-          <span class="filter-chip" data-filter="1 курс">1 курс</span>
-          <span class="filter-chip" data-filter="2 курс">2 курс</span>
-          <span class="filter-chip" data-filter="3 курс">3 курс</span>
-          <span class="filter-chip" data-filter="4 курс">4 курс</span>
-          <span class="filter-chip" data-filter="Очно-заочное">Очно-заочное</span>
+      <div class="modal-search-wrap">
+        <input type="text" id="groupSearchInput" class="search-input" placeholder="Поиск: ИСП, ССА, 9-24...">
+        <div class="course-chips" id="courseChips">
+          <span class="course-chip active" data-filter="all">Все</span>
+          <span class="course-chip" data-filter="1 курс">1 к.</span>
+          <span class="course-chip" data-filter="2 курс">2 к.</span>
+          <span class="course-chip" data-filter="3 курс">3 к.</span>
+          <span class="course-chip" data-filter="4 курс">4 к.</span>
+          <span class="course-chip" data-filter="Очно-заочное">ОЗ</span>
         </div>
       </div>
+      <div class="modal-groups-body" id="groupsGrid"></div>
+    </div>
+  </div>
 
-      <div class="modal-body">
-        <div class="groups-grid" id="groupsGrid"></div>
+  <!-- ═══ MODAL: Первый запуск — выбор группы ═══ -->
+  <div class="modal-backdrop" id="onboardModal">
+    <div class="modal-sheet onboard-sheet">
+      <div class="onboard-icon">🎓</div>
+      <h2 class="onboard-title">Добро пожаловать!</h2>
+      <p class="onboard-sub">Выберите свою учебную группу — она сохранится и больше не нужно будет выбирать</p>
+      <div class="modal-search-wrap">
+        <input type="text" id="onboardSearchInput" class="search-input" placeholder="Поиск группы...">
+        <div class="course-chips" id="onboardCourseChips">
+          <span class="course-chip active" data-filter="all">Все</span>
+          <span class="course-chip" data-filter="1 курс">1 к.</span>
+          <span class="course-chip" data-filter="2 курс">2 к.</span>
+          <span class="course-chip" data-filter="3 курс">3 к.</span>
+          <span class="course-chip" data-filter="4 курс">4 к.</span>
+          <span class="course-chip" data-filter="Очно-заочное">ОЗ</span>
+        </div>
       </div>
+      <div class="modal-groups-body" id="onboardGroupsGrid"></div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL: Выбор темы оформления ═══ -->
+  <div class="modal-backdrop" id="themeModal">
+    <div class="modal-sheet">
+      <div class="modal-sheet-handle"></div>
+      <div class="modal-sheet-header">
+        <h2 class="modal-sheet-title">🎨 Темы оформления</h2>
+        <button class="modal-close-btn" id="closeThemeModal">✕</button>
+      </div>
+      <p class="theme-sheet-sub">Выберите стиль — он мгновенно применится и сохранится на вашем устройстве</p>
+      <div class="themes-grid" id="themesGrid"></div>
     </div>
   </div>
 

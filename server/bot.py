@@ -252,13 +252,20 @@ def format_day_schedule(group_name: str, day_name: str, target_date: Optional[da
     day_schedule = sched.get("days", {}).get(day_name, [])
     date_str = data.get("day_dates", {}).get(day_name, "")
     
-    # Расчет точной недели для даты
-    week_info = get_academic_week_info(target_date)
+    # Расчет точной недели для даты (с учетом переопределения из названия вкладки)
+    if target_date is None and data.get("week_info"):
+        week_info = data["week_info"]
+    else:
+        week_info = get_academic_week_info(target_date)
+
     current_parity = week_info["parity"]
     parity_str = week_info["parity_name"]
-    week_num_str = f"({week_info['week_number']}-я неделя семестра)"
+    week_num_str = f"({week_info['week_number']}-я неделя)"
 
-    header = f"📅 **{day_name}** {date_str}\n"
+    tab_title = data.get("tab_name", "")
+    tab_suffix = f" • _{tab_title}_" if tab_title and "основное" not in tab_title.lower() else ""
+
+    header = f"📅 **{day_name}** {date_str}{tab_suffix}\n"
     header += f"👥 Группа: **{group_name}** ({sched.get('course', '')})\n"
     header += f"⚡ Неделя: **{parity_str}** {week_num_str}\n"
     header += "━━━━━━━━━━━━━━━━━━━━\n\n"
