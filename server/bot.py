@@ -268,8 +268,10 @@ def get_break_description(after_pair: int, before_pair: int) -> str:
     return "☕ *Перемена*"
 
 
+NUM_EMOJIS = {1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣", 6: "6️⃣"}
+
 def format_day_schedule(group_name: str, day_name: str, target_date: Optional[datetime] = None) -> str:
-    """Форматирование расписания одного дня в читаемый текст Telegram с переменами и точным числителем/знаменателем."""
+    """Форматирование расписания одного дня в читаемый, компактный вид без визуального шума."""
     data = parser.get_data()
     sched = data.get("schedules", {}).get(group_name)
 
@@ -279,7 +281,7 @@ def format_day_schedule(group_name: str, day_name: str, target_date: Optional[da
     day_schedule = sched.get("days", {}).get(day_name, [])
     date_str = data.get("day_dates", {}).get(day_name, "")
     
-    # Расчет точной недели для даты (с учетом переопределения из названия вкладки)
+    # Расчет точной недели
     if target_date is None and data.get("week_info"):
         week_info = data["week_info"]
     else:
@@ -287,24 +289,19 @@ def format_day_schedule(group_name: str, day_name: str, target_date: Optional[da
 
     current_parity = week_info["parity"]
     parity_str = week_info["parity_name"]
-    week_num_str = f"({week_info['week_number']}-я неделя)"
 
-    tab_title = data.get("tab_name", "")
-    tab_suffix = f" • _{tab_title}_" if tab_title and "основное" not in tab_title.lower() else ""
-
-    header = f"📅 **{day_name}** {date_str}{tab_suffix}\n"
-    header += f"👥 Группа: **{group_name}** ({sched.get('course', '')})\n"
-    header += f"⚡ Неделя: **{parity_str}** {week_num_str}\n"
-    header += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    date_part = f", {date_str}" if date_str else ""
+    header = f"📅 **{day_name}**{date_part} • {parity_str}\n"
+    header += f"👥 Группа: **{group_name}**\n"
+    header += "━━━━━━━━━━━━━━━━━━━━\n"
 
     active_pairs = []
-    has_replacements_today = False
+    has_replacements = False
 
     for p in day_schedule:
         if p.get("is_empty"):
             continue
 
-        # Выбираем актуальную пару с учетом четности
         lesson = p.get("both") or (p.get("numerator") if current_parity == "num" else p.get("denominator"))
         if lesson and (lesson.get("subject") or lesson.get("is_cancelled")):
             active_pairs.append({
@@ -313,79 +310,68 @@ def format_day_schedule(group_name: str, day_name: str, target_date: Optional[da
                 "lesson": lesson,
             })
             if lesson.get("is_replacement") or lesson.get("is_cancelled"):
-                has_replacements_today = True
+                has_replacements = True
 
-    if has_replacements_today:
-        header += "⚠️ **ВНИМАНИЕ: На этот день действуют замены / отмены пар!**\n\n"
+    if has_replacements:
+        header += "⚠️ *На этот день действуют замены/отмены*\n"
+
+    header += "\n"
 
     if not active_pairs:
         return header + "🌴 В этот день занятий нет! Свободный день."
 
-    schedule_elements = []
-    prev_pair_num = None
-
+    cards = []
     for item in active_pairs:
         p_num = item["pair_num"]
         p_time = item["time"]
         lesson = item["lesson"]
 
-        # Вставляем информацию о перемене, если это не первая пара
-        if prev_pair_num is not None:
-            break_info = get_break_description(prev_pair_num, p_num)
-            schedule_elements.append(f"  └─ {break_info}\n")
+        num_icon = NUM_EMOJIS.get(p_num, f"{p_num}️⃣")
 
         subj = lesson.get("subject", "Занятие")
-        code = lesson.get("code", "")
-        code_part = f"[{code}] " if code else ""
         teacher = lesson.get("teacher", "")
         aud = lesson.get("classroom", "")
 
         is_rep = lesson.get("is_replacement", False)
         is_canc = lesson.get("is_cancelled", False)
         is_dist = lesson.get("is_distant", False)
-        rep_date = lesson.get("date", "")
-        date_badge = f" [{rep_date}]" if rep_date else ""
+
+        meta_parts = []
+        if aud:
+            meta_parts.append(f"Ауд. {aud}")
+        if teacher:
+            meta_parts.append(teacher)
+        meta_str = "📍 " + " • ".join(meta_parts) if meta_parts else ""
 
         if is_canc:
-            line = f"🔔 **{p_num} пара** • `{p_time}`\n"
-            line += f"❌ **ОТМЕНА{date_badge}: ПАРА ОТМЕНЕНА**\n"
-            c_code = lesson.get("cancelled_code") or code
             c_subj = lesson.get("cancelled_subject") or subj
             c_teacher = lesson.get("cancelled_teacher") or teacher
-            c_part = f"[{c_code}] " if c_code else ""
-            t_part = f" ({c_teacher})" if c_teacher else ""
-            line += f"<s>{c_part}{c_subj}{t_part}</s>\n"
+            t_info = f" ({c_teacher})" if c_teacher else ""
+            card = f"{num_icon} `{p_time}` • ❌ *Отменена*\n"
+            card += f"<s>{c_subj}{t_info}</s>"
         elif is_rep:
-            line = f"🔔 **{p_num} пара** • `{p_time}`\n"
-            line += f"🔄 **ЗАМЕНА{date_badge}**\n"
+            badge = " • 🔄 *Замена*"
             if is_dist:
-                line += "🌐 *Формат: Дистанционно*\n"
-            line += f"📖 {code_part}**{subj}**\n"
-            if aud:
-                line += f"🚪 Аудитория: **{aud}**\n"
-            if teacher:
-                line += f"👨‍🏫 Преподаватель: {teacher}\n"
-            c_code = lesson.get("cancelled_code", "")
+                badge += " (Дистант)"
+            card = f"{num_icon} `{p_time}`{badge}\n"
+            card += f"📖 **{subj}**\n"
+            if meta_str:
+                card += f"{meta_str}\n"
             c_subj = lesson.get("cancelled_subject", "")
             c_teacher = lesson.get("cancelled_teacher", "")
             if c_subj:
-                c_part = f"[{c_code}] " if c_code else ""
-                t_part = f" ({c_teacher})" if c_teacher else ""
-                line += f"❌ _Вместо: {c_part}{c_subj}{t_part}_\n"
+                t_str = f" ({c_teacher})" if c_teacher else ""
+                card += f"↳ _Вместо: {c_subj}{t_str}_"
         else:
-            line = f"🔔 **{p_num} пара** • `{p_time}`\n"
-            if is_dist:
-                line += "🌐 **ДИСТАНЦИОННОЕ ОБУЧЕНИЕ**\n"
-            line += f"📖 {code_part}**{subj}**\n"
-            if aud:
-                line += f"🚪 Аудитория: **{aud}**\n"
-            if teacher:
-                line += f"👨‍🏫 Преподаватель: {teacher}\n"
+            badge = " (Дистант)" if is_dist else ""
+            card = f"{num_icon} `{p_time}`{badge}\n"
+            card += f"📖 **{subj}**"
+            if meta_str:
+                card += f"\n{meta_str}"
 
-        schedule_elements.append(line)
-        prev_pair_num = p_num
+        cards.append(card.strip())
 
-    return header + "\n".join(schedule_elements)
+    return header + "\n\n".join(cards)
 
 
 async def send_schedule_for_day(update: Update, context: ContextTypes.DEFAULT_TYPE, offset_days: int) -> None:
