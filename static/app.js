@@ -14,6 +14,33 @@ const STORAGE_THEME = 'college_schedule_theme';
   document.documentElement.setAttribute('data-theme', saved);
 })();
 
+// ── ICONS (Lucide SVG System) ──────────────
+const ICONS = {
+  calendar: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>',
+  calendarDays: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>',
+  gradCap: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>',
+  door: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h20"/><path d="M13 20V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"/><path d="M9 12v.01"/></svg>',
+  book: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg>',
+  palette: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>',
+  users: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  refresh: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
+  clock: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  mapPin: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>',
+  user: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>',
+  coffee: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/><path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/></svg>',
+  utensils: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 2v6a3 3 0 0 1-3 3 3 3 0 0 1-3-3V2"/><path d="M15 11v11"/><path d="M5 2v14a3 3 0 0 0 3 3v3"/><path d="M8 2v6"/><path d="M5 2h3"/></svg>',
+  swap: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>',
+  ban: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>',
+  check: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
+  extLink: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>',
+  alert: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  chevronLeft: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>',
+  chevronRight: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>',
+  x: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+  moon: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>',
+  play: '<svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
+};
+
 // ── CONFIG ──────────────────────────────
 const API = '/api';
 const STORAGE_GROUP   = 'schedule_group_v2';
@@ -272,65 +299,65 @@ const THEMES = [
   {
     id: 'obsidian',
     name: 'Obsidian Night',
-    desc: 'Классика: глубокий графит, сапфировый свет и ночная тишина',
-    bg: '#0d0d18',
-    sidebar: '#111120',
-    card: '#151525',
+    desc: 'Тёмный графит: сбалансированная классика, радиус 10px, сапфировый акцент',
+    bg: '#0b0c16',
+    sidebar: '#0f101c',
+    card: '#131422',
     accent: '#4f8ef7',
     dot2: '#22c55e',
-    text: '#f0f0f8'
+    text: '#f0f2fa'
   },
   {
     id: 'carbon',
     name: 'Midnight Carbon',
-    desc: 'Стиль Linear / Apple Stealth: матовый карбон и ледяной акцент',
+    desc: 'Инженерный стиль: строгие грани 5px, глубокий мат, стиль Linear/Vercel',
     bg: '#09090b',
     sidebar: '#0d0d10',
-    card: '#131317',
+    card: '#121215',
     accent: '#38bdf8',
     dot2: '#34d399',
-    text: '#f4f4f5'
+    text: '#f4f4f6'
   },
   {
     id: 'tokyo',
     name: 'Cyber Tokyo',
-    desc: 'Нео-Токио: ночной индиго, неоновая сакура и фиолетовый вайб',
-    bg: '#0c0f1d',
-    sidebar: '#0f1224',
-    card: '#14182e',
+    desc: 'Нео-Токио: киберпанк, сакура, неоновые контуры и плотный трекинг',
+    bg: '#090a16',
+    sidebar: '#0e1020',
+    card: '#121427',
     accent: '#f43f5e',
     dot2: '#8b5cf6',
-    text: '#f8fafc'
+    text: '#fafafc'
   },
   {
     id: 'forest',
     name: 'Nord Forest',
-    desc: 'Скандинавия: хвойный бор, изумрудный мох и северное сияние',
-    bg: '#0a1211',
-    sidebar: '#0c1615',
-    card: '#111f1d',
+    desc: 'Скандинавия: хвойный бор, изумрудный мох и северный горизонт',
+    bg: '#070e0d',
+    sidebar: '#0a1715',
+    card: '#0e1b19',
     accent: '#10b981',
     dot2: '#34d399',
-    text: '#ecfdf5'
+    text: '#edfcf6'
   },
   {
     id: 'mocha',
     name: 'Warm Mocha',
-    desc: 'Уютный крафт: тёплый эспрессо, карамель и мягкий янтарь',
-    bg: '#131110',
-    sidebar: '#171412',
-    card: '#1c1815',
+    desc: 'Уютный крафт: мягкие скругления 18px, тёплый эспрессо и карамель',
+    bg: '#120f0d',
+    sidebar: '#17120e',
+    card: '#1c1713',
     accent: '#f59e0b',
     dot2: '#d97706',
-    text: '#fef3c7'
+    text: '#fff7ed'
   },
   {
     id: 'terminal',
     name: 'Amber CRT',
-    desc: 'Ретро-инженерия: винтажный янтарный дисплей и тёплое свечение',
-    bg: '#070707',
-    sidebar: '#0c0c0c',
-    card: '#111111',
+    desc: 'Ретро-инженерия: винтажные сканлайны, янтарный фосфор и грани 4px',
+    bg: '#050505',
+    sidebar: '#090909',
+    card: '#0b0b0b',
     accent: '#ffb000',
     dot2: '#4ade80',
     text: '#ffdf80'
@@ -338,9 +365,9 @@ const THEMES = [
   {
     id: 'light',
     name: 'Nordic Light',
-    desc: 'Ультра-чистая бумага: благородный титан, кобальт и лёгкость',
-    bg: '#f4f5f9',
-    sidebar: '#ebedf4',
+    desc: 'Светлая бумага: швейцарский минимализм, титан и глубокий кобальт',
+    bg: '#f4f5f8',
+    sidebar: '#ffffff',
     card: '#ffffff',
     accent: '#2563eb',
     dot2: '#16a34a',
@@ -407,7 +434,7 @@ function renderThemesGrid() {
         <div class="theme-card-info">
           <div class="theme-card-header">
             <span class="theme-card-title">${t.name}</span>
-            <span class="theme-card-badge">✓ Выбрано</span>
+            <span class="theme-card-badge">${ICONS.check} Выбрано</span>
           </div>
           <div class="theme-card-desc">${t.desc}</div>
         </div>
@@ -769,15 +796,14 @@ function updateActiveBreakDividers() {
       let badge = div.querySelector('.break-active-badge');
       if (isActive) {
         const leftSec = eSec - nowSec;
-        const text = `▶ Идёт сейчас (${fmtSec(leftSec)})`;
         if (badge) {
-          badge.textContent = text;
+          badge.innerHTML = `${ICONS.play} Идёт сейчас (${fmtSec(leftSec)})`;
         } else {
           const right = div.querySelector('.break-info-right');
           if (right) {
             badge = document.createElement('span');
             badge.className = 'break-active-badge';
-            badge.textContent = text;
+            badge.innerHTML = `${ICONS.play} Идёт сейчас (${fmtSec(leftSec)})`;
             right.prepend(badge);
           }
         }
@@ -875,11 +901,11 @@ function getGroupDayPairs(dayName) {
 function updateLiveCard() {
   if (!els.liveCard) return;
   if (!S.group) {
-    setLiveCard('free', '⏸', 'Выберите группу', 'Нажмите "Сменить группу"', 'Выберите группу');
+    setLiveCard('free', ICONS.coffee, 'Выберите группу', 'Нажмите "Сменить группу"', 'Выберите группу');
     return;
   }
   if (!S.data) {
-    setLiveCard('free', '⏱', S.group, 'Загрузка расписания...', S.group);
+    setLiveCard('free', ICONS.clock, S.group, 'Загрузка расписания...', S.group);
     return;
   }
 
@@ -908,24 +934,24 @@ function updateLiveCard() {
         if (elapsedSec < 45 * 60) {
           // Первые 45 минут: два времени (до 5-минутки и до конца всей пары)
           const to5minSec = (45 * 60) - elapsedSec;
-          setLiveCard('going', '📖',
+          setLiveCard('going', ICONS.book,
             `Идёт ${pn} пара: ${subj}`,
-            `⏱ До 5-минутки: <b>${fmtSec(to5minSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
+            `До 5-минутки: <b>${fmtSec(to5minSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
             `<b>${pn} пара</b> • До 5-мин: <b>${fmtSec(to5minSec)}</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`
           );
         } else if (elapsedSec < 50 * 60) {
           // Пятиминутка внутри пары (45-50 мин)
           const fiveLeftSec = (50 * 60) - elapsedSec;
-          setLiveCard('break', '☕',
+          setLiveCard('break', ICONS.coffee,
             `Пятиминутка (${pn} пара): ${subj}`,
             `Пятиминутный перерыв: <b>осталось ${fmtSec(fiveLeftSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
-            `☕ <b>5-минутка (${pn} пара)</b>: осталось <b>${fmtSec(fiveLeftSec)}</b> • Конец: <b>${fmtSec(totalLeftSec)}</b>`
+            `<b>5-минутка (${pn} пара)</b>: осталось <b>${fmtSec(fiveLeftSec)}</b> • Конец: <b>${fmtSec(totalLeftSec)}</b>`
           );
         } else {
           // Вторая половина пары (после 5-минутки)
-          setLiveCard('going', '📖',
+          setLiveCard('going', ICONS.book,
             `Идёт ${pn} пара (2-я часть): ${subj}`,
-            `⏱ До конца пары: <b>${fmtSec(totalLeftSec)}</b> (до ${fmtTime(bell.e)})`,
+            `До конца пары: <b>${fmtSec(totalLeftSec)}</b> (до ${fmtTime(bell.e)})`,
             `<b>${pn} пара (2-я часть)</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`
           );
         }
@@ -943,10 +969,10 @@ function updateLiveCard() {
           if (nowSec >= brkStartSec && nowSec < brkEndSec) {
             const leftSec = brkEndSec - nowSec;
             const pct = Math.min(100, Math.max(0, ((nowSec - brkStartSec) / (brk.dur * 60)) * 100));
-            setLiveCard('break', '☕',
+            setLiveCard('break', brk.dur >= 20 ? ICONS.utensils : ICONS.coffee,
               `${brk.name} • до ${fmtTime(brk.e)}`,
-              `⏱ До начала ${pn + 1} пары осталось <b>${fmtSec(leftSec)}</b>`,
-              `☕ <b>${brk.name}</b>: осталось <b>${fmtSec(leftSec)}</b>`
+              `До начала ${pn + 1} пары осталось <b>${fmtSec(leftSec)}</b>`,
+              `<b>${brk.name}</b>: осталось <b>${fmtSec(leftSec)}</b>`
             );
             if (els.liveCardProgress) els.liveCardProgress.style.width = pct.toFixed(1) + '%';
             return;
@@ -964,10 +990,10 @@ function updateLiveCard() {
       if (nowSec < bellStartSec) {
         const leftSec = bellStartSec - nowSec;
         const subj = p.subject ? esc(p.subject.slice(0, 45)) : '';
-        setLiveCard('soon', '⏱',
+        setLiveCard('soon', ICONS.clock,
           `Скоро начало занятий • ${pn} пара в ${fmtTime(bell.s)}`,
-          `⏱ До ${pn} пары осталось <b>${fmtHoursSec(leftSec)}</b> • ${subj}`,
-          `⏱ До ${pn} пары: <b>${fmtHoursSec(leftSec)}</b>`
+          `До ${pn} пары осталось <b>${fmtHoursSec(leftSec)}</b> • ${subj}`,
+          `До ${pn} пары: <b>${fmtHoursSec(leftSec)}</b>`
         );
         if (els.liveCardProgress) els.liveCardProgress.style.width = Math.max(0, 100 - (leftSec / 3600) * 100).toFixed(1) + '%';
         return;
@@ -998,10 +1024,10 @@ function updateLiveCard() {
           const subj = firstPair.subject ? esc(firstPair.subject.slice(0, 45)) : '';
           const timeStr = fmtHoursSec(diffSec);
 
-          setLiveCard('soon', '⏱',
+          setLiveCard('soon', ICONS.clock,
             `Следующие пары — ${dayLabel}`,
-            `⏱ До ${pn} пары (${fmtTime(bell.s)}) осталось <b>${timeStr}</b> • ${subj}`,
-            `⏱ ${pn} пара ${dayLabel}: <b>${timeStr}</b>`
+            `До ${pn} пары (${fmtTime(bell.s)}) осталось <b>${timeStr}</b> • ${subj}`,
+            `${pn} пара ${dayLabel}: <b>${timeStr}</b>`
           );
           if (els.liveCardProgress) els.liveCardProgress.style.width = '0%';
           return;
@@ -1011,17 +1037,17 @@ function updateLiveCard() {
   }
 
   // 4. Если на неделю вперёд пар нет
-  setLiveCard('free', '🌙', 'Пары на сегодня окончены', 'Хорошего отдыха!', 'Пары окончены');
+  setLiveCard('free', ICONS.moon, 'Пары на сегодня окончены', 'Хорошего отдыха!', 'Пары окончены');
 }
 
 function setLiveCard(type, icon, title, sub, restoreText = '') {
   if (!els.liveCard) return;
   els.liveCard.className = 'live-card ' + type;
-  if (els.liveCardIcon) els.liveCardIcon.textContent = icon;
+  if (els.liveCardIcon) els.liveCardIcon.innerHTML = icon;
   if (els.liveCardTitle) els.liveCardTitle.innerHTML = title;
   if (els.liveCardSub) els.liveCardSub.innerHTML = sub;
   if (type === 'free' && els.liveCardProgress) els.liveCardProgress.style.width = '0';
-  if (els.liveRestoreIcon) els.liveRestoreIcon.textContent = icon;
+  if (els.liveRestoreIcon) els.liveRestoreIcon.innerHTML = icon;
   if (els.liveRestoreText) els.liveRestoreText.innerHTML = restoreText || title;
 }
 
@@ -1093,7 +1119,7 @@ async function loadSchedule(force = false) {
     const hasCachedData = Boolean(S.data);
     updateSyncStatus(false, hasCachedData);
     if (!hasCachedData && els.scheduleView) {
-      els.scheduleView.innerHTML = `<div class="empty-pairs-hint">⚠️ Не удалось загрузить расписание.<br>Проверьте соединение с интернетом.</div>`;
+      els.scheduleView.innerHTML = `<div class="empty-pairs-hint">${ICONS.alert} Не удалось загрузить расписание.<br>Проверьте соединение с интернетом.</div>`;
     }
   }
 }
@@ -1222,11 +1248,12 @@ function renderDayPairs(dayName) {
           const isBreakActive = isToday && nowSec >= brkStartSec && nowSec < brkEndSec;
           const leftSec = isBreakActive ? (brkEndSec - nowSec) : 0;
           const glowClass = isBreakActive ? ' break-active-glow' : '';
-          const activeBadge = isBreakActive ? `<span class="break-active-badge">▶ Идёт сейчас (${fmtSec(leftSec)})</span>` : '';
+          const activeBadge = isBreakActive ? `<span class="break-active-badge">${ICONS.play} Идёт сейчас (${fmtSec(leftSec)})</span>` : '';
+          const breakIconSvg = brk.dur >= 20 ? ICONS.utensils : ICONS.coffee;
 
           html += `<div class="schedule-break-divider${glowClass}" data-s-min="${brk.s}" data-e-min="${brk.e}">
             <div class="break-info-left">
-              <span class="break-icon">☕</span>
+              <span class="break-icon">${breakIconSvg}</span>
               <span class="break-name">${brk.name}</span>
             </div>
             <div class="break-info-right">
@@ -1276,18 +1303,18 @@ function renderSingleCard(p, pn, bell, isGoing) {
   ].filter(Boolean).join(' ');
 
   const badges = [
-    isGoing    ? `<span class="pair-badge badge-going">▶ Идёт</span>` : '',
-    cancelled  ? `<span class="pair-badge badge-cancelled">Отмена</span>` : '',
-    replacement? `<span class="pair-badge badge-replacement">Замена</span>` : '',
-    distant    ? `<span class="pair-badge badge-distant">Дистант</span>` : '',
+    isGoing    ? `<span class="pair-badge badge-going">${ICONS.play} Идёт</span>` : '',
+    cancelled  ? `<span class="pair-badge badge-cancelled">${ICONS.ban} Отмена</span>` : '',
+    replacement? `<span class="pair-badge badge-replacement">${ICONS.swap} Замена</span>` : '',
+    distant    ? `<span class="pair-badge badge-distant">${ICONS.extLink} Дистант</span>` : '',
   ].filter(Boolean).join('');
 
   const teacher = p.teacher || '';
   const teacherHtml = teacher
-    ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="openTeacher(this.dataset.teacher)">${esc(teacher)}</button>`
+    ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(teacher)}</span></button>`
     : '';
   const roomHtml = classroom
-    ? `<button class="pair-room-btn" data-room="${esc(classroom)}" onclick="openRoom(this.dataset.room)">${esc(classroom)}</button>`
+    ? `<button class="pair-room-btn" data-room="${esc(classroom)}" onclick="openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(classroom)}</span></button>`
     : '';
 
   return `<div class="${cardClass}">
@@ -1315,10 +1342,10 @@ function renderSplitCard(num, den, pn, bell, isGoing) {
     const teacher = p.teacher || '';
     const room = p.classroom || p.room || '';
     const teacherHtml = teacher
-      ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="openTeacher(this.dataset.teacher)">${esc(teacher)}</button>`
+      ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(teacher)}</span></button>`
       : '';
     const roomHtml = room
-      ? `<button class="pair-room-btn" data-room="${esc(room)}" onclick="openRoom(this.dataset.room)">${esc(room)}</button>`
+      ? `<button class="pair-room-btn" data-room="${esc(room)}" onclick="openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(room)}</span></button>`
       : '';
     return `<div class="split-row ${type}-row">
       <div class="pair-num-col">
@@ -1403,7 +1430,7 @@ function renderTeachersList(query = '') {
   filtered.forEach(t => {
     const isAct = (t === S.selectedTeacher);
     html += `<button class="teacher-chip-btn${isAct ? ' active' : ''}" data-teacher="${esc(t)}">
-      <span class="teacher-chip-icon">👨‍🏫</span>
+      <span class="teacher-chip-icon">${ICONS.gradCap}</span>
       <span class="teacher-chip-name" title="${esc(t)}">${esc(t)}</span>
     </button>`;
   });
@@ -1440,9 +1467,9 @@ async function selectTeacher(teacherName) {
     let html = `
       <div class="selected-target-banner">
         <div class="selected-target-title">
-          <span>👨‍🏫 ${esc(teacherName)}</span>
+          <span>${ICONS.gradCap} ${esc(teacherName)}</span>
         </div>
-        <button class="selected-target-clear-btn" onclick="clearTeacherSelection()">✕ Сбросить</button>
+        <button class="selected-target-clear-btn" onclick="clearTeacherSelection()">${ICONS.x} Сбросить</button>
       </div>
     `;
 
@@ -1462,7 +1489,7 @@ async function selectTeacher(teacherName) {
             <div class="pair-subject">${esc(r.subject)}</div>
             <div class="pair-meta">
               <span class="pair-badge badge-going">${esc(r.group)}</span>
-              ${room ? `<button class="pair-room-btn" onclick="openRoom('${esc(room)}')">🚪 ${esc(room)}</button>` : ''}
+              ${room ? `<button class="pair-room-btn" onclick="openRoom('${esc(room)}')">${ICONS.mapPin} <span>${esc(room)}</span></button>` : ''}
               ${r.week ? `<span class="pair-badge">${esc(r.week)}</span>` : ''}
             </div>
           </div>
@@ -1551,9 +1578,9 @@ async function selectClassroom(roomName) {
     let html = `
       <div class="selected-target-banner">
         <div class="selected-target-title">
-          <span>🚪 Аудитория ${esc(roomName)}</span>
+          <span>${ICONS.door} Аудитория ${esc(roomName)}</span>
         </div>
-        <button class="selected-target-clear-btn" onclick="clearClassroomSelection()">✕ Сбросить</button>
+        <button class="selected-target-clear-btn" onclick="clearClassroomSelection()">${ICONS.x} Сбросить</button>
       </div>
     `;
 
@@ -1573,7 +1600,7 @@ async function selectClassroom(roomName) {
             <div class="pair-subject">${esc(r.subject)}</div>
             <div class="pair-meta">
               <span class="pair-badge badge-going">${esc(r.group)}</span>
-              ${teacher ? `<button class="pair-teacher-btn" onclick="openTeacher('${esc(teacher)}')">👨‍🏫 ${esc(teacher)}</button>` : ''}
+              ${teacher ? `<button class="pair-teacher-btn" onclick="openTeacher('${esc(teacher)}')">${ICONS.user} <span>${esc(teacher)}</span></button>` : ''}
               ${r.week ? `<span class="pair-badge">${esc(r.week)}</span>` : ''}
             </div>
           </div>
@@ -1757,7 +1784,7 @@ function buildGroupGrid(gridEl, searchEl, chipsEl, onSelect) {
       anyGroups = true;
 
       if (filter === 'all') {
-        html += `<div class="course-section-title">🎓 ${esc(course)} (${items.length})</div>`;
+        html += `<div class="course-section-title">${ICONS.gradCap} <span>${esc(course)}</span> <span class="course-section-count">(${items.length})</span></div>`;
       }
       html += '<div class="groups-tiles-grid">';
       items.forEach(item => {
