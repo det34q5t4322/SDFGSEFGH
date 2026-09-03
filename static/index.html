@@ -122,19 +122,23 @@
       </button>
     </div>
 
-    <!-- ─── DAY STRIP ─── -->
-    <div class="day-strip-wrap">
-      <div class="day-strip" id="dayStrip">
-        <!-- Пн 02 … Сб 07 -->
+    <!-- ─── WEEK NAVIGATION (◀ Неделя ▶) ─── -->
+    <div class="week-nav-wrap">
+      <div class="week-nav-bar">
+        <button class="week-nav-btn" id="prevWeekBtn" aria-label="Предыдущая неделя" title="Предыдущая неделя">◀</button>
+        <div class="week-nav-info" id="weekNavInfo">
+          <span class="week-nav-range" id="weekNavRange">1 – 6 сентября</span>
+          <span class="week-nav-badge" id="weekNavBadge">Эта неделя</span>
+        </div>
+        <button class="week-nav-btn" id="nextWeekBtn" aria-label="Следующая неделя" title="Следующая неделя">▶</button>
       </div>
     </div>
 
-    <!-- ─── PARITY TOGGLE (compact) ─── -->
-    <div class="parity-bar" id="parityBar">
-      <button class="parity-chip active" data-parity="auto">Авто</button>
-      <button class="parity-chip" data-parity="num">I Числ.</button>
-      <button class="parity-chip" data-parity="den">II Знам.</button>
-      <button class="parity-chip" data-parity="all">Обе</button>
+    <!-- ─── DAY STRIP ─── -->
+    <div class="day-strip-wrap">
+      <div class="day-strip" id="dayStrip">
+        <!-- Пн 01 … Сб 06 -->
+      </div>
     </div>
 
     <!-- ─── SCHEDULE CONTENT ─── -->

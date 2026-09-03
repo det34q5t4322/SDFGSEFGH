@@ -25,15 +25,63 @@ const DAYS = ['Воскресенье','Понедельник','Вторник'
 const DAYS_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 const DAYS_EN_ORDER = [1,2,3,4,5,6]; // Пн-Сб
 
+const MONTH_NAMES = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+];
+
+const DEFAULT_GROUPS = [
+  {"name": "ИИ11-26АП", "course": "1 курс"}, {"name": "ИИ11-26БП", "course": "1 курс"},
+  {"name": "ИИ9-26АП", "course": "1 курс"}, {"name": "ИИ9-26БП", "course": "1 курс"},
+  {"name": "ИИ9-26ВП", "course": "1 курс"}, {"name": "ИСС9-26", "course": "1 курс"},
+  {"name": "ОИБ11-26П", "course": "1 курс"}, {"name": "ОИБ9-26А", "course": "1 курс"},
+  {"name": "ОИБ9-26Б", "course": "1 курс"}, {"name": "ОИБ9-26П", "course": "1 курс"},
+  {"name": "РЛ11-26П", "course": "1 курс"}, {"name": "РЛ9-26П", "course": "1 курс"},
+  {"name": "РУП11-26П", "course": "1 курс"}, {"name": "РУП9-26А", "course": "1 курс"},
+  {"name": "РУП9-26АП", "course": "1 курс"}, {"name": "РУП9-26Б", "course": "1 курс"},
+  {"name": "РУП9-26БП", "course": "1 курс"}, {"name": "СР9-26", "course": "1 курс"},
+  {"name": "ССА11-26П", "course": "1 курс"}, {"name": "ССА9-26А", "course": "1 курс"},
+  {"name": "ССА9-26Б", "course": "1 курс"}, {"name": "ССА9-26П", "course": "1 курс"},
+  {"name": "ЭБ11-26П", "course": "1 курс"}, {"name": "ЭБ9-26П", "course": "1 курс"},
+  {"name": "ИИ9-25АП", "course": "2 курс"}, {"name": "ИИ9-25БП", "course": "2 курс"},
+  {"name": "ИИ9-25ВП", "course": "2 курс"}, {"name": "ИСП11-25П", "course": "2 курс"},
+  {"name": "ИСП11-25оз", "course": "Очно-заочное"}, {"name": "ИСП9-25", "course": "2 курс"},
+  {"name": "ИСП9-25АП", "course": "2 курс"}, {"name": "ИСП9-25БП", "course": "2 курс"},
+  {"name": "ИСП9-25ВП", "course": "2 курс"}, {"name": "ИСС9-25", "course": "2 курс"},
+  {"name": "ОИБ11-25П", "course": "2 курс"}, {"name": "ОИБ9-25", "course": "2 курс"},
+  {"name": "ОИБ9-25АП", "course": "2 курс"}, {"name": "ОИБ9-25БП", "course": "2 курс"},
+  {"name": "РЛ9-25П", "course": "2 курс"}, {"name": "СР9-25", "course": "2 курс"},
+  {"name": "ССА11-25П", "course": "2 курс"}, {"name": "ССА9-25А", "course": "2 курс"},
+  {"name": "ССА9-25Б", "course": "2 курс"}, {"name": "ССА9-25П", "course": "2 курс"},
+  {"name": "ЭБ9-25П", "course": "2 курс"}, {"name": "ИСП11-24П", "course": "3 курс"},
+  {"name": "ИСП11-24оз", "course": "Очно-заочное"}, {"name": "ИСП9-24А", "course": "3 курс"},
+  {"name": "ИСП9-24АП", "course": "3 курс"}, {"name": "ИСП9-24Б", "course": "3 курс"},
+  {"name": "ИСП9-24БП", "course": "3 курс"}, {"name": "ИСС9-24", "course": "3 курс"},
+  {"name": "ОИБ11-24П", "course": "3 курс"}, {"name": "ОИБ9-24А", "course": "3 курс"},
+  {"name": "ОИБ9-24Б", "course": "3 курс"}, {"name": "ОИБ9-24П", "course": "3 курс"},
+  {"name": "СР9-24", "course": "3 курс"}, {"name": "ССА9-24А", "course": "3 курс"},
+  {"name": "ССА9-24Б", "course": "3 курс"}, {"name": "ССА9-24П", "course": "3 курс"},
+  {"name": "ИСП11-23АПоз", "course": "Очно-заочное"}, {"name": "ИСП11-23ВПоз", "course": "Очно-заочное"},
+  {"name": "ИСП9-23А", "course": "4 курс"}, {"name": "ИСП9-23Б", "course": "4 курс"},
+  {"name": "ИСП9-23В", "course": "4 курс"}, {"name": "ИСП9-23Г", "course": "4 курс"},
+  {"name": "ИСС9-23", "course": "4 курс"}, {"name": "ОИБ9-23А", "course": "4 курс"},
+  {"name": "ОИБ9-23Б", "course": "4 курс"}, {"name": "ОИБ9-23В", "course": "4 курс"},
+  {"name": "СР9-23", "course": "4 курс"}, {"name": "ССА11-23оз", "course": "Очно-заочное"},
+  {"name": "ССА9-23А", "course": "4 курс"}, {"name": "ССА9-23Б", "course": "4 курс"},
+  {"name": "ССА9-23В", "course": "4 курс"}, {"name": "РУП11-26оз", "course": "Очно-заочное"},
+  {"name": "ССА11-26оз", "course": "Очно-заочное"}
+];
+
 // ── STATE ───────────────────────────────
 const S = {
   group:              null,
   activeGid:          '',
-  parity:             localStorage.getItem(STORAGE_PARITY) || 'auto',
+  parity:             'auto',
+  weekOffset:         0,            // 0 = текущая неделя, 1 = следующая, -1 = предыдущая
   view:               'today',      // today | week | teacher | classroom
   selectedDay:        null,         // 1-6 (Пн-Сб), null = сегодня
   data:               null,
-  groupsList:         [],
+  groupsList:         DEFAULT_GROUPS,
   teachersList:       [],
   classroomsList:     [],
   selectedTeacher:    null,
@@ -77,8 +125,10 @@ const els = {
   themesGrid:           $('themesGrid'),
 
   dayStrip:             $('dayStrip'),
-
-  parityBar:            $('parityBar'),
+  prevWeekBtn:          $('prevWeekBtn'),
+  nextWeekBtn:          $('nextWeekBtn'),
+  weekNavRange:         $('weekNavRange'),
+  weekNavBadge:         $('weekNavBadge'),
 
   scheduleView:         $('scheduleView'),
 
@@ -119,10 +169,9 @@ const els = {
 async function init() {
   setupThemes();
   setupSidebar();
-  setupParityBar();
   setupSidebarNav();
+  setupWeekNav();
   setupSearchInputs();
-  buildDayStrip();
   startLiveCardClock();
 
   // Проверяем параметр группы в URL (например ?group=РУП9-26А) или Telegram MiniApp
@@ -135,10 +184,12 @@ async function init() {
     S.group = localStorage.getItem(STORAGE_GROUP);
   }
 
+  buildDayStrip();
+
   if (!S.group) {
-    await showOnboarding();
+    showOnboarding();
   } else {
-    await loadSchedule();
+    loadSchedule();
     startAutoRefresh();
   }
 }
@@ -378,49 +429,122 @@ function setView(view) {
   document.querySelectorAll('.sidebar-nav-item[data-view]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === view);
   });
-  if (els.scheduleView) els.scheduleView.style.display = (view === 'today' || view === 'week') ? 'block' : 'none';
+  const isSched = (view === 'today' || view === 'week');
+  if (els.scheduleView) els.scheduleView.style.display = isSched ? 'block' : 'none';
   if (els.teacherView) els.teacherView.style.display = view === 'teacher' ? 'block' : 'none';
   if (els.classroomView) els.classroomView.style.display = view === 'classroom' ? 'block' : 'none';
-  if (els.dayStrip?.parentElement) els.dayStrip.parentElement.style.display = (view === 'today') ? 'block' : 'none';
-  if (els.parityBar) els.parityBar.style.display = (view === 'today' || view === 'week') ? 'flex' : 'none';
+  
+  const navWrap = document.querySelector('.week-nav-wrap');
+  if (navWrap) navWrap.style.display = isSched ? 'block' : 'none';
+  if (els.dayStrip?.parentElement) els.dayStrip.parentElement.style.display = isSched ? 'block' : 'none';
 
-  if (view === 'today' || view === 'week') renderSchedule();
+  if (isSched) renderSchedule();
   if (view === 'teacher') initTeachersView();
   if (view === 'classroom') initClassroomsView();
 }
 
 // ════════════════════════════════════════
-//  PARITY BAR
+//  WEEK NAVIGATION & PARITY
 // ════════════════════════════════════════
-function setupParityBar() {
-  if (!els.parityBar) return;
-  els.parityBar.querySelectorAll('.parity-chip').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.parity === S.parity);
-    btn.addEventListener('click', () => {
-      S.parity = btn.dataset.parity;
-      localStorage.setItem(STORAGE_PARITY, S.parity);
-      els.parityBar.querySelectorAll('.parity-chip').forEach(b => b.classList.toggle('active', b.dataset.parity === S.parity));
-      updateTopbarParity();
-      renderSchedule();
-      updateLiveCard();
-    });
-  });
-  updateTopbarParity();
-}
-
 function updateTopbarParity() {
-  const labels = { auto: 'Авто', num: 'I Числ.', den: 'II Знам.', all: 'Обе' };
+  const p = getActiveParity();
   if (els.topbarParity) {
-    els.topbarParity.textContent = labels[S.parity] || '';
+    els.topbarParity.textContent = (p === 'num') ? 'I Числ.' : 'II Знам.';
   }
 }
 
 function getActiveParity() {
-  if (S.parity !== 'auto') return S.parity;
-  if (S.data?.week_info?.parity) {
-    return S.data.week_info.parity;
+  const baseParity = S.data?.week_info?.parity || 'num';
+  const offset = S.weekOffset || 0;
+  if (Math.abs(offset) % 2 === 0) {
+    return baseParity;
+  } else {
+    return baseParity === 'num' ? 'den' : 'num';
   }
-  return 'num';
+}
+
+function updateWeekNav(monday, saturday) {
+  if (!els.weekNavRange || !els.weekNavBadge) return;
+
+  const mDay = monday.getDate();
+  const mMonth = monday.getMonth();
+  const sDay = saturday.getDate();
+  const sMonth = saturday.getMonth();
+
+  let rangeStr = '';
+  if (mMonth === sMonth) {
+    rangeStr = `${mDay} – ${sDay} ${MONTH_NAMES[mMonth]}`;
+  } else {
+    rangeStr = `${mDay} ${MONTH_NAMES[mMonth]} – ${sDay} ${MONTH_NAMES[sMonth]}`;
+  }
+  els.weekNavRange.textContent = rangeStr;
+
+  els.weekNavBadge.className = 'week-nav-badge';
+  if (S.weekOffset === 0) {
+    els.weekNavBadge.textContent = 'Эта неделя';
+  } else if (S.weekOffset === 1) {
+    els.weekNavBadge.textContent = 'След. неделя';
+    els.weekNavBadge.classList.add('next-week');
+  } else if (S.weekOffset === -1) {
+    els.weekNavBadge.textContent = 'Прошлая нед.';
+    els.weekNavBadge.classList.add('prev-week');
+  } else if (S.weekOffset > 1) {
+    els.weekNavBadge.textContent = `Через ${S.weekOffset} нед.`;
+    els.weekNavBadge.classList.add('next-week');
+  } else {
+    els.weekNavBadge.textContent = `${Math.abs(S.weekOffset)} нед. назад`;
+    els.weekNavBadge.classList.add('prev-week');
+  }
+}
+
+function changeWeek(delta) {
+  S.weekOffset += delta;
+  buildDayStrip();
+  updateTopbarParity();
+  renderSchedule();
+  updateLiveCard();
+}
+
+function setupWeekNav() {
+  els.prevWeekBtn?.addEventListener('click', () => changeWeek(-1));
+  els.nextWeekBtn?.addEventListener('click', () => changeWeek(1));
+  setupSwipeGestures();
+}
+
+function setupSwipeGestures() {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchEndX = 0;
+  let touchEndY = 0;
+
+  const target = document.body;
+  target.addEventListener('touchstart', (e) => {
+    if (!e.changedTouches || !e.changedTouches[0]) return;
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+  }, { passive: true });
+
+  target.addEventListener('touchend', (e) => {
+    if (!e.changedTouches || !e.changedTouches[0]) return;
+    touchEndX = e.changedTouches[0].screenX;
+    touchEndY = e.changedTouches[0].screenY;
+    handleSwipe();
+  }, { passive: true });
+
+  function handleSwipe() {
+    const dx = touchEndX - touchStartX;
+    const dy = touchEndY - touchStartY;
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      if (document.querySelector('.modal-backdrop.open') || document.querySelector('.sidebar.open')) {
+        return;
+      }
+      if (dx < 0) {
+        changeWeek(1); // свайп влево -> следующая неделя
+      } else {
+        changeWeek(-1); // свайп вправо -> предыдущая неделя
+      }
+    }
+  }
 }
 
 // ════════════════════════════════════════
@@ -433,22 +557,30 @@ function buildDayStrip() {
 
   els.dayStrip.innerHTML = '';
 
-  const mondayOffset = todayDow === 0 ? -6 : 1 - todayDow;
+  const mondayOffset = (todayDow === 0 ? -6 : 1 - todayDow) + (S.weekOffset * 7);
   const monday = new Date(today);
   monday.setDate(today.getDate() + mondayOffset);
+
+  const saturday = new Date(monday);
+  saturday.setDate(monday.getDate() + 5);
+
+  updateWeekNav(monday, saturday);
+
+  if (S.selectedDay === null) {
+    if (S.weekOffset === 0 && todayDow >= 1 && todayDow <= 6) {
+      S.selectedDay = todayDow;
+    } else {
+      S.selectedDay = 1; // понедельник
+    }
+  }
 
   DAYS_EN_ORDER.forEach(dow => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + (dow - 1));
-    const isToday = d.toDateString() === today.toDateString();
-    const isActive = S.selectedDay === null ? isToday : (S.selectedDay === dow);
+    const isToday = (S.weekOffset === 0) && (d.toDateString() === today.toDateString());
+    const isActive = (S.selectedDay === dow);
 
-    let dayNum = String(d.getDate()).padStart(2, '0');
-    const dayName = DAYS[dow];
-    if (S.data?.day_dates && S.data.day_dates[dayName]) {
-      const parts = S.data.day_dates[dayName].split('.');
-      if (parts[0]) dayNum = parts[0];
-    }
+    const dayNum = String(d.getDate()).padStart(2, '0');
 
     const chip = document.createElement('div');
     chip.className = 'day-chip' + (isActive ? ' active' : '') + (isToday ? ' today-chip' : '');
@@ -953,7 +1085,7 @@ function renderWeek() {
 function getDayDate(dow) {
   const today = new Date();
   const todayDow = today.getDay() || 7;
-  const diff = dow - todayDow;
+  const diff = dow - todayDow + (S.weekOffset * 7);
   const d = new Date(today);
   d.setDate(today.getDate() + diff);
   return d;
@@ -966,7 +1098,7 @@ function renderDayPairs(dayName) {
   const now = new Date();
   const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   const nowMin = Math.floor(nowSec / 60);
-  const isToday = (DAYS[now.getDay()] === dayName);
+  const isToday = (S.weekOffset === 0) && (DAYS[now.getDay()] === dayName);
 
   const activeParity = getActiveParity();
   let html = '';
@@ -1405,24 +1537,34 @@ function setupSearchInputs() {
 // ════════════════════════════════════════
 //  GROUP SELECTION (ПЛИТКИ / КВАДРАТИКИ)
 // ════════════════════════════════════════
-async function ensureGroupsLoaded() {
-  if (S.groupsList && S.groupsList.length > 0) return S.groupsList;
+function ensureGroupsLoaded() {
+  if (!S.groupsList || S.groupsList.length === 0) {
+    try {
+      const cached = localStorage.getItem('cached_groups_v2');
+      if (cached) S.groupsList = JSON.parse(cached);
+    } catch (_) {}
+    if (!S.groupsList || S.groupsList.length === 0) {
+      S.groupsList = DEFAULT_GROUPS;
+    }
+  }
+  // Фоновое обновление с сервера
   try {
     const tabParam = S.activeGid ? `?tab=${encodeURIComponent(S.activeGid)}` : '';
-    const res = await fetch(`${API}/groups${tabParam}`);
-    if (res.ok) {
-      const data = await res.json();
-      S.groupsList = data.groups || [];
-    }
-  } catch (e) {
-    console.error('Ошибка загрузки списка групп:', e);
-  }
-  return S.groupsList || [];
+    fetch(`${API}/groups${tabParam}`).then(res => {
+      if (res.ok) return res.json();
+    }).then(data => {
+      if (data && data.groups && data.groups.length > 0) {
+        S.groupsList = data.groups;
+        try { localStorage.setItem('cached_groups_v2', JSON.stringify(data.groups)); } catch (_) {}
+      }
+    }).catch(() => {});
+  } catch (_) {}
+  return S.groupsList || DEFAULT_GROUPS;
 }
 
-async function openGroupModal() {
+function openGroupModal() {
+  ensureGroupsLoaded();
   els.groupModal?.classList.add('open');
-  await ensureGroupsLoaded();
   buildGroupGrid(els.groupsGrid, els.groupSearchInput, els.courseChips, (grp) => {
     S.group = grp;
     localStorage.setItem(STORAGE_GROUP, grp);
@@ -1440,8 +1582,8 @@ function closeGroupModal() {
 els.closeGroupModal?.addEventListener('click', closeGroupModal);
 els.groupModal?.addEventListener('click', e => { if (e.target === els.groupModal) closeGroupModal(); });
 
-async function showOnboarding() {
-  await ensureGroupsLoaded();
+function showOnboarding() {
+  ensureGroupsLoaded();
   els.onboardModal?.classList.add('open');
   buildGroupGrid(els.onboardGroupsGrid, els.onboardSearchInput, els.onboardCourseChips, (grp) => {
     S.group = grp;

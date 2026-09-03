@@ -348,7 +348,7 @@ def format_day_schedule(group_name: str, day_name: str, target_date: Optional[da
             c_teacher = lesson.get("cancelled_teacher") or teacher
             t_info = f" ({c_teacher})" if c_teacher else ""
             card = f"{num_icon} `{p_time}` • ❌ *Отменена*\n"
-            card += f"<s>{c_subj}{t_info}</s>"
+            card += f"— {c_subj}{t_info}"
         elif is_rep:
             badge = " • 🔄 *Замена*"
             if is_dist:
