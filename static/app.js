@@ -125,7 +125,15 @@ async function init() {
   buildDayStrip();
   startLiveCardClock();
 
-  S.group = localStorage.getItem(STORAGE_GROUP);
+  // Проверяем параметр группы в URL (например ?group=РУП9-26А) или Telegram MiniApp
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlGroup = urlParams.get('group') || urlParams.get('tgWebAppStartParam');
+  if (urlGroup) {
+    S.group = urlGroup;
+    try { localStorage.setItem(STORAGE_GROUP, urlGroup); } catch (_) {}
+  } else {
+    S.group = localStorage.getItem(STORAGE_GROUP);
+  }
 
   if (!S.group) {
     await showOnboarding();
