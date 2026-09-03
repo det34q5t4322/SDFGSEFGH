@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=20260904_02">
 </head>
 <body>
 
@@ -210,27 +210,6 @@
     </div>
   </div>
 
-  <!-- ═══ MODAL: Первый запуск — выбор группы ═══ -->
-  <div class="modal-backdrop" id="onboardModal">
-    <div class="modal-sheet onboard-sheet">
-      <div class="onboard-icon">🎓</div>
-      <h2 class="onboard-title">Добро пожаловать!</h2>
-      <p class="onboard-sub">Выберите свою учебную группу — она сохранится и больше не нужно будет выбирать</p>
-      <div class="modal-search-wrap">
-        <input type="text" id="onboardSearchInput" class="search-input" placeholder="Поиск группы...">
-        <div class="course-chips" id="onboardCourseChips">
-          <span class="course-chip active" data-filter="all">Все</span>
-          <span class="course-chip" data-filter="1 курс">1 к.</span>
-          <span class="course-chip" data-filter="2 курс">2 к.</span>
-          <span class="course-chip" data-filter="3 курс">3 к.</span>
-          <span class="course-chip" data-filter="4 курс">4 к.</span>
-          <span class="course-chip" data-filter="Очно-заочное">ОЗ</span>
-        </div>
-      </div>
-      <div class="modal-groups-body" id="onboardGroupsGrid"></div>
-    </div>
-  </div>
-
   <!-- ═══ MODAL: Выбор темы оформления ═══ -->
   <div class="modal-backdrop" id="themeModal">
     <div class="modal-sheet">
@@ -244,6 +223,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20260904_02"></script>
 </body>
 </html>

@@ -87,12 +87,12 @@ def get_user_group(user_id: int) -> str:
 
 
 def get_webapp_url(group: str = DEFAULT_GROUP) -> Optional[str]:
-    """Генерация ссылки на WebApp с автоподстановкой группы."""
+    """Генерация ссылки на WebApp с автоподстановкой группы и сбросом кэша."""
     if not WEB_APP_URL:
         return None
     import urllib.parse
     sep = "&" if "?" in WEB_APP_URL else "?"
-    return f"{WEB_APP_URL}{sep}group={urllib.parse.quote(group)}"
+    return f"{WEB_APP_URL}{sep}v=20260904_02&group={urllib.parse.quote(group)}"
 
 
 def set_user_group(user_id: int, username: str, group: str) -> None:
