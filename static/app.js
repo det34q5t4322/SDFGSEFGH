@@ -432,6 +432,17 @@ function setupSidebar() {
   els.sidebarChangeGroup?.addEventListener('click', () => { closeSidebar(); openGroupModal(); });
   els.sidebarRefresh?.addEventListener('click', () => { closeSidebar(); loadSchedule(true); });
 
+  const diaryBtn = document.getElementById('sidebarDiaryBtn');
+  diaryBtn?.addEventListener('click', () => {
+    closeSidebar();
+    const diaryUrl = 'https://online-obr-college-dist-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi';
+    if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(diaryUrl);
+    } else {
+      window.open(diaryUrl, '_blank', 'noopener,noreferrer');
+    }
+  });
+
   let startX = 0;
   els.sidebar?.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
   els.sidebar?.addEventListener('touchmove', e => {

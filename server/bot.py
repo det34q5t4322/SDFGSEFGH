@@ -77,6 +77,7 @@ def save_users(users: Dict[str, dict]) -> None:
 
 
 DEFAULT_GROUP = "ИСС9-25"
+DIARY_1C_URL = "https://online-obr-college-dist-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi"
 
 
 def get_user_group(user_id: int) -> str:
@@ -149,6 +150,9 @@ def build_schedule_keyboard(offset_days: int = 0, group: str = DEFAULT_GROUP) ->
         InlineKeyboardButton("⚙️ Сменить группу", callback_data="select_group_courses"),
     ]
     buttons.append(actions)
+    buttons.append([
+        InlineKeyboardButton("📚 Электронный дневник 1С", url=DIARY_1C_URL)
+    ])
 
     return InlineKeyboardMarkup(buttons)
 
@@ -471,6 +475,9 @@ def build_week_keyboard(group: str = DEFAULT_GROUP) -> InlineKeyboardMarkup:
         InlineKeyboardButton("📅 К сегодняшнему дню", callback_data="day_0"),
         InlineKeyboardButton("⚙️ Сменить группу", callback_data="select_group_courses"),
     ])
+    buttons.append([
+        InlineKeyboardButton("📚 Электронный дневник 1С", url=DIARY_1C_URL)
+    ])
     return InlineKeyboardMarkup(buttons)
 
 
@@ -550,6 +557,23 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             )
 
 
+async def diary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Прямой переход в электронный дневник 1С:Колледж."""
+    text = (
+        "📚 **Электронный дневник 1С:Колледж**\n"
+        "Московский колледж телекоммуникаций МТУСИ\n\n"
+        "Нажмите на кнопку ниже для безопасного перехода в официальный личный кабинет студента:"
+    )
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔗 Открыть дневник 1С", url=DIARY_1C_URL)]
+    ])
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text(text, parse_mode="Markdown", reply_markup=keyboard)
+    elif update.message:
+        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=keyboard)
+
+
 async def post_init(application) -> None:
     """Регистрация команд в официальном меню Telegram."""
     try:
@@ -559,6 +583,7 @@ async def post_init(application) -> None:
             BotCommand("tomorrow", "📆 Расписание на завтра"),
             BotCommand("week", "🗓 Расписание на неделю"),
             BotCommand("group", "⚙️ Сменить группу"),
+            BotCommand("diary", "📚 Дневник 1С"),
             BotCommand("start", "🔄 Главное меню"),
         ])
         logger.info("Команды меню бота успешно зарегистрированы!")
@@ -591,6 +616,7 @@ def create_bot_app():
     app.add_handler(CommandHandler("tomorrow", lambda u, c: send_schedule_for_day(u, c, 1)))
     app.add_handler(CommandHandler("week", send_week_schedule))
     app.add_handler(CommandHandler("group", show_courses_menu))
+    app.add_handler(CommandHandler(["diary", "dnevnik"], diary_command))
 
     # Регистрация callback-обработчиков (редактирование на месте)
     app.add_handler(CallbackQueryHandler(show_courses_menu, pattern="^select_group_courses$"))
