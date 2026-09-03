@@ -7,6 +7,7 @@ from typing import Dict, Optional
 
 from dotenv import load_dotenv
 from telegram import (
+    BotCommand,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
@@ -101,42 +102,68 @@ def get_current_week_parity() -> str:
 
 
 def build_main_keyboard(web_app_url: Optional[str] = None) -> ReplyKeyboardMarkup:
-    """Главная клавиатура бота."""
-    keyboard = [
-        [KeyboardButton("📅 Сегодня"), KeyboardButton("📆 Завтра")],
-        [KeyboardButton("🗓 Вся неделя"), KeyboardButton("👥 Моя группа")],
-    ]
+    """Минималистичная главная клавиатура бота."""
+    keyboard = []
     if web_app_url:
-        keyboard.insert(0, [KeyboardButton("📱 Открыть расписание", web_app=WebAppInfo(url=web_app_url))])
+        keyboard.append([KeyboardButton("🚀 Открыть приложение", web_app=WebAppInfo(url=web_app_url))])
+    keyboard.append([KeyboardButton("📅 Сегодня"), KeyboardButton("📆 Завтра")])
+    keyboard.append([KeyboardButton("🗓 Вся неделя"), KeyboardButton("⚙️ Сменить группу")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
+async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /app — открытие веб-приложения."""
+    if not WEB_APP_URL:
+        await update.message.reply_text(
+            "⚠️ Веб-приложение еще настраивается. Используйте текстовые кнопки меню.",
+            reply_markup=build_main_keyboard(),
+        )
+        return
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 Открыть интерактивное расписание", web_app=WebAppInfo(url=WEB_APP_URL))]
+    ])
+    await update.message.reply_text(
+        "📱 Нажмите кнопку ниже, чтобы открыть расписание:",
+        reply_markup=kb,
+    )
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка команды /start."""
+    """Минималистичное меню /start."""
     user = update.effective_user
     user_id = user.id
     current_group = get_user_group(user_id)
 
-    greeting = (
-        f"👋 Привет, {user.first_name}!\n\n"
-        f"Я бот с расписанием **Колледжа телекоммуникаций**.\n\n"
-    )
+    data = parser.get_data()
+    week_info = data.get("week_info", {})
+    parity_str = week_info.get("parity_name", "Числитель")
+    week_num = week_info.get("week_number", 1)
 
     if current_group:
-        greeting += f"🎯 Твоя группа: **{current_group}**\n\nИспользуй кнопки ниже:"
+        greeting = (
+            f"👋 **Расписание Колледжа телекоммуникаций**\n\n"
+            f"🎯 Ваша группа: **{current_group}**\n"
+            f"⚡ Сейчас: **{parity_str}** ({week_num}-я неделя)\n"
+        )
     else:
-        greeting += "⚠️ Ты пока не выбрал свою учебную группу.\nНажми кнопку ниже, чтобы выбрать группу:"
-
-    reply_markup = build_main_keyboard(WEB_APP_URL)
+        greeting = (
+            f"👋 Привет, {user.first_name}!\n\n"
+            f"Я бот с расписанием **Колледжа телекоммуникаций**.\n"
+            f"⚡ Сейчас: **{parity_str}** ({week_num}-я неделя)\n\n"
+            f"⚠️ Пожалуйста, выберите свою группу:"
+        )
 
     inline_keyboard = []
     if WEB_APP_URL:
         inline_keyboard.append([
-            InlineKeyboardButton("📱 Открыть в Telegram App", web_app=WebAppInfo(url=WEB_APP_URL))
+            InlineKeyboardButton("🚀 Открыть приложение", web_app=WebAppInfo(url=WEB_APP_URL))
         ])
-    inline_keyboard.append([
-        InlineKeyboardButton("👥 Выбрать группу", callback_data="select_group_courses")
-    ])
+    if not current_group:
+        inline_keyboard.append([
+            InlineKeyboardButton("👥 Выбрать группу", callback_data="select_group_courses")
+        ])
+
+    reply_markup = build_main_keyboard(WEB_APP_URL)
 
     await update.message.reply_text(
         greeting,
@@ -144,9 +171,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         reply_markup=reply_markup,
     )
 
-    if not current_group or WEB_APP_URL:
+    if inline_keyboard:
         await update.message.reply_text(
-            "Быстрые действия:",
+            "Быстрый переход:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard),
         )
 
@@ -224,15 +251,15 @@ from datetime import datetime, timedelta
 def get_break_description(after_pair: int, before_pair: int) -> str:
     """Возвращает текстовое описание перемены между парами."""
     if after_pair == 1 and before_pair == 2:
-        return "☕ *Перемена:* 10 мин (09:35 - 09:45)"
+        return "☕ *Маленькая перемена:* 10 мин (09:35 - 09:45)"
     elif after_pair == 2 and before_pair == 3:
-        return "🥪 *Большая перемена (Обед):* 30 мин (11:20 - 11:50)"
+        return "🥪 *Большая перемена:* 30 мин (11:20 - 11:50)"
     elif after_pair == 3 and before_pair == 4:
         return "🥪 *Большая перемена:* 30 мин (13:25 - 13:55)"
     elif after_pair == 4 and before_pair == 5:
-        return "☕ *Перемена:* 10 мин (15:30 - 15:40)"
+        return "☕ *Маленькая перемена:* 10 мин (15:30 - 15:40)"
     elif after_pair == 5 and before_pair == 6:
-        return "☕ *Перемена:* 10 мин (17:15 - 17:25)"
+        return "☕ *Маленькая перемена:* 10 мин (17:15 - 17:25)"
     elif before_pair > after_pair + 1:
         # Окно между парами
         p_prev = BELL_TIMES.get(after_pair, {})
@@ -394,7 +421,12 @@ async def send_schedule_for_day(update: Update, context: ContextTypes.DEFAULT_TY
 
     day_name = DAY_MAP[target_weekday]
     text = format_day_schedule(group_name, day_name, target_date=target_date)
-    await update.message.reply_text(text, parse_mode="Markdown")
+    reply_markup = None
+    if WEB_APP_URL:
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 Открыть интерактивное расписание", web_app=WebAppInfo(url=WEB_APP_URL))]
+        ])
+    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def send_week_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -421,10 +453,12 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await send_schedule_for_day(update, context, offset_days=0)
     elif "Завтра" in text:
         await send_schedule_for_day(update, context, offset_days=1)
-    elif "Вся неделя" in text:
+    elif "неделя" in text.lower():
         await send_week_schedule(update, context)
-    elif "Моя группа" in text:
+    elif "групп" in text.lower():
         await show_courses_menu(update, context)
+    elif "приложен" in text.lower() or "расписан" in text.lower():
+        await app_command(update, context)
     else:
         # Проверим, может это название группы
         data = parser.get_data()
@@ -448,18 +482,33 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             )
 
 
+async def post_init(application) -> None:
+    """Регистрация команд в официальном меню Telegram."""
+    try:
+        await application.bot.set_my_commands([
+            BotCommand("app", "🚀 Открыть приложение"),
+            BotCommand("today", "📅 Расписание на сегодня"),
+            BotCommand("tomorrow", "📆 Расписание на завтра"),
+            BotCommand("week", "🗓 Расписание на неделю"),
+            BotCommand("group", "⚙️ Сменить группу"),
+            BotCommand("start", "🔄 Главное меню"),
+        ])
+        logger.info("Команды меню бота успешно зарегистрированы!")
+    except Exception as e:
+        logger.warning(f"Не удалось установить команды меню: {e}")
+
+
 def create_bot_app():
     """Сборка и настройка приложения Telegram-бота с учетом прокси/Cloudflare."""
     if not BOT_TOKEN:
         logger.warning("BOT_TOKEN не задан в .env! Бот не может запуститься.")
         return None
 
-    builder = ApplicationBuilder().token(BOT_TOKEN)
+    builder = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init)
 
     # 1. Обход блокировок через Cloudflare Worker Reverse Proxy
     if TELEGRAM_API_URL:
         logger.info(f"Используем кастомный Telegram API URL (Cloudflare Worker): {TELEGRAM_API_URL}")
-        # Пример: https://my-proxy.workers.dev/bot
         builder = builder.base_url(TELEGRAM_API_URL)
 
     # 2. Обход блокировок через SOCKS5 / HTTP прокси
@@ -471,6 +520,7 @@ def create_bot_app():
 
     # Регистрация обработчиков
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("app", app_command))
     app.add_handler(CommandHandler("today", lambda u, c: send_schedule_for_day(u, c, 0)))
     app.add_handler(CommandHandler("tomorrow", lambda u, c: send_schedule_for_day(u, c, 1)))
     app.add_handler(CommandHandler("week", send_week_schedule))
