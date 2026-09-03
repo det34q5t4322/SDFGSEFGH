@@ -29,7 +29,7 @@ load_dotenv()
 
 # Импортируем наш парсер расписания
 sys.path.append(os.path.dirname(__file__))
-from parser import parser, get_academic_week_info, BELL_TIMES, BREAK_TIMES
+from parser import parser, get_academic_week_info, BELL_TIMES, BREAK_TIMES, get_moscow_now
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -94,8 +94,8 @@ def get_webapp_url(group: Optional[str] = None) -> Optional[str]:
     import urllib.parse
     sep = "&" if "?" in WEB_APP_URL else "?"
     if group:
-        return f"{WEB_APP_URL}{sep}v=20260904_04&group={urllib.parse.quote(group)}"
-    return f"{WEB_APP_URL}{sep}v=20260904_04"
+        return f"{WEB_APP_URL}{sep}v=20260904_08&group={urllib.parse.quote(group)}"
+    return f"{WEB_APP_URL}{sep}v=20260904_08"
 
 
 def set_user_group(user_id: int, username: str, group: str) -> None:
@@ -319,7 +319,12 @@ NUM_EMOJIS = {1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️�
 
 def format_day_schedule(group_name: str, day_name: str, target_date: Optional[datetime] = None) -> str:
     """Форматирование расписания одного дня в читаемый, компактный вид без визуального шума."""
-    data = parser.get_data()
+    try:
+        data = parser.get_data()
+    except Exception as e:
+        logger.error(f"Ошибка получения расписания: {e}")
+        data = parser.data or {}
+
     sched = data.get("schedules", {}).get(group_name)
 
     if not sched:
@@ -340,6 +345,8 @@ def format_day_schedule(group_name: str, day_name: str, target_date: Optional[da
     date_part = f", {date_str}" if date_str else ""
     header = f"📅 **{day_name}**{date_part} • {parity_str}\n"
     header += f"👥 Группа: **{group_name}**\n"
+    if data.get("stale"):
+        header += "⚠️ *Показана сохранённая копия расписания*\n"
     header += "━━━━━━━━━━━━━━━━━━━━\n"
 
     active_pairs = []
@@ -430,7 +437,7 @@ async def send_schedule_for_day(update: Update, context: ContextTypes.DEFAULT_TY
         await show_courses_menu(update, context)
         return
 
-    now = datetime.now()
+    now = get_moscow_now()
     target_date = now + timedelta(days=offset_days)
     target_weekday = target_date.weekday()
 

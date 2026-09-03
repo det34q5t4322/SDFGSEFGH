@@ -1,9 +1,12 @@
 import os
 import sys
+import time
 import asyncio
 import logging
+import urllib.request
+from collections import defaultdict
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,7 +16,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from parser import parser, _circuit_breaker, is_test_tab, get_full_teacher_name
+from parser import parser, _circuit_breaker, is_test_tab, get_full_teacher_name, get_moscow_now
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -36,8 +39,32 @@ app.add_middleware(
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
 
+# Скользящее окно для ограничения частоты запросов (защита бесплатного инстанса Render)
+RATE_LIMIT_WINDOW = 60  # сек
+MAX_REQUESTS_PER_WINDOW = 120  # запросов в минуту с одного IP
+
+_ip_request_timestamps = defaultdict(list)
+
 @app.middleware("http")
-async def add_no_cache_headers(request, call_next):
+async def rate_limiting_middleware(request: Request, call_next):
+    if request.url.path.startswith("/api/") and not request.url.path.startswith("/api/ping"):
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        timestamps = _ip_request_timestamps[client_ip]
+        # Очищаем устаревшие метки
+        _ip_request_timestamps[client_ip] = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+        if len(_ip_request_timestamps[client_ip]) >= MAX_REQUESTS_PER_WINDOW:
+            logger.warning(f"Превышен лимит запросов с IP: {client_ip} на {request.url.path}")
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Слишком много запросов. Пожалуйста, подождите минуту."},
+                headers={"Retry-After": "60"},
+            )
+        _ip_request_timestamps[client_ip].append(now)
+    return await call_next(request)
+
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
     response = await call_next(request)
     if request.url.path == "/" or request.url.path.startswith("/static"):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
@@ -86,6 +113,23 @@ async def background_sync_task():
                 return
 
 
+async def render_keep_alive_task():
+    """Фоновый пингер для предотвращения засыпания бесплатного сервиса Render (каждые 12 минут)."""
+    await asyncio.sleep(60)
+    render_url = os.getenv("RENDER_EXTERNAL_URL", "https://sdfgsefgh.onrender.com")
+    ping_url = f"{render_url.rstrip('/')}/api/ping"
+    logger.info(f"Запущен keep-alive пингер: {ping_url} (каждые 12 мин)")
+    while True:
+        try:
+            loop = asyncio.get_event_loop()
+            req = urllib.request.Request(ping_url, headers={"User-Agent": "Render-KeepAlive/1.0"})
+            await loop.run_in_executor(None, lambda: urllib.request.urlopen(req, timeout=15).read())
+            logger.debug(f"Keep-alive пинг успешен: {ping_url}")
+        except Exception as e:
+            logger.debug(f"Keep-alive пинг (локально или при холодном старте): {e}")
+        await asyncio.sleep(12 * 60)
+
+
 @app.on_event("startup")
 async def startup_event():
     """При старте загружаем или проверяем кэш расписания."""
@@ -96,6 +140,25 @@ async def startup_event():
         logger.error(f"Ошибка инициализации расписания: {e}")
     # Запускаем постоянный фоновый опрос Google таблицы
     asyncio.create_task(background_sync_task())
+    # Запускаем keep-alive пингер для Render
+    asyncio.create_task(render_keep_alive_task())
+
+
+@app.get("/api/health")
+@app.get("/api/ping")
+async def health_check():
+    """Проверка жизнеспособности сервера, кэша и времени МСК."""
+    now_msk = get_moscow_now()
+    active_data = parser.data
+    cache_age = round(time.time() - parser.last_updated, 1) if parser.last_updated else None
+    return {
+        "status": "ok",
+        "time_msk": now_msk.strftime("%d.%m.%Y %H:%M:%S"),
+        "groups_count": active_data.get("groups_count", 0) if active_data else 0,
+        "active_gid": parser.active_gid,
+        "circuit_breaker": _circuit_breaker.status_dict(),
+        "cache_age_seconds": cache_age,
+    }
 
 
 @app.get("/")

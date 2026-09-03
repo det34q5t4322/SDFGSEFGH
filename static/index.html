@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260904_07">
+  <link rel="stylesheet" href="/static/style.css?v=20260904_08">
 </head>
 <body>
 
@@ -24,27 +24,36 @@
   <!-- ═══ SIDEBAR OVERLAY ═══ -->
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-  <!-- ═══ SIDEBAR / DRAWER ═══ -->
+  <!-- ═══ SIDEBAR DRAWER ═══ -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-group-avatar" id="sidebarGroupAvatar">ИС</div>
-      <div class="sidebar-group-info">
-        <div class="sidebar-group-label">Ваша группа</div>
-        <div class="sidebar-group-name" id="sidebarGroupName">ИСС9-25</div>
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg></div>
+        <div class="sidebar-logo-text">
+          <div class="sidebar-title">Колледж</div>
+          <div class="sidebar-subtitle">Расписание занятий</div>
+        </div>
       </div>
+      <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Закрыть меню"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     </div>
 
+    <div class="sidebar-group-badge" id="sidebarGroupBadge">
+      <div class="sidebar-group-label">Текущая группа</div>
+      <div class="sidebar-group-name" id="sidebarGroupName">ИСС9-25</div>
+      <div class="sidebar-group-sub" id="sidebarGroupSub">2 курс • 09.02.06</div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- Навигация по режимам -->
+    <div class="sidebar-section-label">Разделы</div>
     <nav class="sidebar-nav">
-      <button class="sidebar-nav-item active" data-view="today" id="sidebarToday">
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span>
-        <span>Сегодня</span>
-      </button>
-      <button class="sidebar-nav-item" data-view="week" id="sidebarWeek">
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg></span>
-        <span>Вся неделя</span>
+      <button class="sidebar-nav-item active" data-view="schedule" id="sidebarSchedule">
+        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg></span>
+        <span>Расписание группы</span>
       </button>
       <button class="sidebar-nav-item" data-view="teacher" id="sidebarTeacher">
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></span>
+        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span>
         <span>Преподаватели</span>
       </button>
       <button class="sidebar-nav-item" data-view="classroom" id="sidebarClassroom">
@@ -106,6 +115,20 @@
       </div>
       <button class="topbar-theme-btn" id="topbarThemeBtn" title="Сменить тему оформления" aria-label="Темы оформления"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
     </header>
+
+    <!-- ─── OFFLINE / RESILIENCE BANNER ─── -->
+    <div class="offline-banner" id="offlineBanner" style="display:none;" role="alert">
+      <div class="offline-banner-left">
+        <span class="offline-banner-icon">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </span>
+        <span class="offline-banner-text" id="offlineBannerText">Показано сохранённое расписание</span>
+      </div>
+      <button class="offline-banner-btn" id="offlineBannerRetryBtn" type="button" aria-label="Попробовать снова">
+        <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        <span>Попробовать снова</span>
+      </button>
+    </div>
 
     <!-- ─── LIVE STATUS CARD ─── -->
     <div class="live-card-wrap" id="liveCardWrap">
@@ -242,6 +265,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=20260904_07"></script>
+  <script src="/static/app.js?v=20260904_08"></script>
 </body>
 </html>

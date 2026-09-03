@@ -119,6 +119,47 @@ const S = {
   refreshTimer:       null,
 };
 
+// ── FAULT TOLERANCE & NETWORK HELPERS ───
+function logApp(level, msg, data = null) {
+  const t = new Date().toLocaleTimeString('ru-RU');
+  const tag = `[Schedule ${t}]`;
+  if (level === 'error') console.error(tag, msg, data || '');
+  else if (level === 'warn') console.warn(tag, msg, data || '');
+  else console.log(tag, msg, data || '');
+}
+
+function showOfflineBanner(message, isWakingUp = false) {
+  if (!els.offlineBanner || !els.offlineBannerText) return;
+  els.offlineBannerText.textContent = message;
+  els.offlineBanner.className = 'offline-banner' + (isWakingUp ? ' waking-up' : '');
+  if (els.offlineBannerRetryBtn) {
+    els.offlineBannerRetryBtn.style.display = isWakingUp ? 'none' : 'inline-flex';
+  }
+  els.offlineBanner.style.display = 'flex';
+}
+
+function hideOfflineBanner() {
+  if (els.offlineBanner) {
+    els.offlineBanner.style.display = 'none';
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8500) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') {
+      throw new Error(`Превышено время ожидания ответа сервера (${Math.round(timeoutMs / 1000)}с)`);
+    }
+    throw err;
+  }
+}
+
 // ── DOM REFS ────────────────────────────
 const $ = id => document.getElementById(id);
 
@@ -190,6 +231,11 @@ const els = {
   onboardSearchInput:   $('onboardSearchInput'),
   onboardGroupsGrid:    $('onboardGroupsGrid'),
   onboardCourseChips:   $('onboardCourseChips'),
+
+  // Отказоустойчивость и оффлайн-баннер
+  offlineBanner:         $('offlineBanner'),
+  offlineBannerText:     $('offlineBannerText'),
+  offlineBannerRetryBtn: $('offlineBannerRetryBtn'),
 };
 
 // ════════════════════════════════════════
@@ -201,6 +247,11 @@ async function init() {
   try { setupSidebarNav(); } catch (e) { console.error('setupSidebarNav error:', e); }
   try { setupWeekNav(); } catch (e) { console.error('setupWeekNav error:', e); }
   try { setupSearchInputs(); } catch (e) { console.error('setupSearchInputs error:', e); }
+
+  // Привязка повтора в оффлайн-баннере
+  els.offlineBannerRetryBtn?.addEventListener('click', () => {
+    loadSchedule(true);
+  });
 
   // 1. Извлекаем группу с приоритетом на сохранённый выбор пользователя
   let urlGroup = null;
@@ -1099,7 +1150,7 @@ function fmtTime(min) {
 }
 
 // ════════════════════════════════════════
-//  LOAD DATA
+//  LOAD DATA (FAULT TOLERANT & CACHED)
 // ════════════════════════════════════════
 async function loadSchedule(force = false) {
   if (!S.group) S.group = DEFAULT_GROUP;
@@ -1107,7 +1158,7 @@ async function loadSchedule(force = false) {
 
   const cacheKey = STORAGE_CACHE_PREFIX + S.group + '_' + (S.activeGid || 'active');
 
-  // 1. ОФФЛАЙН-КЭШ: Мгновенно отображаем последнее расписание (0 мс)
+  // 1. ОФФЛАЙН-КЭШ: Мгновенно отображаем последнее сохранённое расписание (0 мс)
   if (!S.data) {
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -1117,16 +1168,22 @@ async function loadSchedule(force = false) {
         buildDayStrip();
         renderSchedule();
         updateLiveCard();
-        updateSyncStatus(true, true); // (ok=true, isCached=true)
+        updateSyncStatus(true, true);
+        logApp('info', `Расписание мгновенно загружено из оффлайн-кэша для ${S.group}`);
       }
     } catch (err) {
-      console.warn('Cache read error:', err);
+      logApp('warn', 'Ошибка чтения оффлайн-кэша:', err);
     }
   }
 
-  // 2. СЕТЕВОЙ ЗАПРОС В ФОНЕ (Stale-While-Revalidate)
+  // 2. ИНДИКАТОР ПРОБУЖДЕНИЯ СЕРВЕРА RENDER (если ответ длится > 2.5с)
+  const wakeupTimer = setTimeout(() => {
+    showOfflineBanner('⏳ Сервер просыпается, подгружаем свежее расписание...', true);
+  }, 2500);
+
+  // 3. СЕТЕВОЙ ЗАПРОС С ТАЙМАУТОМ (8.5 сек)
   try {
-    const tabsRes = await fetch(`${API}/tabs`);
+    const tabsRes = await fetchWithTimeout(`${API}/tabs`, {}, 8500);
     if (tabsRes.ok) {
       const tabsData = await tabsRes.json();
       S.tabs = (tabsData.tabs || []).filter(tab => !isTestTab(tab.name));
@@ -1140,15 +1197,24 @@ async function loadSchedule(force = false) {
     const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
     const forceParam = force ? '&force=true' : '';
     const url = `${API}/schedule?group=${encodeURIComponent(S.group)}${tabParam}${forceParam}`;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 8500);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const freshData = await res.json();
+
+    if (!freshData || (!freshData.days && !freshData.schedules)) {
+      throw new Error('Некорректный формат расписания от сервера');
+    }
+
+    clearTimeout(wakeupTimer);
+    hideOfflineBanner();
+
     S.data = freshData;
 
     try {
       localStorage.setItem(cacheKey, JSON.stringify(freshData));
+      localStorage.setItem('schedule_last_sync_time', freshData.last_updated || new Date().toLocaleString('ru-RU'));
     } catch (err) {
-      console.warn('Cache write error:', err);
+      logApp('warn', 'Ошибка записи в кэш:', err);
     }
 
     updateSidebarGroupInfo();
@@ -1157,12 +1223,47 @@ async function loadSchedule(force = false) {
     renderSchedule();
     updateLiveCard();
     updateSyncStatus(true, false);
+    logApp('info', `Расписание успешно синхронизировано для ${S.group}`);
   } catch (e) {
-    console.error('loadSchedule error:', e);
-    const hasCachedData = Boolean(S.data);
+    clearTimeout(wakeupTimer);
+    logApp('error', `Сбой синхронизации расписания (${e.message}):`, e);
+
+    // Проверяем наличие кэша
+    let hasCachedData = Boolean(S.data);
+    if (!hasCachedData) {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          S.data = JSON.parse(cached);
+          hasCachedData = true;
+          updateSidebarGroupInfo();
+          buildDayStrip();
+          renderSchedule();
+          updateLiveCard();
+        }
+      } catch (err) {
+        logApp('warn', 'Не удалось восстановить кэш:', err);
+      }
+    }
+
     updateSyncStatus(false, hasCachedData);
-    if (!hasCachedData && els.scheduleView) {
-      els.scheduleView.innerHTML = `<div class="empty-pairs-hint">${ICONS.alert} Не удалось загрузить расписание.<br>Проверьте соединение с интернетом.</div>`;
+
+    if (hasCachedData) {
+      const updTime = S.data?.last_updated || localStorage.getItem('schedule_last_sync_time') || 'ранее';
+      showOfflineBanner(`Показано сохранённое расписание, обновлено ${updTime}`);
+    } else if (els.scheduleView) {
+      hideOfflineBanner();
+      els.scheduleView.innerHTML = `
+        <div class="schedule-error-card">
+          <div class="schedule-error-icon">${ICONS.alert}</div>
+          <div class="schedule-error-title">Не удалось обновить расписание</div>
+          <div class="schedule-error-desc">Сервер временно недоступен или отсутствует подключение к интернету.</div>
+          <button class="retry-btn" onclick="loadSchedule(true)">
+            ${ICONS.refresh}
+            <span>Попробовать снова</span>
+          </button>
+        </div>
+      `;
     }
   }
 }

@@ -6,8 +6,20 @@ import os
 import re
 import time
 import urllib.request
+import urllib.error
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    import zoneinfo
+    MOSCOW_TZ = zoneinfo.ZoneInfo("Europe/Moscow")
+except Exception:
+    from datetime import timezone
+    MOSCOW_TZ = timezone(timedelta(hours=3))
+
+def get_moscow_now() -> datetime:
+    """Возвращает текущую дату и время строго в московском часовом поясе (UTC+3)."""
+    return datetime.now(MOSCOW_TZ).replace(tzinfo=None)
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +187,27 @@ def fetch_with_retry(url: str, retries: int = 3, timeout: int = 20) -> bytes:
             if attempt > 1:
                 logger.info(f"Успех на попытке {attempt}: {url[:80]}")
             return data
+        except urllib.error.HTTPError as http_err:
+            last_exc = http_err
+            if http_err.code in (401, 403):
+                logger.critical(
+                    f"🚨 КРИТИЧЕСКАЯ ОШИБКА ДОСТУПА: Google Таблица вернула HTTP {http_err.code}! "
+                    f"Доступ закрыт или отозван. Проверьте права общего доступа: {url[:80]}"
+                )
+                break  # Бесполезно ретраить при 401/403
+            elif http_err.code in (404, 410):
+                logger.critical(
+                    f"🚨 КРИТИЧЕСКАЯ ОШИБКА: Google Таблица не найдена (HTTP {http_err.code})! "
+                    f"Таблица удалена или изменён идентификатор: {url[:80]}"
+                )
+                break  # Бесполезно ретраить при 404
+            elif http_err.code == 429:
+                logger.warning(f"⚠️ Превышен лимит запросов Google Sheets (HTTP 429). Попытка {attempt}/{retries}")
+
+            wait = 2 ** attempt
+            if attempt < retries:
+                logger.warning(f"HTTP ошибка {http_err.code} на попытке {attempt}/{retries}, повтор через {wait}с")
+                time.sleep(wait)
         except Exception as exc:
             last_exc = exc
             wait = 2 ** attempt  # 2, 4, 8 сек
@@ -332,7 +365,7 @@ def get_academic_week_info(target_date=None) -> Dict[str, Any]:
     """
     from datetime import date as date_type
     if target_date is None:
-        target_date = datetime.now()
+        target_date = get_moscow_now()
     # Нормализуем: если передан date — конвертируем в datetime
     if isinstance(target_date, date_type) and not isinstance(target_date, datetime):
         target_date = datetime(target_date.year, target_date.month, target_date.day)
@@ -765,7 +798,7 @@ def determine_active_tab(sheets: List[Dict[str, Any]], target_date: Optional[dat
                 return s["gid"]
 
     if target_date is None:
-        target_date = datetime.now()
+        target_date = get_moscow_now()
 
     # Если сегодня воскресенье — студенты уже смотрят расписание на понедельник
     check_dates = [target_date]
@@ -815,6 +848,31 @@ def determine_active_tab(sheets: List[Dict[str, Any]], target_date: Optional[dat
         return non_main[0]
 
     return valid_sheets[0]["gid"]
+
+
+def validate_schedule_data(data: Dict[str, Any]) -> Tuple[bool, str]:
+    """Проверяет валидность полученного расписания перед сохранением в кэш.
+    Возвращает (is_valid, reason).
+    """
+    if not isinstance(data, dict):
+        return False, "Данные не являются словарем"
+    schedules = data.get("schedules")
+    if not schedules or not isinstance(schedules, dict):
+        return False, "Отсутствует блок schedules"
+    if len(schedules) == 0:
+        return False, "Список групп пуст (0 групп)"
+
+    total_lessons = 0
+    for g_data in schedules.values():
+        for pairs in g_data.get("days", {}).values():
+            for p in pairs:
+                if not p.get("is_empty"):
+                    total_lessons += 1
+
+    if total_lessons == 0:
+        return False, "Во всей таблице не найдено ни одного учебного занятия (0 пар)"
+
+    return True, f"OK ({len(schedules)} групп, {total_lessons} пар)"
 
 
 class ScheduleParser:
@@ -1044,180 +1102,185 @@ class ScheduleParser:
         all_classrooms: Dict[str, List[Dict[str, Any]]] = {}
 
         for group_name, g_info in groups_meta.items():
-            g_col = g_info["col_idx"]
-            a_col = g_info["aud_col"]
+            try:
+                g_col = g_info["col_idx"]
+                a_col = g_info["aud_col"]
 
-            group_schedule: Dict[str, List[Dict[str, Any]]] = {}
+                group_schedule: Dict[str, List[Dict[str, Any]]] = {}
 
-            for day_name in DAYS_ORDER:
-                sub_rows = days_data.get(day_name, [])
-                pairs: List[Dict[str, Any]] = []
+                for day_name in DAYS_ORDER:
+                    sub_rows = days_data.get(day_name, [])
+                    pairs: List[Dict[str, Any]] = []
 
-                for pair_num in range(1, 7):
-                    r_top_idx = (pair_num - 1) * 2
-                    r_bot_idx = r_top_idx + 1
+                    for pair_num in range(1, 7):
+                        r_top_idx = (pair_num - 1) * 2
+                        r_bot_idx = r_top_idx + 1
 
-                    row_top = sub_rows[r_top_idx] if r_top_idx < len(sub_rows) else []
-                    row_bot = sub_rows[r_bot_idx] if r_bot_idx < len(sub_rows) else []
+                        row_top = sub_rows[r_top_idx] if r_top_idx < len(sub_rows) else []
+                        row_bot = sub_rows[r_bot_idx] if r_bot_idx < len(sub_rows) else []
 
-                    top_text = row_top[g_col].strip() if g_col < len(row_top) else ""
-                    bot_text = row_bot[g_col].strip() if g_col < len(row_bot) else ""
+                        top_text = row_top[g_col].strip() if g_col < len(row_top) else ""
+                        bot_text = row_bot[g_col].strip() if g_col < len(row_bot) else ""
 
-                    top_aud = (
-                        row_top[a_col].strip()
-                        if a_col is not None and a_col < len(row_top)
-                        else ""
-                    )
-                    bot_aud = (
-                        row_bot[a_col].strip()
-                        if a_col is not None and a_col < len(row_bot)
-                        else ""
-                    )
+                        top_aud = (
+                            row_top[a_col].strip()
+                            if a_col is not None and a_col < len(row_top)
+                            else ""
+                        )
+                        bot_aud = (
+                            row_bot[a_col].strip()
+                            if a_col is not None and a_col < len(row_bot)
+                            else ""
+                        )
 
-                    time_info = BELL_TIMES.get(
-                        pair_num,
-                        {"start": "00:00", "end": "00:00", "display": "Не указано"},
-                    )
+                        time_info = BELL_TIMES.get(
+                            pair_num,
+                            {"start": "00:00", "end": "00:00", "display": "Не указано"},
+                        )
 
-                    if not top_text and not bot_text:
-                        pairs.append({
+                        if not top_text and not bot_text:
+                            pairs.append({
+                                "pair_num": pair_num,
+                                "time": time_info["display"],
+                                "start": time_info["start"],
+                                "end": time_info["end"],
+                                "is_empty": True,
+                                "both": None,
+                                "numerator": None,
+                                "denominator": None,
+                                "is_split": False,
+                            })
+                            continue
+
+                        top_obj = parse_schedule_cell(top_text, top_aud)
+                        bot_obj = parse_schedule_cell(bot_text, bot_aud)
+
+                        is_both = False
+                        is_split = False
+
+                        if top_obj and not bot_obj:
+                            is_both = True
+                        elif not top_obj and bot_obj:
+                            is_both = True
+                            top_obj = bot_obj
+                            bot_obj = None
+                        elif top_obj and bot_obj:
+                            if top_text == bot_text and top_aud == bot_aud:
+                                is_both = True
+                            else:
+                                is_split = True
+
+                        pair_data: Dict[str, Any] = {
                             "pair_num": pair_num,
                             "time": time_info["display"],
                             "start": time_info["start"],
                             "end": time_info["end"],
-                            "is_empty": True,
-                            "both": None,
-                            "numerator": None,
-                            "denominator": None,
-                            "is_split": False,
-                        })
-                        continue
+                            "is_empty": False,
+                            "is_split": is_split,
+                        }
 
-                    top_obj = parse_schedule_cell(top_text, top_aud)
-                    bot_obj = parse_schedule_cell(bot_text, bot_aud)
+                        if is_both:
+                            pair_data["both"] = top_obj
+                            pair_data["numerator"] = dict(top_obj) if top_obj else None
+                            pair_data["denominator"] = dict(top_obj) if top_obj else None
 
-                    is_both = False
-                    is_split = False
+                            if top_obj:
+                                t_teacher = top_obj.get("teacher")
+                                t_aud = top_obj.get("classroom")
+                                t_subj = top_obj.get("subject")
+                                if t_teacher and t_teacher != "Вакансия" and not top_obj.get("is_cancelled"):
+                                    all_teachers.setdefault(t_teacher, []).append({
+                                        "group": group_name,
+                                        "day": day_name,
+                                        "pair_num": pair_num,
+                                        "time": time_info["display"],
+                                        "subject": t_subj,
+                                        "classroom": t_aud,
+                                        "week": "Каждую неделю",
+                                        "is_replacement": top_obj.get("is_replacement", False),
+                                    })
+                                if t_aud and t_aud.lower() != "дистант" and not top_obj.get("is_cancelled"):
+                                    all_classrooms.setdefault(t_aud, []).append({
+                                        "group": group_name,
+                                        "day": day_name,
+                                        "pair_num": pair_num,
+                                        "time": time_info["display"],
+                                        "teacher": t_teacher,
+                                        "subject": t_subj,
+                                        "week": "Каждую неделю",
+                                        "is_replacement": top_obj.get("is_replacement", False),
+                                    })
+                        else:
+                            pair_data["both"] = None
+                            pair_data["numerator"] = top_obj
+                            pair_data["denominator"] = bot_obj
 
-                    if top_text and not bot_text:
-                        is_both = True
-                    elif top_text == bot_text and top_aud == bot_aud:
-                        is_both = True
-                    else:
-                        is_split = True
+                            if top_obj:
+                                t_teacher = top_obj.get("teacher")
+                                t_aud = top_obj.get("classroom")
+                                t_subj = top_obj.get("subject")
+                                if t_teacher and t_teacher != "Вакансия" and not top_obj.get("is_cancelled"):
+                                    all_teachers.setdefault(t_teacher, []).append({
+                                        "group": group_name,
+                                        "day": day_name,
+                                        "pair_num": pair_num,
+                                        "time": time_info["display"],
+                                        "subject": t_subj,
+                                        "classroom": t_aud,
+                                        "week": "Числитель (I)",
+                                        "is_replacement": top_obj.get("is_replacement", False),
+                                    })
+                                if t_aud and t_aud.lower() != "дистант" and not top_obj.get("is_cancelled"):
+                                    all_classrooms.setdefault(t_aud, []).append({
+                                        "group": group_name,
+                                        "day": day_name,
+                                        "pair_num": pair_num,
+                                        "time": time_info["display"],
+                                        "teacher": t_teacher,
+                                        "subject": t_subj,
+                                        "week": "Числитель (I)",
+                                        "is_replacement": top_obj.get("is_replacement", False),
+                                    })
 
-                    pair_data: Dict[str, Any] = {
-                        "pair_num": pair_num,
-                        "time": time_info["display"],
-                        "start": time_info["start"],
-                        "end": time_info["end"],
-                        "is_empty": False,
-                        "is_split": is_split,
-                        "has_replacement": bool((top_obj and top_obj.get("is_replacement")) or (bot_obj and bot_obj.get("is_replacement"))),
-                        "has_cancellation": bool((top_obj and top_obj.get("is_cancelled")) or (bot_obj and bot_obj.get("is_cancelled"))),
-                        "has_distant": bool((top_obj and top_obj.get("is_distant")) or (bot_obj and bot_obj.get("is_distant"))),
-                    }
+                            if bot_obj:
+                                b_teacher = bot_obj.get("teacher")
+                                b_aud = bot_obj.get("classroom")
+                                b_subj = bot_obj.get("subject")
+                                if b_teacher and b_teacher != "Вакансия" and not bot_obj.get("is_cancelled"):
+                                    all_teachers.setdefault(b_teacher, []).append({
+                                        "group": group_name,
+                                        "day": day_name,
+                                        "pair_num": pair_num,
+                                        "time": time_info["display"],
+                                        "subject": b_subj,
+                                        "classroom": b_aud,
+                                        "week": "Знаменатель (II)",
+                                        "is_replacement": bot_obj.get("is_replacement", False),
+                                    })
+                                if b_aud and b_aud.lower() != "дистант" and not bot_obj.get("is_cancelled"):
+                                    all_classrooms.setdefault(b_aud, []).append({
+                                        "group": group_name,
+                                        "day": day_name,
+                                        "pair_num": pair_num,
+                                        "time": time_info["display"],
+                                        "teacher": b_teacher,
+                                        "subject": b_subj,
+                                        "week": "Знаменатель (II)",
+                                        "is_replacement": bot_obj.get("is_replacement", False),
+                                    })
 
-                    if is_both:
-                        pair_data["both"] = top_obj
-                        pair_data["numerator"] = dict(top_obj) if top_obj else None
-                        pair_data["denominator"] = dict(top_obj) if top_obj else None
+                        pairs.append(pair_data)
 
-                        if top_obj:
-                            t_teacher = top_obj.get("teacher")
-                            t_aud = top_obj.get("classroom")
-                            t_subj = top_obj.get("subject")
-                            if t_teacher and t_teacher != "Вакансия" and not top_obj.get("is_cancelled"):
-                                all_teachers.setdefault(t_teacher, []).append({
-                                    "group": group_name,
-                                    "day": day_name,
-                                    "pair_num": pair_num,
-                                    "time": time_info["display"],
-                                    "subject": t_subj,
-                                    "classroom": t_aud,
-                                    "week": "Каждую неделю",
-                                    "is_replacement": top_obj.get("is_replacement", False),
-                                })
-                            if t_aud and t_aud.lower() != "дистант" and not top_obj.get("is_cancelled"):
-                                all_classrooms.setdefault(t_aud, []).append({
-                                    "group": group_name,
-                                    "day": day_name,
-                                    "pair_num": pair_num,
-                                    "time": time_info["display"],
-                                    "teacher": t_teacher,
-                                    "subject": t_subj,
-                                    "week": "Каждую неделю",
-                                    "is_replacement": top_obj.get("is_replacement", False),
-                                })
-                    else:
-                        pair_data["both"] = None
-                        pair_data["numerator"] = top_obj
-                        pair_data["denominator"] = bot_obj
+                    group_schedule[day_name] = pairs
 
-                        if top_obj:
-                            t_teacher = top_obj.get("teacher")
-                            t_aud = top_obj.get("classroom")
-                            t_subj = top_obj.get("subject")
-                            if t_teacher and t_teacher != "Вакансия" and not top_obj.get("is_cancelled"):
-                                all_teachers.setdefault(t_teacher, []).append({
-                                    "group": group_name,
-                                    "day": day_name,
-                                    "pair_num": pair_num,
-                                    "time": time_info["display"],
-                                    "subject": t_subj,
-                                    "classroom": t_aud,
-                                    "week": "Числитель (I)",
-                                    "is_replacement": top_obj.get("is_replacement", False),
-                                })
-                            if t_aud and t_aud.lower() != "дистант" and not top_obj.get("is_cancelled"):
-                                all_classrooms.setdefault(t_aud, []).append({
-                                    "group": group_name,
-                                    "day": day_name,
-                                    "pair_num": pair_num,
-                                    "time": time_info["display"],
-                                    "teacher": t_teacher,
-                                    "subject": t_subj,
-                                    "week": "Числитель (I)",
-                                    "is_replacement": top_obj.get("is_replacement", False),
-                                })
-
-                        if bot_obj:
-                            b_teacher = bot_obj.get("teacher")
-                            b_aud = bot_obj.get("classroom")
-                            b_subj = bot_obj.get("subject")
-                            if b_teacher and b_teacher != "Вакансия" and not bot_obj.get("is_cancelled"):
-                                all_teachers.setdefault(b_teacher, []).append({
-                                    "group": group_name,
-                                    "day": day_name,
-                                    "pair_num": pair_num,
-                                    "time": time_info["display"],
-                                    "subject": b_subj,
-                                    "classroom": b_aud,
-                                    "week": "Знаменатель (II)",
-                                    "is_replacement": bot_obj.get("is_replacement", False),
-                                })
-                            if b_aud and b_aud.lower() != "дистант" and not bot_obj.get("is_cancelled"):
-                                all_classrooms.setdefault(b_aud, []).append({
-                                    "group": group_name,
-                                    "day": day_name,
-                                    "pair_num": pair_num,
-                                    "time": time_info["display"],
-                                    "teacher": b_teacher,
-                                    "subject": b_subj,
-                                    "week": "Знаменатель (II)",
-                                    "is_replacement": bot_obj.get("is_replacement", False),
-                                })
-
-                    pairs.append(pair_data)
-
-                group_schedule[day_name] = pairs
-
-            schedules_by_group[group_name] = {
-                "group": group_name,
-                "course": g_info["course"],
-                "section": g_info["section"],
-                "days": group_schedule,
-            }
+                schedules_by_group[group_name] = {
+                    "group": group_name,
+                    "course": g_info["course"],
+                    "section": g_info["section"],
+                    "days": group_schedule,
+                }
+            except Exception as g_err:
+                logger.warning(f"Ошибка парсинга группы '{group_name}' во вкладке '{tab_name}': {g_err}")
 
         groups_list = []
         for g_name, g_info in groups_meta.items():
@@ -1246,7 +1309,7 @@ class ScheduleParser:
             "available_tabs": self.available_tabs,
             "active_gid": self.active_gid,
             "subtitle": f"Расписание учебных занятий • {tab_name}",
-            "last_updated": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+            "last_updated": get_moscow_now().strftime("%d.%m.%Y %H:%M:%S"),
             "timestamp": time.time(),
             "groups_count": len(groups_list),
             "groups": groups_list,
@@ -1261,11 +1324,21 @@ class ScheduleParser:
             "week_info": current_week,
         }
 
-        # Защита от затирания хороших данных пустышкой при редактировании таблицы
+        # Атомарная валидация перед сохранением и заменой
+        is_valid, val_reason = validate_schedule_data(result)
         prev_data = self.sheets_cache.get(target_gid)
-        if len(groups_list) == 0 and prev_data and prev_data.get("groups_count", 0) > 0:
-            logger.warning(f"Внимание: парсинг вернул 0 групп для вкладки {target_gid}, сохраняем существующие данные")
-            return prev_data
+
+        if not is_valid:
+            if prev_data and prev_data.get("groups_count", 0) > 0:
+                logger.warning(
+                    f"⚠️ Отбракованы подозрительные/пустые данные вкладки '{tab_name}' ({val_reason}). "
+                    f"Сохраняем предыдущую валидную версию ({prev_data.get('groups_count')} групп)."
+                )
+                prev_data["stale"] = True
+                prev_data["stale_reason"] = f"Таблица временно пуста или повреждена ({val_reason}). Показана сохранённая версия."
+                return prev_data
+            else:
+                logger.warning(f"Данные вкладки '{tab_name}' не прошли валидацию ({val_reason}), но предыдущей версии в памяти нет.")
 
         self.sheets_cache[target_gid] = result
         self.last_updated = time.time()
