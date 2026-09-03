@@ -1626,6 +1626,248 @@ input {
 }
 
 /* ═══════════════════════════════════════════
+   MINIMAL MODE TOGGLE SWITCH & STYLES
+═══════════════════════════════════════════ */
+.minimal-mode-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 20px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+  flex-shrink: 0;
+}
+@media (max-width: 480px) {
+  .minimal-mode-section {
+    padding: 12px 16px 18px;
+    gap: 12px;
+  }
+}
+.minimal-mode-text-col {
+  flex: 1;
+  min-width: 0;
+}
+.minimal-mode-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.minimal-mode-icon {
+  width: 17px;
+  height: 17px;
+  color: var(--accent);
+}
+.minimal-mode-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.minimal-mode-desc {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  line-height: 1.35;
+}
+
+/* Modern iOS/macOS Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 26px;
+  flex-shrink: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background-color: var(--bg-card2);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 20px;
+  width: 20px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* ═══════════════════════════════════════════
+   [data-minimal="true"] OVERRIDE ENGINE
+═══════════════════════════════════════════ */
+[data-minimal="true"] .pair-card {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 12px 4px 14px 10px !important;
+  margin-bottom: 16px !important;
+}
+[data-minimal="true"] .pair-card:hover {
+  transform: none !important;
+}
+[data-minimal="true"] .pair-card::before {
+  width: 2.5px !important;
+  border-radius: 1px !important;
+  background: var(--accent) !important;
+  box-shadow: none !important;
+  left: 0 !important;
+}
+[data-minimal="true"] .pair-card.going::before {
+  background: var(--green) !important;
+}
+[data-minimal="true"] .pair-card.cancelled::before {
+  background: var(--red) !important;
+}
+[data-minimal="true"] .pair-card.replacement::before {
+  background: var(--yellow) !important;
+}
+
+/* Метки-капсулы превращаются в строчный текст без фона */
+[data-minimal="true"] .pair-badge {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  font-size: 11px !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.03em !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+[data-minimal="true"] .pair-badge .lucide-icon {
+  display: none !important;
+}
+[data-minimal="true"] .badge-replacement { color: var(--yellow) !important; }
+[data-minimal="true"] .badge-cancelled   { color: var(--red) !important; }
+[data-minimal="true"] .badge-distant     { color: #a78bfa !important; }
+[data-minimal="true"] .badge-going       { color: var(--green) !important; }
+
+/* Убираем рамки и плашки у кнопок преподавателя и аудитории */
+[data-minimal="true"] .pair-teacher-btn {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: var(--text-sub) !important;
+  font-weight: 500 !important;
+  border-radius: 0 !important;
+}
+[data-minimal="true"] .pair-teacher-btn:hover {
+  color: var(--text) !important;
+  background: transparent !important;
+}
+[data-minimal="true"] .pair-room-btn {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+  border-radius: 0 !important;
+}
+[data-minimal="true"] .pair-room-btn:hover {
+  color: var(--text-sub) !important;
+  background: transparent !important;
+}
+[data-minimal="true"] .pair-meta {
+  gap: 6px 10px !important;
+  margin-top: 2px !important;
+}
+
+/* Тонкие приглушённые иконки в метаданных */
+[data-minimal="true"] .pair-teacher-btn .lucide-icon,
+[data-minimal="true"] .pair-room-btn .lucide-icon {
+  stroke-width: 1.4 !important;
+  opacity: 0.55 !important;
+  width: 1.05em !important;
+  height: 1.05em !important;
+  margin-right: 3px !important;
+}
+[data-minimal="true"] .break-icon .lucide-icon {
+  stroke-width: 1.4 !important;
+  opacity: 0.6 !important;
+}
+
+/* Убираем все тени и блюры в приложении */
+[data-minimal="true"] .topbar,
+[data-minimal="true"] .sidebar,
+[data-minimal="true"] .live-card,
+[data-minimal="true"] .week-nav-bar,
+[data-minimal="true"] .split-pair-wrap,
+[data-minimal="true"] .day-chip.active,
+[data-minimal="true"] .schedule-break-divider {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+[data-minimal="true"] .ambient-glow-wrap {
+  display: none !important;
+}
+
+/* Спокойная плашка активной пары */
+[data-minimal="true"] .live-card {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  border-left: 3px solid var(--accent) !important;
+  border-radius: var(--radius-sm) !important;
+}
+[data-minimal="true"] .live-card.going {
+  border-left-color: var(--green) !important;
+  background: transparent !important;
+}
+[data-minimal="true"] .live-card.break {
+  border-left-color: var(--yellow) !important;
+  background: transparent !important;
+}
+
+/* Сплит-пары числитель/знаменатель */
+[data-minimal="true"] .split-pair-wrap {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  margin-bottom: 16px !important;
+}
+[data-minimal="true"] .split-row {
+  padding: 8px 4px 8px 10px !important;
+}
+
+/* Воздух вокруг разделителей и списков */
+[data-minimal="true"] .schedule-break-divider {
+  margin: 18px 0 14px !important;
+  background: transparent !important;
+  border: 1px dashed var(--border) !important;
+  border-radius: 4px !important;
+}
+[data-minimal="true"] .day-section {
+  margin-bottom: 16px !important;
+}
+
+/* ═══════════════════════════════════════════
    AMBIENT GLOW ENGINE (LUMINOUS BLUR ORBS)
 ═══════════════════════════════════════════ */
 .ambient-glow-wrap {

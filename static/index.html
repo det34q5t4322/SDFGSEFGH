@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260904_06">
+  <link rel="stylesheet" href="/static/style.css?v=20260904_07">
 </head>
 <body>
 
@@ -223,11 +223,25 @@
         <h2 class="modal-sheet-title"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Темы оформления</h2>
         <button class="modal-close-btn" id="closeThemeModal"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
-      <p class="theme-sheet-sub">Выберите стиль — он мгновенно применится и сохранится на вашем устройстве</p>
       <div class="themes-grid" id="themesGrid"></div>
+
+      <!-- Переключатель: Минимальный режим -->
+      <div class="minimal-mode-section">
+        <div class="minimal-mode-text-col">
+          <div class="minimal-mode-header">
+            <svg class="lucide-icon minimal-mode-icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14"/></svg>
+            <span class="minimal-mode-title">Минимальный режим</span>
+          </div>
+          <p class="minimal-mode-desc">Убирает фон и тени карточек — оставляет чистый текст и акцентные линии</p>
+        </div>
+        <label class="toggle-switch" for="minimalModeToggle" aria-label="Включить минимальный режим">
+          <input type="checkbox" id="minimalModeToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
     </div>
   </div>
 
-  <script src="/static/app.js?v=20260904_06"></script>
+  <script src="/static/app.js?v=20260904_07"></script>
 </body>
 </html>

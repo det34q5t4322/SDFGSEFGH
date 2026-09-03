@@ -375,8 +375,30 @@ const THEMES = [
   }
 ];
 
+const STORAGE_MINIMAL = 'schedule_minimal_mode';
+
 function getStoredTheme() {
   return localStorage.getItem(STORAGE_THEME) || 'obsidian';
+}
+
+function isMinimalMode() {
+  return localStorage.getItem(STORAGE_MINIMAL) === 'true';
+}
+
+function applyMinimalMode(enabled) {
+  if (enabled) {
+    document.documentElement.setAttribute('data-minimal', 'true');
+  } else {
+    document.documentElement.removeAttribute('data-minimal');
+  }
+  localStorage.setItem(STORAGE_MINIMAL, enabled ? 'true' : 'false');
+  if (window.Telegram?.WebApp?.CloudStorage) {
+    try {
+      Telegram.WebApp.CloudStorage.setItem(STORAGE_MINIMAL, enabled ? 'true' : 'false', () => {});
+    } catch (_) {}
+  }
+  const toggle = document.getElementById('minimalModeToggle');
+  if (toggle && toggle.checked !== enabled) toggle.checked = enabled;
 }
 
 function applyTheme(themeId) {
@@ -387,6 +409,25 @@ function applyTheme(themeId) {
 
 function setupThemes() {
   applyTheme(getStoredTheme());
+  applyMinimalMode(isMinimalMode());
+
+  if (window.Telegram?.WebApp?.CloudStorage) {
+    try {
+      Telegram.WebApp.CloudStorage.getItem(STORAGE_MINIMAL, (err, val) => {
+        if (!err && val !== null && val !== undefined) {
+          const cloudVal = (val === 'true');
+          if (cloudVal !== isMinimalMode()) {
+            applyMinimalMode(cloudVal);
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
+  const minToggle = document.getElementById('minimalModeToggle');
+  minToggle?.addEventListener('change', e => {
+    applyMinimalMode(e.target.checked);
+  });
 
   els.topbarThemeBtn?.addEventListener('click', openThemeModal);
   els.sidebarThemeBtn?.addEventListener('click', () => {
@@ -401,6 +442,8 @@ function setupThemes() {
 
 function openThemeModal() {
   renderThemesGrid();
+  const minToggle = document.getElementById('minimalModeToggle');
+  if (minToggle) minToggle.checked = isMinimalMode();
   els.themeModal?.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
