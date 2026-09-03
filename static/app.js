@@ -169,35 +169,47 @@ const els = {
 //  INIT
 // ════════════════════════════════════════
 async function init() {
-  setupThemes();
-  setupSidebar();
-  setupSidebarNav();
-  setupWeekNav();
-  setupSearchInputs();
-  startLiveCardClock();
+  try { setupThemes(); } catch (e) { console.error('setupThemes error:', e); }
+  try { setupSidebar(); } catch (e) { console.error('setupSidebar error:', e); }
+  try { setupSidebarNav(); } catch (e) { console.error('setupSidebarNav error:', e); }
+  try { setupWeekNav(); } catch (e) { console.error('setupWeekNav error:', e); }
+  try { setupSearchInputs(); } catch (e) { console.error('setupSearchInputs error:', e); }
 
-  // Проверяем параметр группы в URL (например ?group=ИСС9-25) или Telegram MiniApp
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlGroup = urlParams.get('group') || urlParams.get('tgWebAppStartParam');
+  // 1. Извлекаем группу (URL -> localStorage -> DEFAULT_GROUP)
+  let urlGroup = null;
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    urlGroup = urlParams.get('group') || urlParams.get('tgWebAppStartParam');
+  } catch (_) {}
+
   if (urlGroup) {
     S.group = urlGroup;
   } else {
-    S.group = localStorage.getItem(STORAGE_GROUP) || DEFAULT_GROUP;
+    try {
+      S.group = localStorage.getItem(STORAGE_GROUP) || DEFAULT_GROUP;
+    } catch (_) {
+      S.group = DEFAULT_GROUP;
+    }
   }
-  try {
-    localStorage.setItem(STORAGE_GROUP, S.group);
-  } catch (_) {}
+  if (!S.group || S.group === 'null' || S.group === 'undefined') {
+    S.group = DEFAULT_GROUP;
+  }
+  try { localStorage.setItem(STORAGE_GROUP, S.group); } catch (_) {}
 
-  // Поддержка облачной синхронизации Telegram MiniApp
+  // 2. СРАЗУ (0 мс) обновляем шапку, сайдбар и карточку дня
+  updateSidebarGroupInfo();
+  try { buildDayStrip(); } catch (e) { console.error('buildDayStrip error:', e); }
+  try { startLiveCardClock(); } catch (e) { console.error('startLiveCardClock error:', e); }
+
+  // 3. Поддержка облачной синхронизации Telegram MiniApp
   if (window.Telegram?.WebApp?.CloudStorage) {
     try {
       window.Telegram.WebApp.CloudStorage.getItem(STORAGE_GROUP, (err, val) => {
-        if (!err && val && !urlGroup) {
-          if (val !== S.group) {
-            S.group = val;
-            try { localStorage.setItem(STORAGE_GROUP, val); } catch (_) {}
-            loadSchedule();
-          }
+        if (!err && val && !urlGroup && val !== S.group) {
+          S.group = val;
+          try { localStorage.setItem(STORAGE_GROUP, val); } catch (_) {}
+          updateSidebarGroupInfo();
+          loadSchedule();
         } else if (S.group) {
           window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, S.group);
         }
@@ -205,9 +217,7 @@ async function init() {
     } catch (_) {}
   }
 
-  buildDayStrip();
-
-  // Загружаем расписание сразу по умолчанию без всяких модальных окон!
+  // 4. Загружаем данные расписания
   loadSchedule();
   startAutoRefresh();
 }
@@ -744,9 +754,12 @@ function checkMidnightRollover() {
   }
 }
 
+let _liveCardInterval = null;
+
 function startLiveCardClock() {
   setupLiveCardToggle();
   updateLiveCard();
+  if (_liveCardInterval) clearInterval(_liveCardInterval);
   _liveCardInterval = setInterval(() => {
     checkMidnightRollover();
     updateLiveCard();
@@ -807,8 +820,12 @@ function getGroupDayPairs(dayName) {
 
 function updateLiveCard() {
   if (!els.liveCard) return;
-  if (!S.data || !S.group) {
+  if (!S.group) {
     setLiveCard('free', '⏸', 'Выберите группу', 'Нажмите "Сменить группу"', 'Выберите группу');
+    return;
+  }
+  if (!S.data) {
+    setLiveCard('free', '⏱', S.group, 'Загрузка расписания...', S.group);
     return;
   }
 
@@ -962,7 +979,8 @@ function fmtTime(min) {
 //  LOAD DATA
 // ════════════════════════════════════════
 async function loadSchedule(force = false) {
-  if (!S.group) return;
+  if (!S.group) S.group = DEFAULT_GROUP;
+  updateSidebarGroupInfo();
 
   const cacheKey = STORAGE_CACHE_PREFIX + S.group + '_' + (S.activeGid || 'active');
 
@@ -1717,4 +1735,8 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

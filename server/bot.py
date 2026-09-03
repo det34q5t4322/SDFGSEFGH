@@ -92,7 +92,7 @@ def get_webapp_url(group: str = DEFAULT_GROUP) -> Optional[str]:
         return None
     import urllib.parse
     sep = "&" if "?" in WEB_APP_URL else "?"
-    return f"{WEB_APP_URL}{sep}v=20260904_02&group={urllib.parse.quote(group)}"
+    return f"{WEB_APP_URL}{sep}v=20260904_03&group={urllib.parse.quote(group)}"
 
 
 def set_user_group(user_id: int, username: str, group: str) -> None:
