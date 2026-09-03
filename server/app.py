@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
@@ -227,6 +228,37 @@ async def get_schedule(
         "last_updated": data.get("last_updated", ""),
         "timestamp": data.get("timestamp", 0),
     }
+
+
+class UserGroupPayload(BaseModel):
+    user_id: str
+    group: str
+
+
+@app.get("/api/user-group")
+async def get_api_user_group(user_id: Optional[str] = Query(None)):
+    """Получить сохранённую группу пользователя Telegram."""
+    if not user_id:
+        return {"group": "ИСС9-25"}
+    try:
+        from bot import get_user_group
+        grp = get_user_group(int(user_id))
+        return {"group": grp}
+    except Exception as e:
+        logger.warning(f"Error getting user group for {user_id}: {e}")
+        return {"group": "ИСС9-25"}
+
+
+@app.post("/api/user-group")
+async def set_api_user_group(payload: UserGroupPayload):
+    """Сохранить выбранную группу пользователя Telegram."""
+    try:
+        from bot import set_user_group
+        set_user_group(int(payload.user_id), "", payload.group)
+        return {"status": "success", "group": payload.group}
+    except Exception as e:
+        logger.warning(f"Error setting user group for {payload.user_id}: {e}")
+        return {"status": "error", "message": str(e), "group": payload.group}
 
 
 @app.get("/api/teachers")

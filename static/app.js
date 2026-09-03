@@ -175,41 +175,84 @@ async function init() {
   try { setupWeekNav(); } catch (e) { console.error('setupWeekNav error:', e); }
   try { setupSearchInputs(); } catch (e) { console.error('setupSearchInputs error:', e); }
 
-  // 1. Извлекаем группу (URL -> localStorage -> DEFAULT_GROUP)
+  // 1. Извлекаем группу с приоритетом на сохранённый выбор пользователя
   let urlGroup = null;
   try {
     const urlParams = new URLSearchParams(window.location.search);
     urlGroup = urlParams.get('group') || urlParams.get('tgWebAppStartParam');
   } catch (_) {}
 
-  if (urlGroup) {
+  let savedGroup = null;
+  try {
+    savedGroup = localStorage.getItem(STORAGE_GROUP) || localStorage.getItem('schedule_group');
+    if (savedGroup === 'null' || savedGroup === 'undefined' || !savedGroup.trim()) {
+      savedGroup = null;
+    }
+  } catch (_) {}
+
+  // Определение группы:
+  // Если пользователь открыл прямую ссылку на ДРУГУЮ группу (не дефолтную и не сохранённую) — уважаем ссылку
+  if (urlGroup && urlGroup !== DEFAULT_GROUP && urlGroup !== savedGroup) {
+    S.group = urlGroup;
+  } else if (savedGroup) {
+    S.group = savedGroup;
+  } else if (urlGroup) {
     S.group = urlGroup;
   } else {
-    try {
-      S.group = localStorage.getItem(STORAGE_GROUP) || DEFAULT_GROUP;
-    } catch (_) {
-      S.group = DEFAULT_GROUP;
-    }
-  }
-  if (!S.group || S.group === 'null' || S.group === 'undefined') {
     S.group = DEFAULT_GROUP;
   }
-  try { localStorage.setItem(STORAGE_GROUP, S.group); } catch (_) {}
+
+  try {
+    localStorage.setItem(STORAGE_GROUP, S.group);
+    localStorage.setItem('schedule_group', S.group);
+    const u = new URL(window.location.href);
+    u.searchParams.set('group', S.group);
+    window.history.replaceState(null, '', u.toString());
+  } catch (_) {}
 
   // 2. СРАЗУ (0 мс) обновляем шапку, сайдбар и карточку дня
   updateSidebarGroupInfo();
   try { buildDayStrip(); } catch (e) { console.error('buildDayStrip error:', e); }
   try { startLiveCardClock(); } catch (e) { console.error('startLiveCardClock error:', e); }
 
-  // 3. Поддержка облачной синхронизации Telegram MiniApp
+  // 3. Синхронизация с сервером Telegram и CloudStorage
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  if (tgUser?.id) {
+    try {
+      fetch(`/api/user-group?user_id=${tgUser.id}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && data.group && data.group !== S.group && !savedGroup) {
+            S.group = data.group;
+            try {
+              localStorage.setItem(STORAGE_GROUP, data.group);
+              const u = new URL(window.location.href);
+              u.searchParams.set('group', data.group);
+              window.history.replaceState(null, '', u.toString());
+            } catch (_) {}
+            updateSidebarGroupInfo();
+            loadSchedule();
+          }
+        })
+        .catch(() => {});
+    } catch (_) {}
+  }
+
   if (window.Telegram?.WebApp?.CloudStorage) {
     try {
       window.Telegram.WebApp.CloudStorage.getItem(STORAGE_GROUP, (err, val) => {
-        if (!err && val && !urlGroup && val !== S.group) {
-          S.group = val;
-          try { localStorage.setItem(STORAGE_GROUP, val); } catch (_) {}
-          updateSidebarGroupInfo();
-          loadSchedule();
+        if (!err && val && val !== 'null' && val !== 'undefined') {
+          if (val !== S.group && !savedGroup) {
+            S.group = val;
+            try {
+              localStorage.setItem(STORAGE_GROUP, val);
+              const u = new URL(window.location.href);
+              u.searchParams.set('group', val);
+              window.history.replaceState(null, '', u.toString());
+            } catch (_) {}
+            updateSidebarGroupInfo();
+            loadSchedule();
+          }
         } else if (S.group) {
           window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, S.group);
         }
@@ -1605,9 +1648,29 @@ function openGroupModal() {
     S.group = grp;
     try {
       localStorage.setItem(STORAGE_GROUP, grp);
-      if (window.Telegram?.WebApp?.CloudStorage) {
+      localStorage.setItem('schedule_group', grp);
+    } catch (_) {}
+    if (window.Telegram?.WebApp?.CloudStorage) {
+      try {
         window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, grp);
+      } catch (_) {}
+    }
+    // Сохраняем на сервере для данного пользователя Telegram
+    try {
+      const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      if (tgUser?.id) {
+        fetch('/api/user-group', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: String(tgUser.id), group: grp })
+        }).catch(() => {});
       }
+    } catch (_) {}
+    // Синхронизируем URL без перезагрузки (чтобы F5 и свайпы сохраняли выбранную группу)
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set('group', grp);
+      window.history.replaceState(null, '', u.toString());
     } catch (_) {}
     closeGroupModal();
     updateSidebarGroupInfo();
