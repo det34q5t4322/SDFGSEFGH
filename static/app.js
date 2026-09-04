@@ -7,11 +7,36 @@
 
 'use strict';
 
-// ── THEME INITIALIZATION (Zero-flicker) ─
-const STORAGE_THEME = 'college_schedule_theme';
+// ── THEME & PREFERENCES INITIALIZATION (Zero-flicker) ─
+const STORAGE_THEME        = 'college_schedule_theme';
+const STORAGE_FONT_FAMILY  = 'schedule_font_family';
+const STORAGE_FONT_SIZE    = 'schedule_font_size';
+const STORAGE_SHOW_TEACHER = 'schedule_show_teacher';
+const STORAGE_SHOW_ROOM    = 'schedule_show_room';
+const STORAGE_SHOW_BADGES  = 'schedule_show_badges';
+const STORAGE_SHOW_BREAKS  = 'schedule_show_breaks';
+
 (function() {
-  const saved = localStorage.getItem(STORAGE_THEME) || 'obsidian';
-  document.documentElement.setAttribute('data-theme', saved);
+  try {
+    const savedTheme = localStorage.getItem(STORAGE_THEME) || 'obsidian';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    const savedFont = localStorage.getItem(STORAGE_FONT_FAMILY) || 'system';
+    document.documentElement.setAttribute('data-font', savedFont);
+    const savedSize = localStorage.getItem(STORAGE_FONT_SIZE) || 'normal';
+    document.documentElement.setAttribute('data-font-size', savedSize);
+    if (localStorage.getItem(STORAGE_SHOW_TEACHER) === 'false') {
+      document.documentElement.setAttribute('data-hide-teacher', 'true');
+    }
+    if (localStorage.getItem(STORAGE_SHOW_ROOM) === 'false') {
+      document.documentElement.setAttribute('data-hide-room', 'true');
+    }
+    if (localStorage.getItem(STORAGE_SHOW_BADGES) === 'false') {
+      document.documentElement.setAttribute('data-hide-badges', 'true');
+    }
+    if (localStorage.getItem(STORAGE_SHOW_BREAKS) === 'false') {
+      document.documentElement.setAttribute('data-hide-breaks', 'true');
+    }
+  } catch (_) {}
 })();
 
 // ── ICONS (Lucide SVG System) ──────────────
@@ -106,6 +131,7 @@ const S = {
   group:              localStorage.getItem(STORAGE_GROUP) || DEFAULT_GROUP,
   activeGid:          '',
   parity:             'auto',
+  parityOverride:     null,         // 'num' | 'den' | null (ручное переключение чётности через чип в шапке)
   weekOffset:         0,            // 0 = текущая неделя, 1 = следующая, -1 = предыдущая
   view:               'today',      // today | week | teacher | classroom
   selectedDay:        null,         // 1-6 (Пн-Сб), null = сегодня
@@ -116,6 +142,8 @@ const S = {
   selectedTeacher:    null,
   selectedClassroom:  null,
   tabs:               [],
+  manualTabMode:      false,        // true = пользователь явно выбрал вкладку в сайдбаре
+  isNotPublished:     false,        // true = расписание на выбранную дату ещё не опубликовано
   refreshTimer:       null,
 };
 
@@ -220,6 +248,14 @@ const els = {
   classroomsGrid:       $('classroomsGrid'),
   classroomResult:      $('classroomResult'),
 
+  // Статистика
+  statsView:            $('statsView'),
+  statsContainer:       $('statsContainer'),
+
+  // Английский язык (Сигнализация тревоги)
+  englishView:          $('englishView'),
+  sidebarEnglish:       $('sidebarEnglish'),
+
   // Модальные окна
   groupModal:           $('groupModal'),
   closeGroupModal:      $('closeGroupModal'),
@@ -291,6 +327,7 @@ async function init() {
   // 2. СРАЗУ (0 мс) обновляем шапку, сайдбар и карточку дня
   updateSidebarGroupInfo();
   try { buildDayStrip(); } catch (e) { console.error('buildDayStrip error:', e); }
+  try { updateTopbarParity(); } catch (e) { console.error('updateTopbarParity error:', e); }
   try { startLiveCardClock(); } catch (e) { console.error('startLiveCardClock error:', e); }
 
   // 3. Синхронизация с сервером Telegram и CloudStorage
@@ -344,86 +381,25 @@ async function init() {
 }
 
 // ════════════════════════════════════════
-//  THEMES & SKINS
+//  THEMES & CUSTOMIZATION
 // ════════════════════════════════════════
 const THEMES = [
-  {
-    id: 'obsidian',
-    name: 'Obsidian Night',
-    desc: 'Тёмный графит: сбалансированная классика, радиус 10px, сапфировый акцент',
-    bg: '#0b0c16',
-    sidebar: '#0f101c',
-    card: '#131422',
-    accent: '#4f8ef7',
-    dot2: '#22c55e',
-    text: '#f0f2fa'
-  },
-  {
-    id: 'carbon',
-    name: 'Midnight Carbon',
-    desc: 'Инженерный стиль: строгие грани 5px, глубокий мат, стиль Linear/Vercel',
-    bg: '#09090b',
-    sidebar: '#0d0d10',
-    card: '#121215',
-    accent: '#38bdf8',
-    dot2: '#34d399',
-    text: '#f4f4f6'
-  },
-  {
-    id: 'tokyo',
-    name: 'Cyber Tokyo',
-    desc: 'Нео-Токио: киберпанк, сакура, неоновые контуры и плотный трекинг',
-    bg: '#090a16',
-    sidebar: '#0e1020',
-    card: '#121427',
-    accent: '#f43f5e',
-    dot2: '#8b5cf6',
-    text: '#fafafc'
-  },
-  {
-    id: 'forest',
-    name: 'Nord Forest',
-    desc: 'Скандинавия: хвойный бор, изумрудный мох и северный горизонт',
-    bg: '#070e0d',
-    sidebar: '#0a1715',
-    card: '#0e1b19',
-    accent: '#10b981',
-    dot2: '#34d399',
-    text: '#edfcf6'
-  },
-  {
-    id: 'mocha',
-    name: 'Warm Mocha',
-    desc: 'Уютный крафт: мягкие скругления 18px, тёплый эспрессо и карамель',
-    bg: '#120f0d',
-    sidebar: '#17120e',
-    card: '#1c1713',
-    accent: '#f59e0b',
-    dot2: '#d97706',
-    text: '#fff7ed'
-  },
-  {
-    id: 'terminal',
-    name: 'Amber CRT',
-    desc: 'Ретро-инженерия: винтажные сканлайны, янтарный фосфор и грани 4px',
-    bg: '#050505',
-    sidebar: '#090909',
-    card: '#0b0b0b',
-    accent: '#ffb000',
-    dot2: '#4ade80',
-    text: '#ffdf80'
-  },
-  {
-    id: 'light',
-    name: 'Nordic Light',
-    desc: 'Светлая бумага: швейцарский минимализм, титан и глубокий кобальт',
-    bg: '#f4f5f8',
-    sidebar: '#ffffff',
-    card: '#ffffff',
-    accent: '#2563eb',
-    dot2: '#16a34a',
-    text: '#0f172a'
-  }
+  { id: 'obsidian',  name: 'Obsidian Night',   bg: '#0b0c16', sidebar: '#0f101c', card: '#131422', accent: '#4f8ef7', dot2: '#22c55e', text: '#f0f2fa' },
+  { id: 'carbon',    name: 'Midnight Carbon',  bg: '#09090b', sidebar: '#0d0d10', card: '#121215', accent: '#38bdf8', dot2: '#34d399', text: '#f4f4f6' },
+  { id: 'tokyo',     name: 'Cyber Tokyo',      bg: '#090a16', sidebar: '#0e1020', card: '#121427', accent: '#f43f5e', dot2: '#8b5cf6', text: '#fafafc' },
+  { id: 'crimson',   name: 'Crimson Dusk',     bg: '#0e0609', sidebar: '#17080c', card: '#180c12', accent: '#f43f5e', dot2: '#fb7185', text: '#fff1f2' },
+  { id: 'abyss',     name: 'Ocean Abyss',      bg: '#050c18', sidebar: '#071020', card: '#0a182c', accent: '#06b6d4', dot2: '#38bdf8', text: '#ecfeff' },
+  { id: 'synthwave', name: 'Sunset 80s',       bg: '#110720', sidebar: '#140926', card: '#1c0d33', accent: '#ff6b2b', dot2: '#d946ef', text: '#fff7ed' },
+  { id: 'matrix',    name: 'Matrix Neon',      bg: '#030904', sidebar: '#050e06', card: '#08160a', accent: '#00ff66', dot2: '#22c55e', text: '#dcfce7' },
+  { id: 'solar',     name: 'Solar Gold',       bg: '#11100e', sidebar: '#151311', card: '#1a1815', accent: '#eab308', dot2: '#f59e0b', text: '#fefce8' },
+  { id: 'forest',    name: 'Nord Forest',      bg: '#070e0d', sidebar: '#0a1715', card: '#0e1b19', accent: '#10b981', dot2: '#34d399', text: '#edfcf6' },
+  { id: 'emerald',   name: 'Cyber Emerald',    bg: '#05110e', sidebar: '#071511', card: '#0c201b', accent: '#14b8a6', dot2: '#2dd4bf', text: '#f0fdfa' },
+  { id: 'amethyst',  name: 'Amethyst Dusk',    bg: '#0d0b18', sidebar: '#130f24', card: '#18132e', accent: '#c084fc', dot2: '#a855f7', text: '#f5f3ff' },
+  { id: 'mocha',     name: 'Warm Mocha',       bg: '#120f0d', sidebar: '#17120e', card: '#1c1713', accent: '#f59e0b', dot2: '#d97706', text: '#fff7ed' },
+  { id: 'ice',       name: 'Arctic Ice',       bg: '#070f1a', sidebar: '#091321', card: '#0e1c2e', accent: '#38bdf8', dot2: '#67e8f9', text: '#f0f9ff' },
+  { id: 'terminal',  name: 'Amber CRT',        bg: '#050505', sidebar: '#090909', card: '#0b0b0b', accent: '#ffb000', dot2: '#4ade80', text: '#ffdf80' },
+  { id: 'light',     name: 'Nordic Light',     bg: '#f4f5f8', sidebar: '#ffffff', card: '#ffffff', accent: '#2563eb', dot2: '#16a34a', text: '#0f172a' },
+  { id: 'sakura',    name: 'Sakura Pastel',    bg: '#fbf5f8', sidebar: '#ffffff', card: '#ffffff', accent: '#ec4899', dot2: '#f43f5e', text: '#27121e' }
 ];
 
 const STORAGE_MINIMAL = 'schedule_minimal_mode';
@@ -458,9 +434,110 @@ function applyTheme(themeId) {
   renderThemesGrid();
 }
 
+// ── FONT FAMILY & SIZE MANAGEMENT ──
+function getStoredFontFamily() {
+  let val = localStorage.getItem(STORAGE_FONT_FAMILY) || 'system';
+  if (val === 'rounded') val = 'comic';
+  if (val === 'tech') val = 'courier';
+  if (val === 'mono') val = 'pixel';
+  return val;
+}
+
+function applyFontFamily(fontId) {
+  if (fontId === 'rounded') fontId = 'comic';
+  if (fontId === 'tech') fontId = 'courier';
+  if (fontId === 'mono') fontId = 'pixel';
+  document.documentElement.setAttribute('data-font', fontId);
+  localStorage.setItem(STORAGE_FONT_FAMILY, fontId);
+  if (window.Telegram?.WebApp?.CloudStorage) {
+    try { Telegram.WebApp.CloudStorage.setItem(STORAGE_FONT_FAMILY, fontId, () => {}); } catch (_) {}
+  }
+  updateFontFamilyUI();
+}
+
+function updateFontFamilyUI() {
+  const cur = getStoredFontFamily();
+  document.querySelectorAll('#fontFamilyGrid .font-chip-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.font === cur);
+  });
+}
+
+function getStoredFontSize() {
+  return localStorage.getItem(STORAGE_FONT_SIZE) || 'normal';
+}
+
+function applyFontSize(sizeId) {
+  document.documentElement.setAttribute('data-font-size', sizeId);
+  localStorage.setItem(STORAGE_FONT_SIZE, sizeId);
+  if (window.Telegram?.WebApp?.CloudStorage) {
+    try { Telegram.WebApp.CloudStorage.setItem(STORAGE_FONT_SIZE, sizeId, () => {}); } catch (_) {}
+  }
+  updateFontSizeUI();
+}
+
+function updateFontSizeUI() {
+  const cur = getStoredFontSize();
+  document.querySelectorAll('#fontSizeSegmented .font-size-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.size === cur);
+  });
+}
+
+// ── CARD DISPLAY OPTIONS ──
+const DISPLAY_OPTION_CONFIGS = [
+  { id: 'toggleShowTeacher', key: STORAGE_SHOW_TEACHER, attr: 'data-hide-teacher' },
+  { id: 'toggleShowRoom',    key: STORAGE_SHOW_ROOM,    attr: 'data-hide-room' },
+  { id: 'toggleShowBadges',  key: STORAGE_SHOW_BADGES,  attr: 'data-hide-badges' },
+  { id: 'toggleShowBreaks',  key: STORAGE_SHOW_BREAKS,  attr: 'data-hide-breaks' },
+];
+
+function getStoredDisplayOption(key, defaultVal = true) {
+  const val = localStorage.getItem(key);
+  if (val === null) return defaultVal;
+  return val === 'true';
+}
+
+function applyDisplayOption(storageKey, dataAttr, isVisible) {
+  if (isVisible) {
+    document.documentElement.removeAttribute(dataAttr);
+  } else {
+    document.documentElement.setAttribute(dataAttr, 'true');
+  }
+  localStorage.setItem(storageKey, isVisible ? 'true' : 'false');
+  if (window.Telegram?.WebApp?.CloudStorage) {
+    try { Telegram.WebApp.CloudStorage.setItem(storageKey, isVisible ? 'true' : 'false', () => {}); } catch (_) {}
+  }
+}
+
+function setupDisplayOptions() {
+  DISPLAY_OPTION_CONFIGS.forEach(c => {
+    const isVis = getStoredDisplayOption(c.key, true);
+    applyDisplayOption(c.key, c.attr, isVis);
+    const el = document.getElementById(c.id);
+    if (el) {
+      el.checked = isVis;
+      el.onchange = e => {
+        applyDisplayOption(c.key, c.attr, e.target.checked);
+      };
+    }
+  });
+}
+
 function setupThemes() {
   applyTheme(getStoredTheme());
   applyMinimalMode(isMinimalMode());
+  applyFontFamily(getStoredFontFamily());
+  applyFontSize(getStoredFontSize());
+  setupDisplayOptions();
+
+  // Привязка кнопок шрифта
+  document.querySelectorAll('#fontFamilyGrid .font-chip-btn').forEach(btn => {
+    btn.onclick = () => applyFontFamily(btn.dataset.font);
+  });
+
+  // Привязка кнопок размера текста
+  document.querySelectorAll('#fontSizeSegmented .font-size-btn').forEach(btn => {
+    btn.onclick = () => applyFontSize(btn.dataset.size);
+  });
 
   if (window.Telegram?.WebApp?.CloudStorage) {
     try {
@@ -471,6 +548,12 @@ function setupThemes() {
             applyMinimalMode(cloudVal);
           }
         }
+      });
+      Telegram.WebApp.CloudStorage.getItem(STORAGE_FONT_FAMILY, (err, val) => {
+        if (!err && val && val !== getStoredFontFamily()) applyFontFamily(val);
+      });
+      Telegram.WebApp.CloudStorage.getItem(STORAGE_FONT_SIZE, (err, val) => {
+        if (!err && val && val !== getStoredFontSize()) applyFontSize(val);
       });
     } catch (_) {}
   }
@@ -493,8 +576,17 @@ function setupThemes() {
 
 function openThemeModal() {
   renderThemesGrid();
+  updateFontFamilyUI();
+  updateFontSizeUI();
+
   const minToggle = document.getElementById('minimalModeToggle');
   if (minToggle) minToggle.checked = isMinimalMode();
+
+  DISPLAY_OPTION_CONFIGS.forEach(c => {
+    const el = document.getElementById(c.id);
+    if (el) el.checked = getStoredDisplayOption(c.key, true);
+  });
+
   els.themeModal?.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -524,13 +616,10 @@ function renderThemesGrid() {
               <div class="theme-preview-mini-bar" style="background:${t.text}60"></div>
             </div>
           </div>
+          <span class="theme-card-badge">${ICONS.check}</span>
         </div>
         <div class="theme-card-info">
-          <div class="theme-card-header">
-            <span class="theme-card-title">${t.name}</span>
-            <span class="theme-card-badge">${ICONS.check} Выбрано</span>
-          </div>
-          <div class="theme-card-desc">${t.desc}</div>
+          <span class="theme-card-title">${t.name}</span>
         </div>
       </div>
     `;
@@ -595,6 +684,91 @@ function isTestTab(tabName) {
   return /тест|test|draft|черновик|шаблон|temp|sample|^лист\s*\d*$/i.test(String(tabName).trim());
 }
 
+// ════════════════════════════════════════
+//  AUTOMATIC DATE & WEEK RESOLUTION
+// ════════════════════════════════════════
+function getWeekDateRange(weekOffset = 0) {
+  const now = new Date();
+  const dow = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const dayFromMon = (dow === 0 ? 7 : dow) - 1; // 0 for Mon, 6 for Sun
+  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayFromMon + (weekOffset * 7));
+  mon.setHours(0, 0, 0, 0);
+  const sat = new Date(mon);
+  sat.setDate(mon.getDate() + 5);
+  sat.setHours(23, 59, 59, 999);
+  return { mon, sat };
+}
+
+function findTabForWeek(weekOffset = 0) {
+  const { mon, sat } = getWeekDateRange(weekOffset);
+  const targetParity = getActiveParity(); // 'num' or 'den'
+  // Фильтруем только вкладки с диапазонами дат (исключая «Основное», «Расписание 1 сентября», тестовые)
+  const datedTabs = (S.tabs || []).filter(t => t.has_date_range && !isTestTab(t.name));
+  const matching = [];
+
+  for (const tab of datedTabs) {
+    const startStr = tab.start_iso || tab.date_start;
+    const endStr = tab.end_iso || tab.date_end;
+    if (!startStr || !endStr) continue;
+    const tabStart = new Date(startStr);
+    const tabEnd = new Date(endStr);
+    // Проверка пересечения отрезков [mon, sat] и [tabStart, tabEnd]
+    if (mon <= tabEnd && sat >= tabStart) {
+      matching.push(tab);
+    }
+  }
+
+  if (matching.length === 0) return null;
+
+  // 1. Точное совпадение: диапазон дат + тип недели (числитель/знаменатель)
+  const parityMatch = matching.find(t => t.parity === targetParity);
+  if (parityMatch) return parityMatch;
+
+  // 2. Вкладка без указания типа недели (fallback: parity === null)
+  const untypedMatch = matching.find(t => !t.parity);
+  if (untypedMatch) return untypedMatch;
+
+  // 3. Fallback: первая пересекающаяся вкладка
+  return matching[0];
+}
+
+function renderScheduleNotPublished() {
+  if (!els.scheduleView) return;
+  const { mon, sat } = getWeekDateRange(S.weekOffset || 0);
+  const mStr = `${mon.getDate()} ${MONTH_NAMES[mon.getMonth()]}`;
+  const sStr = `${sat.getDate()} ${MONTH_NAMES[sat.getMonth()]}`;
+  const rangeText = `${mStr} – ${sStr}`;
+
+  els.scheduleView.innerHTML = `
+    <div class="schedule-not-published-card">
+      <div class="not-published-icon">${ICONS.calendar}</div>
+      <div class="not-published-title">Расписание на эту неделю ещё не опубликовано</div>
+      <div class="not-published-desc">Колледж ещё не выложил расписание на период <strong>${rangeText}</strong>. Обычно расписание на новую неделю публикуется в конце текущей недели.</div>
+      <button class="not-published-btn" onclick="resetToCurrentWeek()">
+        ${ICONS.calendar}
+        <span>Вернуться к текущей неделе</span>
+      </button>
+    </div>
+  `;
+}
+
+window.resetToCurrentWeek = function() {
+  S.weekOffset = 0;
+  S.selectedDay = null;
+  S.manualTabMode = false;
+  S.isNotPublished = false;
+  S.parityOverride = null;
+
+  const autoTab = findTabForWeek(0);
+  if (autoTab) {
+    S.activeGid = autoTab.gid;
+  }
+  buildSidebarTabs();
+  buildDayStrip();
+  updateTopbarParity();
+  loadSchedule(false);
+};
+
 function buildSidebarTabs() {
   if (!els.sidebarTabList) return;
   els.sidebarTabList.innerHTML = '';
@@ -603,8 +777,19 @@ function buildSidebarTabs() {
     const btn = document.createElement('button');
     const isActive = (tab.gid === S.activeGid) || (!S.activeGid && tab.is_active);
     btn.className = 'sidebar-tab-btn' + (isActive ? ' active' : '');
-    btn.innerHTML = `<span class="sidebar-tab-dot"></span><span>${esc(tab.name)}</span>`;
+
+    let metaBadge = '';
+    if (tab.start_dm && tab.end_dm) {
+      metaBadge = `<span class="sidebar-tab-badge">${tab.start_dm}–${tab.end_dm}</span>`;
+    } else if (tab.is_main) {
+      metaBadge = `<span class="sidebar-tab-badge special">Резерв</span>`;
+    }
+
+    btn.innerHTML = `<span class="sidebar-tab-dot"></span><span class="sidebar-tab-name">${esc(tab.name)}</span>${metaBadge}`;
     btn.addEventListener('click', () => {
+      S.manualTabMode = true;
+      S.isNotPublished = false;
+      S.parityOverride = null;
       S.activeGid = tab.gid;
       closeSidebar();
       loadSchedule(true);
@@ -632,10 +817,12 @@ function setView(view) {
   document.querySelectorAll('.sidebar-nav-item[data-view]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === view);
   });
-  const isSched = (view === 'today' || view === 'week');
+  const isSched = (view === 'today' || view === 'week' || view === 'schedule');
   if (els.scheduleView) els.scheduleView.style.display = isSched ? 'block' : 'none';
   if (els.teacherView) els.teacherView.style.display = view === 'teacher' ? 'block' : 'none';
   if (els.classroomView) els.classroomView.style.display = view === 'classroom' ? 'block' : 'none';
+  if (els.statsView) els.statsView.style.display = view === 'stats' ? 'block' : 'none';
+  if (els.englishView) els.englishView.style.display = view === 'english' ? 'block' : 'none';
   
   const navWrap = document.querySelector('.week-nav-wrap');
   if (navWrap) navWrap.style.display = isSched ? 'block' : 'none';
@@ -644,26 +831,64 @@ function setView(view) {
   if (isSched) renderSchedule();
   if (view === 'teacher') initTeachersView();
   if (view === 'classroom') initClassroomsView();
+  if (view === 'stats') initStatsView();
+  if (view === 'english') startEnglishCountdown();
+  else stopEnglishCountdown();
 }
 
 // ════════════════════════════════════════
 //  WEEK NAVIGATION & PARITY
 // ════════════════════════════════════════
+function getAcademicParityForDate(d) {
+  const target = new Date(d);
+  const m = target.getMonth(); // 0=янв, 7=авг, 8=сен
+  const y = (m >= 7) ? target.getFullYear() : target.getFullYear() - 1;
+  const septFirst = new Date(y, 8, 1);
+  const septFirstDay = (septFirst.getDay() + 6) % 7; // 0=пн, 6=вс
+  const septFirstMonday = new Date(septFirst);
+  septFirstMonday.setDate(septFirst.getDate() - septFirstDay);
+  septFirstMonday.setHours(0, 0, 0, 0);
+
+  const targetDay = new Date(target);
+  targetDay.setHours(0, 0, 0, 0);
+  const diffDays = Math.floor((targetDay - septFirstMonday) / (86400 * 1000));
+  const weekNum = Math.max(1, Math.floor(diffDays / 7) + 1);
+  return (weekNum % 2 === 1) ? 'num' : 'den';
+}
+
 function updateTopbarParity() {
   const p = getActiveParity();
   if (els.topbarParity) {
+    const isOverridden = Boolean(S.parityOverride);
     els.topbarParity.textContent = (p === 'num') ? 'I Числ.' : 'II Знам.';
+    els.topbarParity.classList.toggle('overridden', isOverridden);
+    els.topbarParity.title = 'Нажмите, чтобы переключить (I Числ. / II Знам.)';
   }
 }
 
 function getActiveParity() {
-  const baseParity = S.data?.week_info?.parity || 'num';
-  const offset = S.weekOffset || 0;
-  if (Math.abs(offset) % 2 === 0) {
-    return baseParity;
-  } else {
-    return baseParity === 'num' ? 'den' : 'num';
+  // 1. Ручное переключение через чип в шапке (если активировано)
+  if (S.parityOverride === 'num' || S.parityOverride === 'den') {
+    return S.parityOverride;
   }
+
+  // 2. Если выбранная вкладка имеет явную чётность в названии («Числитель» / «Знаменатель»),
+  // её расписание ВСЕГДА отображается строго в соответствии с типом этой вкладки!
+  const currentTab = (S.tabs || []).find(t => t.gid === S.activeGid);
+  const tabParity = currentTab?.parity;
+  if (tabParity === 'num' || tabParity === 'den') {
+    return tabParity;
+  }
+  if (S.data?.tab_name) {
+    const tLower = S.data.tab_name.toLowerCase();
+    if (tLower.includes('числитель')) return 'num';
+    if (tLower.includes('знаменатель')) return 'den';
+  }
+
+  // 3. Для вкладок без явной чётности (например «Основное»):
+  // Чётность рассчитывается от даты просматриваемой недели!
+  const { mon } = getWeekDateRange(S.weekOffset || 0);
+  return getAcademicParityForDate(mon);
 }
 
 function updateWeekNav(monday, saturday) {
@@ -702,15 +927,43 @@ function updateWeekNav(monday, saturday) {
 
 function changeWeek(delta) {
   S.weekOffset += delta;
-  buildDayStrip();
-  updateTopbarParity();
-  renderSchedule();
-  updateLiveCard();
+  S.manualTabMode = false;
+  S.parityOverride = null;
+
+  const targetTab = findTabForWeek(S.weekOffset);
+  if (targetTab) {
+    S.isNotPublished = false;
+    const needFetch = (!S.data || S.data.gid !== targetTab.gid);
+    S.activeGid = targetTab.gid;
+    buildSidebarTabs();
+    buildDayStrip();
+    updateTopbarParity();
+    if (needFetch) {
+      loadSchedule(false);
+    } else {
+      renderSchedule();
+      updateLiveCard();
+    }
+  } else {
+    S.isNotPublished = true;
+    buildSidebarTabs();
+    buildDayStrip();
+    updateTopbarParity();
+    renderScheduleNotPublished();
+    updateLiveCard();
+  }
 }
 
 function setupWeekNav() {
   els.prevWeekBtn?.addEventListener('click', () => changeWeek(-1));
   els.nextWeekBtn?.addEventListener('click', () => changeWeek(1));
+  els.topbarParity?.addEventListener('click', () => {
+    const current = getActiveParity();
+    S.parityOverride = (current === 'num') ? 'den' : 'num';
+    updateTopbarParity();
+    renderSchedule();
+    updateLiveCard();
+  });
   setupSwipeGestures();
 }
 
@@ -760,13 +1013,7 @@ function buildDayStrip() {
 
   els.dayStrip.innerHTML = '';
 
-  const mondayOffset = (todayDow === 0 ? -6 : 1 - todayDow) + (S.weekOffset * 7);
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + mondayOffset);
-
-  const saturday = new Date(monday);
-  saturday.setDate(monday.getDate() + 5);
-
+  const { mon: monday, sat: saturday } = getWeekDateRange(S.weekOffset || 0);
   updateWeekNav(monday, saturday);
 
   if (S.selectedDay === null) {
@@ -1166,6 +1413,7 @@ async function loadSchedule(force = false) {
         S.data = JSON.parse(cached);
         updateSidebarGroupInfo();
         buildDayStrip();
+        updateTopbarParity();
         renderSchedule();
         updateLiveCard();
         updateSyncStatus(true, true);
@@ -1187,10 +1435,30 @@ async function loadSchedule(force = false) {
     if (tabsRes.ok) {
       const tabsData = await tabsRes.json();
       S.tabs = (tabsData.tabs || []).filter(tab => !isTestTab(tab.name));
-      const activeExists = S.tabs.some(t => t.gid === S.activeGid);
-      if (!S.activeGid || S.activeGid === 'active' || !activeExists) {
-        const foundActive = S.tabs.find(t => t.is_active);
-        S.activeGid = foundActive ? foundActive.gid : (S.tabs[0]?.gid || tabsData.active_gid || '');
+
+      // Автоматическое определение вкладки по датам недели, если не включен ручной выбор
+      if (!S.manualTabMode) {
+        const autoTab = findTabForWeek(S.weekOffset || 0);
+        if (autoTab) {
+          S.activeGid = autoTab.gid;
+        } else if (!S.activeGid || S.activeGid === 'active') {
+          const foundActive = S.tabs.find(t => t.is_active);
+          S.activeGid = foundActive ? foundActive.gid : (S.tabs[0]?.gid || tabsData.active_gid || '');
+        }
+      }
+    }
+
+    // Если в автоматическом режиме целевая неделя не покрыта ни одной вкладкой
+    if (!S.manualTabMode) {
+      const targetTab = findTabForWeek(S.weekOffset || 0);
+      if (!targetTab && S.weekOffset !== 0) {
+        clearTimeout(wakeupTimer);
+        hideOfflineBanner();
+        S.isNotPublished = true;
+        buildSidebarTabs();
+        buildDayStrip();
+        renderScheduleNotPublished();
+        return;
       }
     }
 
@@ -1201,6 +1469,16 @@ async function loadSchedule(force = false) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const freshData = await res.json();
 
+    if (freshData && freshData.published === false) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      S.isNotPublished = true;
+      buildSidebarTabs();
+      buildDayStrip();
+      renderScheduleNotPublished();
+      return;
+    }
+
     if (!freshData || (!freshData.days && !freshData.schedules)) {
       throw new Error('Некорректный формат расписания от сервера');
     }
@@ -1208,6 +1486,7 @@ async function loadSchedule(force = false) {
     clearTimeout(wakeupTimer);
     hideOfflineBanner();
 
+    S.isNotPublished = false;
     S.data = freshData;
 
     try {
@@ -1220,9 +1499,13 @@ async function loadSchedule(force = false) {
     updateSidebarGroupInfo();
     buildSidebarTabs();
     buildDayStrip();
+    updateTopbarParity();
     renderSchedule();
     updateLiveCard();
     updateSyncStatus(true, false);
+    if (S.view === 'stats') renderStatsView(currentStatsScope);
+    const tabEng = document.getElementById('tabSettingsEnglish');
+    if (tabEng && tabEng.classList.contains('active')) startEnglishCountdown();
     logApp('info', `Расписание успешно синхронизировано для ${S.group}`);
   } catch (e) {
     clearTimeout(wakeupTimer);
@@ -1238,6 +1521,7 @@ async function loadSchedule(force = false) {
           hasCachedData = true;
           updateSidebarGroupInfo();
           buildDayStrip();
+          updateTopbarParity();
           renderSchedule();
           updateLiveCard();
         }
@@ -1295,6 +1579,10 @@ function startAutoRefresh() {
 // ════════════════════════════════════════
 function renderSchedule() {
   if (!els.scheduleView) return;
+  if (S.isNotPublished) {
+    renderScheduleNotPublished();
+    return;
+  }
   if (!S.data || !S.group) {
     els.scheduleView.innerHTML = `<div class="empty-pairs-hint">Группа не выбрана</div>`;
     return;
@@ -1366,11 +1654,21 @@ function renderDayPairs(dayName) {
   const validSlots = [];
   slots.forEach(slot => {
     if (slot.is_empty) return;
-    const hasNum = slot.numerator && slot.numerator.subject;
-    const hasDen = slot.denominator && slot.denominator.subject;
-    const hasBoth = slot.both && slot.both.subject;
-    if (hasNum || hasDen || hasBoth) {
-      validSlots.push(slot);
+    if (slot.is_split) {
+      const hasNum = slot.numerator && slot.numerator.subject;
+      const hasDen = slot.denominator && slot.denominator.subject;
+      if (activeParity === 'num') {
+        if (hasNum) validSlots.push(slot);
+      } else if (activeParity === 'den') {
+        if (hasDen) validSlots.push(slot);
+      } else {
+        if (hasNum || hasDen) validSlots.push(slot);
+      }
+    } else {
+      const p = slot.both || slot.numerator || slot.denominator;
+      if (p && p.subject) {
+        validSlots.push(slot);
+      }
     }
   });
 
@@ -1415,9 +1713,13 @@ function renderDayPairs(dayName) {
       if (activeParity === 'all') {
         html += renderSplitCard(num, den, pn, bell, isGoing);
       } else if (activeParity === 'num' && num && num.subject) {
-        html += renderSingleCard(num, pn, bell, isGoing);
+        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.');
       } else if (activeParity === 'den' && den && den.subject) {
-        html += renderSingleCard(den, pn, bell, isGoing);
+        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.');
+      } else if (num && num.subject) {
+        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.');
+      } else if (den && den.subject) {
+        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.');
       } else {
         html += renderSplitCard(num, den, pn, bell, isGoing);
       }
@@ -1433,7 +1735,7 @@ function renderDayPairs(dayName) {
   return html;
 }
 
-function renderSingleCard(p, pn, bell, isGoing) {
+function renderSingleCard(p, pn, bell, isGoing, parityBadge = '') {
   const cancelled = p.is_cancelled || (p.subject && /отмена/i.test(p.subject));
   const replacement = p.is_replacement || (p.subject && /замена/i.test(p.subject));
   const classroom = p.classroom || p.room || '';
@@ -1447,10 +1749,11 @@ function renderSingleCard(p, pn, bell, isGoing) {
   ].filter(Boolean).join(' ');
 
   const badges = [
-    isGoing    ? `<span class="pair-badge badge-going">${ICONS.play} Идёт</span>` : '',
-    cancelled  ? `<span class="pair-badge badge-cancelled">${ICONS.ban} Отмена</span>` : '',
-    replacement? `<span class="pair-badge badge-replacement">${ICONS.swap} Замена</span>` : '',
-    distant    ? `<span class="pair-badge badge-distant">${ICONS.extLink} Дистант</span>` : '',
+    isGoing     ? `<span class="pair-badge badge-going">${ICONS.play} Идёт</span>` : '',
+    parityBadge ? `<span class="pair-badge badge-parity-tag">${esc(parityBadge)}</span>` : '',
+    cancelled   ? `<span class="pair-badge badge-cancelled">${ICONS.ban} Отмена</span>` : '',
+    replacement ? `<span class="pair-badge badge-replacement">${ICONS.swap} Замена</span>` : '',
+    distant     ? `<span class="pair-badge badge-distant">${ICONS.extLink} Дистант</span>` : '',
   ].filter(Boolean).join('');
 
   const teacher = p.teacher || '';
@@ -1793,6 +2096,432 @@ function setupSearchInputs() {
     const q = els.classroomSearchInput?.value.trim();
     if (q) selectClassroom(q);
   });
+}
+
+// ════════════════════════════════════════
+//  EMERGENCY ENGLISH DEADLINE ALARM (💀🚨)
+// ════════════════════════════════════════
+let englishCountdownInterval = null;
+let currentEnglishTargetDate = null;
+
+function findUpcomingEnglishInSchedule(data) {
+  if (!data || !data.days) return null;
+  const now = new Date();
+  const dayDates = data.day_dates || {};
+  let candidates = [];
+
+  for (const [dayName, pairs] of Object.entries(data.days)) {
+    const dm = dayDates[dayName];
+    if (!dm) continue;
+    const parts = dm.split('.');
+    if (parts.length < 2) continue;
+    const d = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const year = now.getFullYear();
+
+    for (const p of pairs) {
+      if (p.is_empty) continue;
+      const pairInfo = p.both || p.numerator || p.denominator || {};
+      const subj = pairInfo.subject || p.subject || '';
+      if (!subj) continue;
+
+      if (/англ|иностр/i.test(subj)) {
+        const startStr = (p.start || (p.time ? p.time.split('-')[0] : '')).trim();
+        const [startH, startM] = startStr.split(':').map(Number);
+        const targetDate = new Date(year, m - 1, d, startH || 8, startM || 0, 0);
+
+        if (targetDate.getTime() > now.getTime()) {
+          candidates.push({
+            dayName,
+            dateFormatted: `${String(d).padStart(2, '0')}.${String(m).padStart(2, '0')}.${year}`,
+            pairNum: p.pair_num || p.num || 1,
+            time: p.time || `${p.start} - ${p.end}`,
+            subject: subj,
+            teacher: pairInfo.teacher || p.teacher || '',
+            room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || '',
+            targetDate
+          });
+        }
+      }
+    }
+  }
+
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => a.targetDate.getTime() - b.targetDate.getTime());
+  return candidates[0];
+}
+
+async function startEnglishCountdown() {
+  stopEnglishCountdown();
+
+  const daysEl = document.getElementById('alarmDays');
+  const hoursEl = document.getElementById('alarmHours');
+  const minsEl = document.getElementById('alarmMinutes');
+  const secsEl = document.getElementById('alarmSeconds');
+  const groupNoticeEl = document.getElementById('alarmGroupNotice');
+  const dateEl = document.getElementById('alarmPairDate');
+  const timeEl = document.getElementById('alarmPairTime');
+  const subjEl = document.getElementById('alarmPairSubject');
+  const teacherEl = document.getElementById('alarmPairTeacher');
+  const roomEl = document.getElementById('alarmPairRoom');
+
+  if (groupNoticeEl) groupNoticeEl.textContent = `Группа: ${S.group || '—'}`;
+  if (dateEl) dateEl.textContent = 'Поиск ближайшей пары по расписанию...';
+
+  let englishPair = findUpcomingEnglishInSchedule(S.data);
+
+  // If not found in current tab, look in future tabs
+  if (!englishPair && S.data?.available_tabs?.length) {
+    const activeGid = S.data.active_gid || S.activeGid;
+    for (const tab of S.data.available_tabs) {
+      if (tab.gid === activeGid) continue;
+      try {
+        let tabData = null;
+        const cacheKey = `schedule_${S.group}_${tab.gid}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try { tabData = JSON.parse(cached); } catch (_) {}
+        }
+        if (!tabData) {
+          const res = await fetchWithTimeout(`${API}/schedule?group=${encodeURIComponent(S.group)}&tab=${encodeURIComponent(tab.gid)}`, {}, 4000);
+          if (res.ok) {
+            tabData = await res.json();
+            try { localStorage.setItem(cacheKey, JSON.stringify(tabData)); } catch (_) {}
+          }
+        }
+        if (tabData) {
+          const candidate = findUpcomingEnglishInSchedule(tabData);
+          if (candidate) {
+            englishPair = candidate;
+            break;
+          }
+        }
+      } catch (err) {
+        console.warn('Error querying tab for English:', err);
+      }
+    }
+  }
+
+  if (!englishPair) {
+    if (dateEl) dateEl.textContent = 'В расписании группы пар не найдено';
+    if (timeEl) timeEl.textContent = '—';
+    if (subjEl) subjEl.textContent = 'Иностранный язык';
+    if (teacherEl) teacherEl.textContent = '—';
+    if (roomEl) roomEl.textContent = '—';
+    if (daysEl) daysEl.textContent = '00';
+    if (hoursEl) hoursEl.textContent = '00';
+    if (minsEl) minsEl.textContent = '00';
+    if (secsEl) secsEl.textContent = '00';
+    return;
+  }
+
+  if (dateEl) dateEl.textContent = `${englishPair.dayName}, ${englishPair.dateFormatted}`;
+  if (timeEl) timeEl.textContent = `${englishPair.pairNum} пара (${englishPair.time})`;
+  if (subjEl) subjEl.textContent = englishPair.subject;
+  if (teacherEl) teacherEl.textContent = englishPair.teacher || 'Не указан';
+  if (roomEl) roomEl.textContent = englishPair.room ? `ауд. ${englishPair.room}` : 'Не указана';
+
+  currentEnglishTargetDate = englishPair.targetDate;
+
+  function tick() {
+    if (!currentEnglishTargetDate) return;
+    const now = new Date();
+    const diff = currentEnglishTargetDate.getTime() - now.getTime();
+    if (diff <= 0) {
+      if (daysEl) daysEl.textContent = '00';
+      if (hoursEl) hoursEl.textContent = '00';
+      if (minsEl) minsEl.textContent = '00';
+      if (secsEl) secsEl.textContent = '00';
+      if (dateEl) dateEl.textContent += ' (ИДЁТ СЕЙЧАС ИЛИ ЗАВЕРШИЛСЯ)';
+      stopEnglishCountdown();
+      return;
+    }
+
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+    if (daysEl) daysEl.textContent = String(d).padStart(2, '0');
+    if (hoursEl) hoursEl.textContent = String(h).padStart(2, '0');
+    if (minsEl) minsEl.textContent = String(m).padStart(2, '0');
+    if (secsEl) secsEl.textContent = String(s).padStart(2, '0');
+  }
+
+  tick();
+  englishCountdownInterval = setInterval(tick, 1000);
+}
+
+function stopEnglishCountdown() {
+  if (englishCountdownInterval) {
+    clearInterval(englishCountdownInterval);
+    englishCountdownInterval = null;
+  }
+}
+
+// ════════════════════════════════════════
+//  GROUP SCHEDULE STATISTICS VIEW (С 1 СЕНТЯБРЯ ПО СЕГОДНЯ)
+// ════════════════════════════════════════
+function initStatsView() {
+  renderStatsView();
+}
+
+function getPairWord(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'пар';
+  if (mod10 === 1) return 'пара';
+  if (mod10 >= 2 && mod10 <= 4) return 'пары';
+  return 'пар';
+}
+
+function calculateUnifiedSeptStats(currentScheduleData, septFirstScheduleData) {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  let totalPassed = 0;
+  const passedSubjectsMap = {};
+  const uniqueDatesSet = new Set();
+
+  // 1. Вкладка «Расписание 1 сентября» (01.09.2026, Вторник)
+  if (septFirstScheduleData && septFirstScheduleData.days) {
+    for (const [dayName, pairs] of Object.entries(septFirstScheduleData.days)) {
+      for (const p of pairs) {
+        if (p.is_empty) continue;
+        const pairInfo = p.both || p.numerator || p.denominator || {};
+        const subj = (pairInfo.subject || p.subject || '').trim();
+        if (!subj || /самостоятельн/i.test(subj)) continue;
+
+        totalPassed++;
+        uniqueDatesSet.add('01.09');
+
+        if (!passedSubjectsMap[subj]) {
+          passedSubjectsMap[subj] = {
+            name: subj,
+            count: 0,
+            sessions: [],
+            teacher: pairInfo.teacher || p.teacher || '',
+            room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || ''
+          };
+        }
+        passedSubjectsMap[subj].count++;
+        passedSubjectsMap[subj].sessions.push({
+          date: '01.09',
+          dayName: 'Вторник',
+          num: p.pair_num || p.num || 1,
+          time: p.time || `${p.start || ''} - ${p.end || ''}`.trim()
+        });
+        if (!passedSubjectsMap[subj].teacher && (pairInfo.teacher || p.teacher)) {
+          passedSubjectsMap[subj].teacher = pairInfo.teacher || p.teacher;
+        }
+        if (!passedSubjectsMap[subj].room && (pairInfo.classroom || p.room)) {
+          passedSubjectsMap[subj].room = pairInfo.classroom || p.room;
+        }
+      }
+    }
+  }
+
+  // 2. Вкладка текущей недели (02.09 - 05.09)
+  if (currentScheduleData && currentScheduleData.days) {
+    const dayDates = currentScheduleData.day_dates || {};
+
+    for (const [dayName, pairs] of Object.entries(currentScheduleData.days)) {
+      const dm = dayDates[dayName];
+      if (!dm) continue;
+      const parts = dm.split('.');
+      if (parts.length < 2) continue;
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const dayDate = new Date(now.getFullYear(), m - 1, d, 0, 0, 0, 0);
+
+      // Учитываем только дни до сегодня включительно
+      if (dayDate.getTime() > todayStart.getTime()) {
+        continue;
+      }
+
+      for (const p of pairs) {
+        if (p.is_empty) continue;
+        const pairInfo = p.both || p.numerator || p.denominator || {};
+        const subj = (pairInfo.subject || p.subject || '').trim();
+        if (!subj || /самостоятельн/i.test(subj)) continue;
+
+        let isPassed = false;
+        if (dayDate.getTime() < todayStart.getTime()) {
+          isPassed = true;
+        } else {
+          // Сегодня: проверяем время окончания пары
+          const endStr = (p.end || (p.time ? p.time.split('-')[1] : '')).trim();
+          const endParts = endStr.split(':').map(Number);
+          const endMin = (endParts[0] || 0) * 60 + (endParts[1] || 0);
+          isPassed = (nowMinutes >= endMin);
+        }
+
+        if (isPassed) {
+          totalPassed++;
+          uniqueDatesSet.add(dm);
+
+          if (!passedSubjectsMap[subj]) {
+            passedSubjectsMap[subj] = {
+              name: subj,
+              count: 0,
+              sessions: [],
+              teacher: pairInfo.teacher || p.teacher || '',
+              room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || ''
+            };
+          }
+          passedSubjectsMap[subj].count++;
+          passedSubjectsMap[subj].sessions.push({
+            date: dm,
+            dayName,
+            num: p.pair_num || p.num || 1,
+            time: p.time || `${p.start || ''} - ${p.end || ''}`.trim()
+          });
+          if (!passedSubjectsMap[subj].teacher && (pairInfo.teacher || p.teacher)) {
+            passedSubjectsMap[subj].teacher = pairInfo.teacher || p.teacher;
+          }
+          if (!passedSubjectsMap[subj].room && (pairInfo.classroom || p.room)) {
+            passedSubjectsMap[subj].room = pairInfo.classroom || p.room;
+          }
+        }
+      }
+    }
+  }
+
+  const subjectList = Object.values(passedSubjectsMap);
+  subjectList.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  return {
+    totalPassed,
+    uniqueDaysCount: uniqueDatesSet.size,
+    subjectList
+  };
+}
+
+async function renderStatsView() {
+  if (!els.statsContainer) return;
+
+  if (!S.data || S.isNotPublished) {
+    els.statsContainer.innerHTML = `
+      <div class="stats-header-wrap">
+        <h2 class="stats-view-title">Статистика пар: ${esc(S.group || 'Группа не выбрана')}</h2>
+        <span class="stats-view-subtitle">Расписание на этот период ещё не опубликовано</span>
+      </div>
+      <div class="schedule-error-card">
+        <p>Расписание для группы ${esc(S.group || '')} пока недоступно для расчёта статистики.</p>
+      </div>
+    `;
+    return;
+  }
+
+  els.statsContainer.innerHTML = `
+    <div class="loading-placeholder">
+      <div class="loading-spinner"></div>
+      <div>Сбор статистики с 1 сентября по сегодняшний день...</div>
+    </div>
+  `;
+
+  // Подгружаем вкладку 1 сентября (gid 731591268) при её наличии
+  let septFirstData = null;
+  const septCacheKey = `schedule_${S.group}_731591268`;
+  const cachedSept = localStorage.getItem(septCacheKey);
+  if (cachedSept) {
+    try { septFirstData = JSON.parse(cachedSept); } catch (_) {}
+  }
+  if (!septFirstData) {
+    try {
+      const res = await fetchWithTimeout(`${API}/schedule?group=${encodeURIComponent(S.group)}&tab=731591268`, {}, 4000);
+      if (res.ok) {
+        septFirstData = await res.json();
+        try { localStorage.setItem(septCacheKey, JSON.stringify(septFirstData)); } catch (_) {}
+      }
+    } catch (e) {
+      console.warn('Tab 1 Sept not found or error:', e);
+    }
+  }
+
+  const stats = calculateUnifiedSeptStats(S.data, septFirstData);
+  const now = new Date();
+  const dayStr = String(now.getDate()).padStart(2, '0');
+  const monthStr = MONTH_NAMES[now.getMonth()];
+  const todayFormatted = `${now.getDate()} ${monthStr} ${now.getFullYear()} г.`;
+  const timeFormatted = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+  els.statsContainer.innerHTML = `
+    <div class="stats-header-wrap">
+      <h2 class="stats-view-title">Статистика пар с 1 сентября по сегодня</h2>
+      <div class="stats-view-subtitle">
+        Группа: <strong>${esc(S.group || '—')}</strong> • Период: 01.09 – ${dayStr}.${String(now.getMonth() + 1).padStart(2, '0')} (${todayFormatted}, ${timeFormatted})
+      </div>
+    </div>
+
+    <!-- KPI Hero Grid -->
+    <div class="stats-kpi-grid">
+      <div class="stats-kpi-card hero-kpi">
+        <div class="stats-kpi-top">
+          <span class="stats-kpi-label">Прошло пар с 1 сентября</span>
+          <span class="stats-kpi-icon">🏆</span>
+        </div>
+        <div class="stats-kpi-value">${stats.totalPassed}</div>
+      </div>
+      <div class="stats-kpi-card">
+        <div class="stats-kpi-top">
+          <span class="stats-kpi-label">Предметов проведено</span>
+          <span class="stats-kpi-icon">📚</span>
+        </div>
+        <div class="stats-kpi-value">${stats.subjectList.length}</div>
+      </div>
+      <div class="stats-kpi-card">
+        <div class="stats-kpi-top">
+          <span class="stats-kpi-label">Учебных дней с парами</span>
+          <span class="stats-kpi-icon">📅</span>
+        </div>
+        <div class="stats-kpi-value">${stats.uniqueDaysCount}</div>
+      </div>
+    </div>
+
+    <!-- Passed Subjects List -->
+    <div class="stats-subjects-block">
+      <div class="stats-block-header">
+        <span class="stats-block-title">Какие пары уже прошли с 1 сентября (${stats.subjectList.length})</span>
+      </div>
+
+      <div class="stats-subjects-list">
+        ${stats.subjectList.length === 0 ? `
+          <div class="schedule-error-card">
+            <p>За период с 1 сентября по сегодняшний день завершённых занятий для группы ${esc(S.group || '')} не найдено.</p>
+          </div>
+        ` : ''}
+        ${stats.subjectList.map(item => {
+          const sessionsByDate = {};
+          item.sessions.forEach(s => {
+            if (!sessionsByDate[s.date]) sessionsByDate[s.date] = [];
+            sessionsByDate[s.date].push(s.num);
+          });
+          const sessionTags = Object.entries(sessionsByDate).map(([date, nums]) => {
+            nums.sort((a, b) => a - b);
+            return `<span class="stats-session-chip">📅 ${date} (${nums.join(', ')} пара)</span>`;
+          }).join('');
+
+          return `
+            <div class="stats-passed-card">
+              <div class="stats-passed-top">
+                <span class="stats-passed-name">${esc(item.name)}</span>
+                <span class="stats-passed-badge">${item.count} ${getPairWord(item.count)} прошло</span>
+              </div>
+              <div class="stats-sessions-chips">
+                ${sessionTags}
+              </div>
+              <div class="stats-passed-meta">
+                <span class="stats-passed-teacher">${item.teacher ? `👨‍🏫 ${esc(item.teacher)}` : 'Преподаватель не указан'}</span>
+                <span class="stats-passed-room">${item.room ? `ауд. ${esc(item.room)}` : ''}</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
 }
 
 // ════════════════════════════════════════

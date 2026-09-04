@@ -7,8 +7,8 @@ import re
 import time
 import urllib.request
 import urllib.error
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
     import zoneinfo
@@ -440,9 +440,9 @@ def parse_lesson_entry(text: str) -> Tuple[str, str, str]:
     c_match = SUBJECT_CODE_REGEX.match(subject_raw)
     if c_match and ("." in c_match.group(1) or SUBJECT_CODE_PREFIX.match(c_match.group(1))):
         code = c_match.group(1)
-        subject_name = c_match.group(2).strip()
-    else:
-        subject_name = subject_raw
+
+    # Код дисциплины выводится как часть полного названия предмета:
+    subject_name = subject_raw
 
     return code, subject_name, get_full_teacher_name(teacher)
 
@@ -474,6 +474,7 @@ def parse_schedule_cell(raw_text: str, aud: str = "") -> Optional[Dict[str, Any]
         }
 
     otmena_match = re.search(r"(\d{1,2}\.\d{1,2})?\s*отмена\s*", text, re.IGNORECASE)
+    zamena_direct_match = re.match(r"^(\d{1,2}\.\d{1,2})?\s*замена\s+(.+)$", text, re.IGNORECASE | re.DOTALL)
     date_direct_match = re.match(r"^(\d{1,2}\.\d{1,2})\s+(.+)$", text, re.DOTALL)
 
     if otmena_match:
@@ -568,6 +569,26 @@ def parse_schedule_cell(raw_text: str, aud: str = "") -> Optional[Dict[str, Any]
                 "cancelled_teacher": c_teacher,
                 "raw": text,
             }
+    elif zamena_direct_match:
+        # Пары вида: "03.09 замена ОП.02 Физика Новиков Д.В."
+        date_str = zamena_direct_match.group(1) or ""
+        lesson_text = zamena_direct_match.group(2).strip()
+        code, subj, teacher = parse_lesson_entry(lesson_text)
+        return {
+            "type": "replacement",
+            "is_replacement": True,
+            "is_cancelled": False,
+            "is_distant": is_distant,
+            "date": date_str,
+            "code": code,
+            "subject": subj,
+            "teacher": teacher,
+            "classroom": aud_clean if aud_clean and aud_clean.lower() != "дистант" else ("Дистант" if is_distant else ""),
+            "cancelled_code": "",
+            "cancelled_subject": "",
+            "cancelled_teacher": "",
+            "raw": text,
+        }
     elif date_direct_match and not SUBJECT_CODE_PREFIX.match(text):
         # Пары вида: "03.09 ОП.02 Физика Новиков Д.В." (замена / добавление пары)
         date_str = date_direct_match.group(1)
@@ -615,12 +636,26 @@ def extract_spreadsheet_id(url_or_id: str) -> str:
     return url_or_id.strip()
 
 
-def check_parity_override(tab_name: str) -> Optional[bool]:
-    """Проверяет, указана ли четность недели прямо в названии вкладки."""
+def parse_tab_parity(tab_name: str) -> Optional[str]:
+    """Извлекает тип недели (числитель/знаменатель) из названия вкладки.
+    Возвращает 'num' для числителя, 'den' для знаменателя или None, если тип не указан.
+    """
+    if not tab_name:
+        return None
     t_lower = tab_name.lower()
     if "числитель" in t_lower:
-        return True
+        return "num"
     elif "знаменатель" in t_lower:
+        return "den"
+    return None
+
+
+def check_parity_override(tab_name: str) -> Optional[bool]:
+    """Проверяет, указана ли четность недели прямо в названии вкладки."""
+    p = parse_tab_parity(tab_name)
+    if p == "num":
+        return True
+    elif p == "den":
         return False
     return None
 
@@ -777,12 +812,47 @@ def discover_sheets(spreadsheet_id: str) -> List[Dict[str, Any]]:
     return clean_best
 
 
+DATE_RANGE_REGEX = re.compile(r"(\d{1,2})\.(\d{1,2})\s*(?:[-–—]|по|до)\s*(\d{1,2})\.(\d{1,2})", re.IGNORECASE)
+
+
+def parse_tab_date_range(tab_name: str, base_date: Optional[datetime] = None) -> Optional[Tuple[datetime, datetime]]:
+    """Извлекает диапазон дат (начало, конец) из названия вкладки.
+    Возвращает кортеж (start_datetime, end_datetime) или None, если диапазон не найден.
+    Исключает вкладки без диапазона дат (например «Основное», «Расписание 1 сентября»).
+    """
+    if not tab_name:
+        return None
+    m = DATE_RANGE_REGEX.search(tab_name)
+    if not m:
+        return None
+    try:
+        if base_date is None:
+            base_date = get_moscow_now()
+        d1, m1, d2, m2 = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+        # Определение года с учетом учебного календаря (сентябрь - июнь)
+        if base_date.month >= 8:
+            y1 = base_date.year if m1 >= 8 else base_date.year + 1
+            y2 = base_date.year if m2 >= 8 else base_date.year + 1
+        else:
+            y1 = base_date.year - 1 if m1 >= 8 else base_date.year
+            y2 = base_date.year - 1 if m2 >= 8 else base_date.year
+
+        start_dt = datetime(y1, m1, d1, 0, 0, 0)
+        end_dt = datetime(y2, m2, d2, 23, 59, 59)
+        if end_dt < start_dt:
+            end_dt = datetime(y2 + 1, m2, d2, 23, 59, 59)
+        return start_dt, end_dt
+    except Exception as e:
+        logger.debug(f"Ошибка вычисления дат вкладки '{tab_name}': {e}")
+        return None
+
+
 def determine_active_tab(sheets: List[Dict[str, Any]], target_date: Optional[datetime] = None) -> str:
-    """Выбор gid активной вкладки с максимальной защитой от будущих изменений.
-    1. Проверяет ручной FORCED_TAB_GID из .env (если администратор захочет жестко закрепить вкладку).
+    """Выбор gid активной вкладки с максимальной защитой и авто-сопоставлением дат.
+    1. Проверяет ручной FORCED_TAB_GID из .env.
     2. Ищет вкладку с диапазоном дат для текущего дня (или для понедельника, если сегодня воскресенье).
     3. Если точного совпадения нет — выбирает вкладку с самыми свежими датами.
-    4. Если дат в названиях нет — выбирает любую вкладку, отличную от «Основное».
+    4. Если дат в названиях нет — выбирает вкладку, отличную от «Основное».
     """
     valid_sheets = [s for s in sheets if not is_test_tab(s.get("name"))]
     if not valid_sheets:
@@ -790,7 +860,6 @@ def determine_active_tab(sheets: List[Dict[str, Any]], target_date: Optional[dat
     if not valid_sheets:
         return ""
 
-    # 1. Ручное принудительное закрепление из .env (если задано)
     forced_gid = os.getenv("FORCED_TAB_GID", "").strip()
     if forced_gid:
         for s in valid_sheets:
@@ -800,49 +869,49 @@ def determine_active_tab(sheets: List[Dict[str, Any]], target_date: Optional[dat
     if target_date is None:
         target_date = get_moscow_now()
 
-    # Если сегодня воскресенье — студенты уже смотрят расписание на понедельник
     check_dates = [target_date]
     if target_date.weekday() == 6:  # Воскресенье
         check_dates.append(target_date + timedelta(days=1))
 
-    # Гибкий поиск дат: 02.09-05.09, 02.09 - 05.09, с 02.09 по 05.09
-    date_range_regex = re.compile(r"(\d{1,2})\.(\d{1,2})\s*(?:[-–—]|по|до)\s*(\d{1,2})\.(\d{1,2})", re.IGNORECASE)
-    
     parsed_date_tabs = []
 
     for s in valid_sheets:
         name = s["name"]
-        m = date_range_regex.search(name)
-        if m:
-            d1, m1, d2, m2 = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
-            try:
-                year = target_date.year
-                start_dt = datetime(year, m1, d1)
-                end_dt = datetime(year, m2, d2, 23, 59, 59)
-                # Если период переходит через новый год (например, декабрь-январь)
-                if end_dt < start_dt:
-                    end_dt = datetime(year + 1, m2, d2, 23, 59, 59)
+        dr = parse_tab_date_range(name, target_date)
+        if dr:
+            start_dt, end_dt = dr
+            tab_parity = parse_tab_parity(name)
+            parsed_date_tabs.append({
+                "gid": s["gid"],
+                "name": name,
+                "start": start_dt,
+                "end": end_dt,
+                "parity": tab_parity,
+            })
 
-                parsed_date_tabs.append({
-                    "gid": s["gid"],
-                    "name": name,
-                    "start": start_dt,
-                    "end": end_dt,
-                })
-
-                # Проверяем попадание текущей даты или завтрашнего понедельника
-                for c_dt in check_dates:
-                    if start_dt <= c_dt <= end_dt:
-                        return s["gid"]
-            except Exception:
-                pass
+    for c_dt in check_dates:
+        target_parity = get_academic_week_info(c_dt)["parity"]
+        matching = [
+            t for t in parsed_date_tabs
+            if t["start"] <= c_dt <= t["end"]
+        ]
+        if matching:
+            # 1. Точное совпадение: диапазон дат + тип недели (числитель/знаменатель)
+            for t in matching:
+                if t["parity"] == target_parity:
+                    return t["gid"]
+            # 2. Fallback: вкладка без указания типа недели (None / null)
+            for t in matching:
+                if t["parity"] is None:
+                    return t["gid"]
+            # 3. Fallback: первая подходящая по дате вкладка
+            return matching[0]["gid"]
 
     # Если точного совпадения по дате нет, сортируем датированные вкладки и берем самую свежую
     if parsed_date_tabs:
         parsed_date_tabs.sort(key=lambda x: x["start"])
         return parsed_date_tabs[-1]["gid"]
 
-    # Если вкладок с датами нет — берем любую вкладку, где нет слова "основное"
     non_main = [s["gid"] for s in valid_sheets if "основное" not in s["name"].lower()]
     if non_main:
         return non_main[0]
@@ -902,13 +971,14 @@ class ScheduleParser:
         return None
 
     def refresh_tabs(self, force: bool = False) -> List[Dict[str, Any]]:
-        """Обновление списка вкладок и определение активной недели."""
+        """Обновление списка вкладок, сопоставление диапазонов дат и определение активной недели."""
         now = time.time()
         if not force and self.available_tabs and (now - self.last_tabs_check < 120):
             return self.available_tabs
 
         raw_tabs = [t for t in discover_sheets(self.spreadsheet_id) if not is_test_tab(t.get("name"))]
-        active_gid = determine_active_tab(raw_tabs)
+        now_msk = get_moscow_now()
+        active_gid = determine_active_tab(raw_tabs, now_msk)
         self.active_gid = active_gid
 
         tabs_formatted = []
@@ -916,17 +986,118 @@ class ScheduleParser:
             gid = t["gid"]
             name = t["name"]
             is_active = (gid == active_gid)
+            date_range = parse_tab_date_range(name, now_msk)
+            has_range = (date_range is not None)
+            start_iso = date_range[0].isoformat() if date_range else None
+            end_iso = date_range[1].isoformat() if date_range else None
+            date_start = date_range[0].strftime("%Y-%m-%d") if date_range else None
+            date_end = date_range[1].strftime("%Y-%m-%d") if date_range else None
+            start_dm = date_range[0].strftime("%d.%m") if date_range else None
+            end_dm = date_range[1].strftime("%d.%m") if date_range else None
+
+            tab_parity = parse_tab_parity(name)
             tabs_formatted.append({
                 "name": name,
                 "gid": gid,
                 "is_active": is_active,
                 "is_main": ("основное" in name.lower()),
-                "parity": "num" if "числитель" in name.lower() else ("den" if "знаменатель" in name.lower() else "auto")
+                "parity": tab_parity,
+                "has_date_range": has_range,
+                "date_start": date_start,
+                "date_end": date_end,
+                "start_dm": start_dm,
+                "end_dm": end_dm,
+                "start_iso": start_iso,
+                "end_iso": end_iso,
             })
 
         self.available_tabs = tabs_formatted
         self.last_tabs_check = now
         return tabs_formatted
+
+    def find_tab_for_date(self, target_date: Any) -> Optional[Dict[str, Any]]:
+        """Ищет вкладку с датированным диапазоном, в который попадает заданная дата, с приоритетом по типу недели."""
+        if isinstance(target_date, str):
+            try:
+                target_date = datetime.fromisoformat(target_date)
+            except Exception:
+                target_date = get_moscow_now()
+        elif isinstance(target_date, date) and not isinstance(target_date, datetime):
+            target_date = datetime.combine(target_date, datetime.min.time())
+
+        target_parity = get_academic_week_info(target_date)["parity"]
+        self.refresh_tabs()
+
+        matching_tabs = []
+        for t in self.available_tabs:
+            if not t.get("has_date_range"):
+                continue
+            s_iso = t.get("start_iso")
+            e_iso = t.get("end_iso")
+            if s_iso and e_iso:
+                dt1 = datetime.fromisoformat(s_iso)
+                dt2 = datetime.fromisoformat(e_iso)
+                if dt1 <= target_date <= dt2:
+                    matching_tabs.append(t)
+
+        if not matching_tabs:
+            return None
+
+        # 1. Точное совпадение: диапазон дат + тип недели (числитель/знаменатель)
+        for t in matching_tabs:
+            if t.get("parity") == target_parity:
+                return t
+
+        # 2. Fallback: вкладка без указания типа недели (None / null)
+        for t in matching_tabs:
+            if t.get("parity") is None:
+                return t
+
+        # 3. Fallback: первая подходящая по дате вкладка
+        return matching_tabs[0]
+
+    def find_tab_for_week_range(self, monday: Any, saturday: Any) -> Optional[Dict[str, Any]]:
+        """Ищет вкладку, диапазон дат которой пересекается с учебной неделей Пн-Сб, с приоритетом по типу недели."""
+        if isinstance(monday, str):
+            monday = datetime.fromisoformat(monday)
+        elif isinstance(monday, date) and not isinstance(monday, datetime):
+            monday = datetime.combine(monday, datetime.min.time())
+
+        if isinstance(saturday, str):
+            saturday = datetime.fromisoformat(saturday)
+        elif isinstance(saturday, date) and not isinstance(saturday, datetime):
+            saturday = datetime.combine(saturday, datetime.max.time())
+
+        target_parity = get_academic_week_info(monday)["parity"]
+        self.refresh_tabs()
+
+        matching_tabs = []
+        for t in self.available_tabs:
+            if not t.get("has_date_range"):
+                continue
+            s_iso = t.get("start_iso")
+            e_iso = t.get("end_iso")
+            if s_iso and e_iso:
+                dt1 = datetime.fromisoformat(s_iso)
+                dt2 = datetime.fromisoformat(e_iso)
+                if monday <= dt2 and saturday >= dt1:
+                    matching_tabs.append(t)
+
+        if not matching_tabs:
+            return None
+
+        # 1. Приоритет совпадения типа недели
+        for t in matching_tabs:
+            if t.get("parity") == target_parity:
+                return t
+
+        # 2. Fallback: без указания типа недели
+        for t in matching_tabs:
+            if t.get("parity") is None:
+                return t
+
+        # 3. Любая подходящая по дате
+        return matching_tabs[0]
 
     def get_tabs(self) -> Dict[str, Any]:
         """Получить список всех доступных вкладок с пометкой активной."""

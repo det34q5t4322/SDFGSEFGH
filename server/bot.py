@@ -94,8 +94,8 @@ def get_webapp_url(group: Optional[str] = None) -> Optional[str]:
     import urllib.parse
     sep = "&" if "?" in WEB_APP_URL else "?"
     if group:
-        return f"{WEB_APP_URL}{sep}v=20260904_08&group={urllib.parse.quote(group)}"
-    return f"{WEB_APP_URL}{sep}v=20260904_08"
+        return f"{WEB_APP_URL}{sep}v=20260904_13&group={urllib.parse.quote(group)}"
+    return f"{WEB_APP_URL}{sep}v=20260904_13"
 
 
 def set_user_group(user_id: int, username: str, group: str) -> None:
@@ -216,8 +216,9 @@ async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             reply_markup=build_schedule_keyboard(0),
         )
         return
+    wa_url = get_webapp_url(get_user_group(update.effective_user.id)) or WEB_APP_URL
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Открыть интерактивное расписание", web_app=WebAppInfo(url=WEB_APP_URL))]
+        [InlineKeyboardButton("🚀 Открыть интерактивное расписание", web_app=WebAppInfo(url=wa_url))]
     ])
     await send_or_edit(
         update, context,

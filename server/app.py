@@ -237,15 +237,32 @@ async def get_groups(
 async def get_schedule(
     group: Optional[str] = Query(None, description="Название группы, например ИСП9-24А"),
     tab: Optional[str] = Query(None, description="GID или название вкладки"),
-    gid: Optional[str] = Query(None, description="GID или название вкладки (алиас)")
+    gid: Optional[str] = Query(None, description="GID или название вкладки (алиас)"),
+    date: Optional[str] = Query(None, description="Календарная дата для авто-выбора вкладки (YYYY-MM-DD)")
 ):
-    """Полное расписание для конкретной учебной группы или метаданные со списком групп."""
+    """Полное расписание для конкретной учебной группы или метаданные со списком групп с авто-сопоставлением вкладки по дате."""
     selected_tab = tab or gid
+    if not selected_tab and date:
+        matched_tab = parser.find_tab_for_date(date)
+        if not matched_tab:
+            tabs_data = parser.get_tabs()
+            clean_tabs = [t for t in tabs_data.get("tabs", []) if not is_test_tab(t.get("name"))]
+            return {
+                "published": False,
+                "message": "Расписание на эту неделю ещё не опубликовано",
+                "target_date": date,
+                "group": group or "",
+                "available_tabs": clean_tabs,
+                "active_gid": tabs_data.get("active_gid", ""),
+            }
+        selected_tab = matched_tab["gid"]
+
     data = parser.get_data(gid=selected_tab)
     clean_tabs = [t for t in data.get("available_tabs", []) if not is_test_tab(t.get("name"))]
 
     if not group:
         return {
+            "published": True,
             "groups": data.get("groups", []),
             "courses": ["1 курс", "2 курс", "3 курс", "4 курс", "Очно-заочное"],
             "tab_name": data.get("tab_name", ""),
@@ -276,6 +293,7 @@ async def get_schedule(
             raise HTTPException(status_code=404, detail=f"Группа '{group}' не найдена")
 
     return {
+        "published": True,
         "group": group_norm,
         "course": schedules[group_norm].get("course", ""),
         "section": schedules[group_norm].get("section", ""),

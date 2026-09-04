@@ -8,8 +8,35 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260904_08">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=20260904_13">
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem('college_schedule_theme') || 'obsidian';
+        document.documentElement.setAttribute('data-theme', t);
+        if (localStorage.getItem('schedule_minimal_mode') === 'true') {
+          document.documentElement.setAttribute('data-minimal', 'true');
+        }
+        var font = localStorage.getItem('schedule_font_family') || 'system';
+        document.documentElement.setAttribute('data-font', font);
+        var size = localStorage.getItem('schedule_font_size') || 'normal';
+        document.documentElement.setAttribute('data-font-size', size);
+        if (localStorage.getItem('schedule_show_teacher') === 'false') {
+          document.documentElement.setAttribute('data-hide-teacher', 'true');
+        }
+        if (localStorage.getItem('schedule_show_room') === 'false') {
+          document.documentElement.setAttribute('data-hide-room', 'true');
+        }
+        if (localStorage.getItem('schedule_show_badges') === 'false') {
+          document.documentElement.setAttribute('data-hide-badges', 'true');
+        }
+        if (localStorage.getItem('schedule_show_breaks') === 'false') {
+          document.documentElement.setAttribute('data-hide-breaks', 'true');
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
 
@@ -59,6 +86,15 @@
       <button class="sidebar-nav-item" data-view="classroom" id="sidebarClassroom">
         <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h20"/><path d="M13 20V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"/><path d="M9 12v.01"/></svg></span>
         <span>Аудитории</span>
+      </button>
+      <button class="sidebar-nav-item" data-view="stats" id="sidebarStats">
+        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+        <span>Статистика пар</span>
+      </button>
+      <button class="sidebar-nav-item sidebar-alarm-nav-item" data-view="english" id="sidebarEnglish">
+        <span class="sidebar-nav-icon alarm-icon-flash"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        <span>💀🚨 Английский</span>
+        <span class="sidebar-alarm-sos">SOS</span>
       </button>
       <button class="sidebar-nav-item" id="sidebarDiaryBtn" title="Перейти в электронный дневник 1С">
         <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg></span>
@@ -211,6 +247,178 @@
         </div>
         <div id="classroomResult"></div>
       </div>
+
+      <!-- Статистика пар группы -->
+      <div id="statsView" style="display:none">
+        <div class="stats-container" id="statsContainer">
+          <div class="loading-placeholder">
+            <div class="loading-spinner"></div>
+            <div>Расчёт статистики пар...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Аварийный сигнал тревоги: Английский язык -->
+      <div id="englishView" style="display:none">
+        <div class="english-alarm-view-wrap">
+          <div class="alarm-emergency-card">
+            <div class="alarm-card-header">
+              <div class="alarm-siren-halo">
+                <!-- Необычный кастомный векторный Кибер-Череп (SVG) -->
+                <div class="custom-skull-box" title="Череп тревоги">
+                  <svg class="custom-skull-vector" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="skullBoneGrad" x1="36" y1="4" x2="36" y2="68" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#3d0a16"/>
+                        <stop offset="60%" stop-color="#20040a"/>
+                        <stop offset="100%" stop-color="#120106"/>
+                      </linearGradient>
+                      <radialGradient id="skullEyeGlowGrad" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#ff0055"/>
+                        <stop offset="60%" stop-color="#ff2a5f"/>
+                        <stop offset="100%" stop-color="transparent"/>
+                      </radialGradient>
+                      <filter id="neonSkullGlow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="2.5" result="glow"/>
+                        <feComposite in="SourceGraphic" in2="glow" operator="over"/>
+                      </filter>
+                    </defs>
+                    <!-- Кости черепа и контур -->
+                    <path d="M36 4C21.64 4 10 15.64 10 30C10 38.38 13.97 45.83 20.16 50.62L22 64C22 66.21 23.79 68 26 68H46C48.21 68 50 66.21 50 64L51.84 50.62C58.03 45.83 62 38.38 62 30C62 15.64 50.36 4 36 4Z" fill="url(#skullBoneGrad)" stroke="#ff2a5f" stroke-width="2.5" stroke-linejoin="round" filter="url(#neonSkullGlow)"/>
+                    <!-- Височные линии и кибер-детали -->
+                    <path d="M14 26H22M50 26H58M16 34H20M52 34H56" stroke="#ff0055" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
+                    <path d="M36 4V12M30 8L33 12M42 8L39 12" stroke="#ff2a5f" stroke-width="2" stroke-linecap="round"/>
+                    <!-- Глазницы -->
+                    <path d="M19 28C19 23.58 22.58 20 27 20C31.42 20 33 24 33 29C33 34 29 36 25 36C21 36 19 32.42 19 28Z" fill="#0b0205" stroke="#ff0055" stroke-width="2"/>
+                    <path d="M53 28C53 23.58 49.42 20 45 20C40.58 20 39 24 39 29C39 34 43 36 47 36C51 36 53 32.42 53 28Z" fill="#0b0205" stroke="#ff0055" stroke-width="2"/>
+                    <!-- Горящие зрачки с пульсацией -->
+                    <circle cx="26" cy="28" r="4.5" fill="url(#skullEyeGlowGrad)" class="skull-glowing-eye"/>
+                    <circle cx="46" cy="28" r="4.5" fill="url(#skullEyeGlowGrad)" class="skull-glowing-eye"/>
+                    <circle cx="26" cy="28" r="1.8" fill="#ffffff" class="skull-eye-core"/>
+                    <circle cx="46" cy="28" r="1.8" fill="#ffffff" class="skull-eye-core"/>
+                    <!-- Носовая полость (перевёрнутое сердце) -->
+                    <path d="M36 38L32 46H40L36 38Z" fill="#ff0055" opacity="0.9"/>
+                    <!-- Зубы / решётка челюсти -->
+                    <path d="M26 56H46M26 62H46M26 52V68M31 52V68M36 52V68M41 52V68M46 52V68" stroke="#ff2a5f" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <!-- Необычный кастомный векторный Маяк Сирены (SVG) -->
+                <div class="custom-siren-box" title="Маяк тревоги">
+                  <svg class="custom-siren-vector" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="sirenDomeGrad" x1="36" y1="18" x2="36" y2="56" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#ff0055" stop-opacity="0.95"/>
+                        <stop offset="40%" stop-color="#ff1a40" stop-opacity="0.8"/>
+                        <stop offset="100%" stop-color="#5a0418" stop-opacity="0.95"/>
+                      </linearGradient>
+                      <linearGradient id="sirenBaseGrad" x1="36" y1="52" x2="36" y2="68" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#2d3748"/>
+                        <stop offset="100%" stop-color="#1a202c"/>
+                      </linearGradient>
+                      <radialGradient id="sirenBeaconFlashGrad" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#ffffff"/>
+                        <stop offset="50%" stop-color="#ff2a5f"/>
+                        <stop offset="100%" stop-color="transparent"/>
+                      </radialGradient>
+                    </defs>
+                    <!-- Вращающиеся световые лучи тревоги -->
+                    <g class="siren-beams-rotating">
+                      <path d="M36 6V18M18 12L26 21M54 12L46 21M8 32H20M52 32H64M14 50L24 43M58 50L48 43" stroke="#ff0055" stroke-width="2.5" stroke-linecap="round" opacity="0.85"/>
+                    </g>
+                    <!-- Купол маяка -->
+                    <path d="M18 56L22 30C22 22.27 28.27 16 36 16C43.73 16 50 22.27 50 30L54 56H18Z" fill="url(#sirenDomeGrad)" stroke="#ff2a5f" stroke-width="2.5"/>
+                    <!-- Внутренний отражатель и вспышка -->
+                    <ellipse cx="36" cy="34" rx="8" ry="10" fill="#20040a" stroke="#ff0055" stroke-width="2"/>
+                    <circle cx="36" cy="34" r="6" fill="url(#sirenBeaconFlashGrad)" class="siren-beacon-pulse"/>
+                    <!-- Защитные рёбра колбы -->
+                    <path d="M30 18L26 56M42 18L46 56" stroke="#ff6b8b" stroke-width="1.8" stroke-linecap="round" opacity="0.6"/>
+                    <!-- База / подставка маяка -->
+                    <path d="M12 56H60L56 66C56 67.1 55.1 68 54 68H18C16.9 68 16 67.1 16 66L12 56Z" fill="url(#sirenBaseGrad)" stroke="#ff2a5f" stroke-width="2"/>
+                    <rect x="18" y="60" width="36" height="3" rx="1.5" fill="#ff0055" class="siren-base-indicator"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="alarm-text-block">
+                <div class="alarm-pill">
+                  <span class="alarm-pulse-dot"></span>
+                  <span>СИГНАЛИЗАЦИЯ ТРЕВОГИ</span>
+                </div>
+                <h2 class="alarm-main-heading">ДО АНГЛИЙСКОГО ЯЗЫКА</h2>
+                <div class="alarm-group-badge" id="alarmGroupNotice">Группа: ИСС9-25</div>
+              </div>
+            </div>
+
+            <!-- Обратный отсчет (Дни, Часы, Минуты, Секунды) -->
+            <div class="alarm-timer-container">
+              <div class="alarm-countdown-grid" id="alarmCountdownGrid">
+                <div class="alarm-countdown-box">
+                  <div class="alarm-num" id="alarmDays">00</div>
+                  <div class="alarm-label">Дней</div>
+                </div>
+                <div class="alarm-sep">:</div>
+                <div class="alarm-countdown-box">
+                  <div class="alarm-num" id="alarmHours">00</div>
+                  <div class="alarm-label">Часов</div>
+                </div>
+                <div class="alarm-sep">:</div>
+                <div class="alarm-countdown-box">
+                  <div class="alarm-num" id="alarmMinutes">00</div>
+                  <div class="alarm-label">Минут</div>
+                </div>
+                <div class="alarm-sep">:</div>
+                <div class="alarm-countdown-box highlight-box">
+                  <div class="alarm-num" id="alarmSeconds">00</div>
+                  <div class="alarm-label">Секунд</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Информация о паре -->
+            <div class="alarm-details-card" id="alarmDetailsCard">
+              <div class="alarm-detail-row">
+                <div class="alarm-detail-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg></div>
+                <div class="alarm-detail-content">
+                  <span class="alarm-detail-lbl">Дата и день недели</span>
+                  <span class="alarm-detail-val" id="alarmPairDate">Определение даты...</span>
+                </div>
+              </div>
+              <div class="alarm-detail-row">
+                <div class="alarm-detail-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                <div class="alarm-detail-content">
+                  <span class="alarm-detail-lbl">Пара и время</span>
+                  <span class="alarm-detail-val" id="alarmPairTime">—</span>
+                </div>
+              </div>
+              <div class="alarm-detail-row">
+                <div class="alarm-detail-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg></div>
+                <div class="alarm-detail-content">
+                  <span class="alarm-detail-lbl">Предмет</span>
+                  <span class="alarm-detail-val" id="alarmPairSubject">—</span>
+                </div>
+              </div>
+              <div class="alarm-detail-row">
+                <div class="alarm-detail-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h20"/><path d="M13 20V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"/><path d="M9 12v.01"/></svg></div>
+                <div class="alarm-detail-content">
+                  <span class="alarm-detail-lbl">Аудитория</span>
+                  <span class="alarm-detail-val" id="alarmPairRoom">—</span>
+                </div>
+              </div>
+              <div class="alarm-detail-row">
+                <div class="alarm-detail-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>
+                <div class="alarm-detail-content">
+                  <span class="alarm-detail-lbl">Преподаватель</span>
+                  <span class="alarm-detail-val" id="alarmPairTeacher">—</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="alarm-callout">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>Готовьте домашнее задание, словари и конспекты заранее!</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
   </div><!-- /app-wrapper -->
@@ -238,33 +446,166 @@
     </div>
   </div>
 
-  <!-- ═══ MODAL: Выбор темы оформления ═══ -->
+  <!-- ═══ MODAL: Оформление и темы ═══ -->
   <div class="modal-backdrop" id="themeModal">
     <div class="modal-sheet">
       <div class="modal-sheet-handle"></div>
       <div class="modal-sheet-header">
-        <h2 class="modal-sheet-title"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Темы оформления</h2>
-        <button class="modal-close-btn" id="closeThemeModal"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        <h2 class="modal-sheet-title"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Оформление и темы</h2>
+        <button class="modal-close-btn" id="closeThemeModal" aria-label="Закрыть"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
-      <div class="themes-grid" id="themesGrid"></div>
 
-      <!-- Переключатель: Минимальный режим -->
-      <div class="minimal-mode-section">
-        <div class="minimal-mode-text-col">
-          <div class="minimal-mode-header">
-            <svg class="lucide-icon minimal-mode-icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14"/></svg>
-            <span class="minimal-mode-title">Минимальный режим</span>
+      <div class="theme-modal-body" id="themeModalBody">
+        <!-- Секция 1: Цветовая палитра -->
+        <div class="theme-section">
+          <div class="theme-section-header">
+            <span class="theme-section-title">Цветовая палитра</span>
           </div>
-          <p class="minimal-mode-desc">Убирает фон и тени карточек — оставляет чистый текст и акцентные линии</p>
+          <div class="themes-grid" id="themesGrid"></div>
         </div>
-        <label class="toggle-switch" for="minimalModeToggle" aria-label="Включить минимальный режим">
-          <input type="checkbox" id="minimalModeToggle">
-          <span class="toggle-slider"></span>
-        </label>
+
+        <!-- Секция 2: Минимальный режим -->
+        <div class="theme-section">
+          <div class="theme-section-header">
+            <span class="theme-section-title">Стиль карточек</span>
+          </div>
+          <div class="minimal-mode-section">
+            <div class="minimal-mode-text-col">
+              <div class="minimal-mode-header">
+                <svg class="lucide-icon minimal-mode-icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14"/></svg>
+                <span class="minimal-mode-title">Минимальный режим</span>
+              </div>
+              <p class="minimal-mode-desc">Убирает фон и тени карточек — оставляет чистый текст и акцентные линии</p>
+            </div>
+            <label class="toggle-switch" for="minimalModeToggle" aria-label="Включить минимальный режим">
+              <input type="checkbox" id="minimalModeToggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Секция 3: Настройки шрифта -->
+        <div class="theme-section">
+          <div class="theme-section-header">
+            <span class="theme-section-title">Шрифт интерфейса</span>
+          </div>
+          <div class="font-selector-grid" id="fontFamilyGrid">
+            <button class="font-chip-btn" data-font="system">
+              <span class="font-chip-sample font-sample-system">Аа</span>
+              <div class="font-chip-info">
+                <span class="font-chip-name">Системный</span>
+                <span class="font-chip-desc">Интер / Чистый</span>
+              </div>
+            </button>
+            <button class="font-chip-btn" data-font="pixel">
+              <span class="font-chip-sample font-sample-pixel">8b</span>
+              <div class="font-chip-info">
+                <span class="font-chip-name">Пиксель</span>
+                <span class="font-chip-desc">Ретро 8-bit</span>
+              </div>
+            </button>
+            <button class="font-chip-btn" data-font="comic">
+              <span class="font-chip-sample font-sample-comic">Аа</span>
+              <div class="font-chip-info">
+                <span class="font-chip-name">Комикс</span>
+                <span class="font-chip-desc">Мультяшный</span>
+              </div>
+            </button>
+            <button class="font-chip-btn" data-font="courier">
+              <span class="font-chip-sample font-sample-courier">Аа</span>
+              <div class="font-chip-info">
+                <span class="font-chip-name">Машинопись</span>
+                <span class="font-chip-desc">Courier New</span>
+              </div>
+            </button>
+            <button class="font-chip-btn" data-font="gothic">
+              <span class="font-chip-sample font-sample-gothic">𝕬а</span>
+              <div class="font-chip-info">
+                <span class="font-chip-name">Готика</span>
+                <span class="font-chip-desc">Фрактура</span>
+              </div>
+            </button>
+            <button class="font-chip-btn" data-font="kursive">
+              <span class="font-chip-sample font-sample-kursive">Аа</span>
+              <div class="font-chip-info">
+                <span class="font-chip-name">Курсив</span>
+                <span class="font-chip-desc">Рукописный</span>
+              </div>
+            </button>
+          </div>
+
+          <div class="font-size-block">
+            <div class="font-size-header">
+              <span class="font-size-title">Размер текста в карточках</span>
+            </div>
+            <div class="font-size-segmented" id="fontSizeSegmented">
+              <button class="font-size-btn" data-size="small">Мелкий</button>
+              <button class="font-size-btn" data-size="normal">Стандарт</button>
+              <button class="font-size-btn" data-size="large">Крупный</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Секция 4: Отображаемая информация -->
+        <div class="theme-section">
+          <div class="theme-section-header">
+            <span class="theme-section-title">Отображение в карточках</span>
+          </div>
+          <div class="display-options-list">
+            <!-- Преподаватель -->
+            <div class="display-option-item">
+              <div class="display-option-text">
+                <span class="display-option-title">Имя преподавателя</span>
+                <span class="display-option-desc">ФИО преподавателя и быстрый переход</span>
+              </div>
+              <label class="toggle-switch" for="toggleShowTeacher" aria-label="Показывать имя преподавателя">
+                <input type="checkbox" id="toggleShowTeacher" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Номер аудитории -->
+            <div class="display-option-item">
+              <div class="display-option-text">
+                <span class="display-option-title">Номер аудитории</span>
+                <span class="display-option-desc">Кабинет или ссылка на дистант</span>
+              </div>
+              <label class="toggle-switch" for="toggleShowRoom" aria-label="Показывать номер аудитории">
+                <input type="checkbox" id="toggleShowRoom" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Метка «ЗАМЕНА» / «ОТМЕНА» -->
+            <div class="display-option-item">
+              <div class="display-option-text">
+                <span class="display-option-title">Метка «Замена» / «Отмена»</span>
+                <span class="display-option-desc">Индикаторы замен и отмен пар</span>
+              </div>
+              <label class="toggle-switch" for="toggleShowBadges" aria-label="Показывать метки изменений">
+                <input type="checkbox" id="toggleShowBadges" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Перемены между парами -->
+            <div class="display-option-item">
+              <div class="display-option-text">
+                <span class="display-option-title">Перемены между парами</span>
+                <span class="display-option-desc">Длительность и время перерывов</span>
+              </div>
+              <label class="toggle-switch" for="toggleShowBreaks" aria-label="Показывать перемены между парами">
+                <input type="checkbox" id="toggleShowBreaks" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
 
-  <script src="/static/app.js?v=20260904_08"></script>
+  <script src="/static/app.js?v=20260904_13"></script>
 </body>
 </html>
