@@ -3532,7 +3532,7 @@ function applyMenuConfig(cfg, persist = false) {
   updateResetButtonsVisibility();
 }
 
-function applyCardConfig(cfg, persist = false) {
+function applyCardConfig(cfg, persist = false, shouldRenderSchedule = true) {
   const validated = validateCardConfig(cfg);
   activeCardConfig = validated;
 
@@ -3540,7 +3540,9 @@ function applyCardConfig(cfg, persist = false) {
     try { localStorage.setItem(STORAGE_CARD_TEMPLATE, JSON.stringify(validated)); } catch (_) {}
   }
 
-  try { renderSchedule(); } catch (_) {}
+  if (shouldRenderSchedule && (!isLayoutEditingMode || persist)) {
+    try { renderSchedule(); } catch (_) {}
+  }
   updateResetButtonsVisibility();
 }
 
@@ -3678,7 +3680,9 @@ function initCardZonesSortable() {
         filter: 'button, .field-controls-group',
         preventOnFilter: false,
         ghostClass: 'field-sortable-ghost',
-        touchStartThreshold: 2,
+        touchStartThreshold: 8,
+        delay: 60,
+        delayOnTouchOnly: true,
         disabled: currentLayoutTab !== 'card',
         onEnd: () => {
           syncActiveCardConfigFromDOM();
@@ -4009,7 +4013,9 @@ function enterLayoutEditor(initialTab = 'screen') {
       ghostClass: 'sortable-ghost',
       chosenClass: 'sortable-chosen',
       dragClass: 'sortable-drag',
-      touchStartThreshold: 4,
+      touchStartThreshold: 8,
+      delay: 60,
+      delayOnTouchOnly: true,
       onEnd: () => {
         const newConfig = [];
         flowContainer.querySelectorAll('.flow-widget').forEach(w => {
@@ -4044,7 +4050,9 @@ function enterLayoutEditor(initialTab = 'screen') {
         animation: 180,
         handle: '.menu-drag-handle',
         ghostClass: 'menu-sortable-ghost',
-        touchStartThreshold: 4,
+        touchStartThreshold: 8,
+        delay: 60,
+        delayOnTouchOnly: true,
         disabled: true,
         onEnd: () => syncActiveMenuConfigFromDOM()
       });
@@ -4082,6 +4090,8 @@ function exitLayoutEditor(save = false) {
   if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
   sortableMenuInstances.forEach(inst => inst.option('disabled', true));
   sortableCardInstances.forEach(inst => inst.option('disabled', true));
+
+  try { renderSchedule(); } catch (_) {}
 
   closeSidebar();
 }

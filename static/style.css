@@ -1797,7 +1797,10 @@ input {
 }
 
 .pair-card {
-  display: flex; gap: 11px;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  align-items: stretch !important;
   background: var(--bg-card);
   border-radius: var(--radius);
   border: 1px solid var(--border);
@@ -1810,6 +1813,8 @@ input {
   contain-intrinsic-size: 0 88px;
   animation: cardAppear 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: calc(var(--card-index, 0) * 35ms);
+  width: 100%;
+  box-sizing: border-box;
 }
 .pair-card:hover {
   transform: translateY(-1px);
@@ -1955,7 +1960,16 @@ input {
 
 /* Split pair (числитель/знаменатель) */
 .split-pair-wrap { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; margin-bottom: 8px; }
-.split-row { display: flex; gap: 12px; padding: 10px 14px; position: relative; }
+.split-row {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  align-items: stretch !important;
+  padding: 10px 14px;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
 .split-row::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
 .split-row.num-row::before { background: #7c5cfc; }
 .split-row.den-row::before { background: #ec4899; }
@@ -3254,7 +3268,7 @@ input {
 
   .pair-card {
     padding: 11px 12px;
-    gap: 10px;
+    gap: 6px;
     margin-bottom: 8px;
   }
   .pair-num-col {
@@ -3332,7 +3346,7 @@ input {
   }
   .pair-card {
     padding: 9px 10px;
-    gap: 8px;
+    gap: 6px;
   }
   .pair-num-col {
     min-width: 24px;
@@ -4224,7 +4238,11 @@ input {
 
 /* Режим редактирования (активируется через body.layout-editing-active) */
 body.layout-editing-active {
-  padding-bottom: 90px !important;
+  padding-bottom: 160px !important;
+}
+
+body.layout-editing-active .pair-card {
+  animation: none !important;
 }
 
 body.layout-editing-active .flow-widget {
@@ -4235,12 +4253,6 @@ body.layout-editing-active .flow-widget {
   background: rgba(255, 255, 255, 0.02);
   padding: 4px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  animation: widgetPulseBorder 3s infinite alternate;
-}
-
-@keyframes widgetPulseBorder {
-  0% { outline-color: var(--accent, #6366f1); }
-  100% { outline-color: rgba(99, 102, 241, 0.4); }
 }
 
 body.layout-editing-active .widget-drag-header {
@@ -5347,6 +5359,76 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
   opacity: 0.35 !important;
   background: rgba(99, 102, 241, 0.25) !important;
   outline: 2px dashed var(--accent, #6366f1) !important;
+}
+
+/* ── Мобильная адаптация конструктора карточек ── */
+@media (max-width: 640px) {
+  .card-template-builder {
+    top: 8px !important;
+    bottom: 160px !important;
+    max-height: calc(100dvh - 170px) !important;
+    width: calc(100% - 16px) !important;
+    padding: 12px 10px 18px !important;
+    border-radius: 16px !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .card-builder-row {
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+  .card-builder-zone-box {
+    width: 100% !important;
+    min-height: 48px;
+    padding: 6px 8px;
+    box-sizing: border-box;
+  }
+  .card-template-field-item {
+    padding: 6px 8px;
+    gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .field-title-text {
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .field-controls-group {
+    gap: 5px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .field-size-btn {
+    height: 26px;
+    min-width: 32px;
+    padding: 0 5px;
+    font-size: 10px;
+  }
+  .field-color-btn {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+  }
+  .field-vis-btn {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+  }
+  .card-live-preview-wrap {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+  .layout-editor-bar {
+    bottom: 10px !important;
+    width: calc(100% - 14px) !important;
+    padding: 10px !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
 /* ─── СТИЛИ МОДУЛЬНЫХ КАРТОЧЕК С ШАБЛОНОМ (MULTI-ZONE) ─── */
