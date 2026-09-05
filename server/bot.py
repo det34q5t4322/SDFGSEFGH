@@ -26,6 +26,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    Defaults,
     MessageHandler,
     filters,
 )
@@ -274,6 +275,7 @@ async def send_or_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
             text=text,
             parse_mode="HTML",
             reply_markup=reply_markup,
+            disable_notification=True,
         )
     except Exception as e:
         logger.warning(f"Ошибка send_message (HTML): {e}, retry plain text")
@@ -283,6 +285,7 @@ async def send_or_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
             text=plain_text,
             parse_mode=None,
             reply_markup=reply_markup,
+            disable_notification=True,
         )
     context.user_data["last_bot_msg_id"] = msg.message_id
 
@@ -714,9 +717,9 @@ async def diary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     ])
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
+        await update.callback_query.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard, disable_notification=True)
     elif update.message:
-        await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
+        await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard, disable_notification=True)
 
 
 async def post_init(application) -> None:
@@ -751,6 +754,7 @@ def create_bot_app():
         return None
 
     builder = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init)
+    builder = builder.defaults(Defaults(disable_notification=True))
 
     if TELEGRAM_API_URL:
         logger.info(f"Используем кастомный Telegram API URL (Cloudflare Worker): {TELEGRAM_API_URL}")
