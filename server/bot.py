@@ -132,10 +132,11 @@ def get_webapp_url(group: Optional[str] = None) -> Optional[str]:
     if not WEB_APP_URL:
         return None
     import urllib.parse
-    sep = "&" if "?" in WEB_APP_URL else "?"
+    base = WEB_APP_URL.rstrip("/") + "/"
+    sep = "&" if "?" in base else "?"
     if group:
-        return f"{WEB_APP_URL}{sep}v=20260904_13&group={urllib.parse.quote(group)}"
-    return f"{WEB_APP_URL}{sep}v=20260904_13"
+        return f"{base}{sep}v=20260906_1&group={urllib.parse.quote(group)}"
+    return f"{base}{sep}v=20260906_1"
 
 
 def set_user_group(user_id: int, username: str, group: str) -> None:
@@ -734,10 +735,11 @@ async def post_init(application) -> None:
         logger.info("Команды меню бота успешно зарегистрированы!")
 
         if WEB_APP_URL:
+            wa_menu_url = WEB_APP_URL.rstrip("/") + "/?v=20260906_1"
             await application.bot.set_chat_menu_button(
-                menu_button=MenuButtonWebApp(text="Расписание", web_app=WebAppInfo(url=WEB_APP_URL))
+                menu_button=MenuButtonWebApp(text="Расписание", web_app=WebAppInfo(url=wa_menu_url))
             )
-            logger.info(f"Кнопка WebApp 'Расписание' ({WEB_APP_URL}) в меню чата успешно установлена!")
+            logger.info(f"Кнопка WebApp 'Расписание' ({wa_menu_url}) в меню чата успешно установлена!")
     except Exception as e:
         logger.warning(f"Не удалось установить команды меню или кнопку WebApp: {e}")
 

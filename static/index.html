@@ -4,12 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Расписание | Колледж телекоммуникаций</title>
-  <meta name="description" content="Расписание учебных занятий Колледжа телекоммуникаций">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="/static/telegram-web-app.js?v=20260906_1"></script>
+  <script>
+    try {
+      if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+      }
+    } catch (_) {}
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260905_12">
+  <link rel="stylesheet" href="/static/style.css?v=20260906_1">
   <script>
     (function() {
       try {
@@ -1038,6 +1045,6 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/app.js?v=20260905_12"></script>
+  <script src="/static/app.js?v=20260906_1"></script>
 </body>
 </html>
