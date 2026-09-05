@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260905_4">
+  <link rel="stylesheet" href="/static/style.css?v=20260905_5">
   <script>
     (function() {
       try {
@@ -148,15 +148,7 @@
       <!-- Секция: Система -->
       <div class="sidebar-section-header" data-section="system">Система</div>
       <div class="sidebar-section-container" data-section="system" id="menuSectionSystem">
-        <!-- 8. Настройки (Темы, Шрифты, Конструктор, Недели) -->
-        <button class="sidebar-nav-item" data-menu-id="menu-settings" data-section="system" id="sidebarSettingsBtn">
-          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
-          <span class="sidebar-nav-label">Настройки</span>
-          <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
-        </button>
-
-        <!-- 9. Обновить расписание (Обязательный) -->
+        <!-- 8. Обновить расписание (Обязательный) -->
         <button class="sidebar-nav-item" data-menu-id="menu-refresh" data-section="system" id="sidebarRefresh">
           <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span>
@@ -206,7 +198,7 @@
       <div class="topbar-parity" id="topbarParity">
         <!-- числитель/знаменатель -->
       </div>
-      <button class="topbar-theme-btn" id="topbarThemeBtn" title="Сменить тему оформления" aria-label="Темы оформления"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
+      <button class="topbar-theme-btn" id="topbarThemeBtn" title="Настройки и темы" aria-label="Настройки и темы"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
     </header>
 
     <!-- ─── OFFLINE / RESILIENCE BANNER ─── -->
@@ -743,6 +735,7 @@
                   <span class="font-chip-name">Системный</span>
                   <span class="font-chip-desc">Интер / Чистый</span>
                 </div>
+                <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
               <button class="font-chip-btn" data-font="pixel">
                 <span class="font-chip-sample font-sample-pixel">8b</span>
@@ -750,6 +743,7 @@
                   <span class="font-chip-name">Пиксель</span>
                   <span class="font-chip-desc">Ретро 8-bit</span>
                 </div>
+                <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
               <button class="font-chip-btn" data-font="comic">
                 <span class="font-chip-sample font-sample-comic">Аа</span>
@@ -757,6 +751,7 @@
                   <span class="font-chip-name">Комикс</span>
                   <span class="font-chip-desc">Мультяшный</span>
                 </div>
+                <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
               <button class="font-chip-btn" data-font="courier">
                 <span class="font-chip-sample font-sample-courier">Аа</span>
@@ -764,6 +759,7 @@
                   <span class="font-chip-name">Машинопись</span>
                   <span class="font-chip-desc">Courier New</span>
                 </div>
+                <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
               <button class="font-chip-btn" data-font="gothic">
                 <span class="font-chip-sample font-sample-gothic">𝕬а</span>
@@ -771,6 +767,7 @@
                   <span class="font-chip-name">Готика</span>
                   <span class="font-chip-desc">Фрактура</span>
                 </div>
+                <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
               <button class="font-chip-btn" data-font="kursive">
                 <span class="font-chip-sample font-sample-kursive">Аа</span>
@@ -778,6 +775,7 @@
                   <span class="font-chip-name">Курсив</span>
                   <span class="font-chip-desc">Рукописный</span>
                 </div>
+                <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
             </div>
 
@@ -865,6 +863,7 @@
                   <span class="launch-card-title">Главный экран</span>
                   <span class="launch-card-desc">Порядок виджетов (статус, недели, дни)</span>
                 </div>
+                <div class="launch-card-arrow"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></div>
               </button>
               <button class="settings-constructor-card" id="modalOpenLayoutMenuBtn" type="button">
                 <div class="launch-card-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></div>
@@ -872,6 +871,7 @@
                   <span class="launch-card-title">Боковое меню</span>
                   <span class="launch-card-desc">Порядок, видимость пунктов, плашки группы и статуса</span>
                 </div>
+                <div class="launch-card-arrow"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></div>
               </button>
               <button class="settings-constructor-card" id="modalOpenLayoutCardBtn" type="button">
                 <div class="launch-card-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></div>
@@ -879,18 +879,19 @@
                   <span class="launch-card-title">Карточка пары</span>
                   <span class="launch-card-desc">Сетка 5 зон, размеры полей (S/M/L) и акцентные цвета</span>
                 </div>
+                <div class="launch-card-arrow"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></div>
               </button>
             </div>
           </div>
 
           <div class="theme-section">
             <div class="theme-section-header">
-              <span class="theme-section-title">Сброс настроек</span>
+              <span class="theme-section-title">Сброс интерфейса</span>
             </div>
             <p style="font-size:0.84rem;color:var(--text-muted);margin-bottom:12px;">
               Сбросить все кастомизации расположения экрана, меню и карточки к стандартному заводскому виду.
             </p>
-            <button class="settings-action-btn secondary" id="modalResetLayoutBtn" type="button">
+            <button class="settings-danger-btn" id="modalResetLayoutBtn" type="button">
               <svg class="lucide-icon" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
               <span>Сбросить интерфейс по умолчанию</span>
             </button>
@@ -917,6 +918,6 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/app.js?v=20260905_4"></script>
+  <script src="/static/app.js?v=20260905_5"></script>
 </body>
 </html>

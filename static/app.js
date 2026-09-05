@@ -728,11 +728,22 @@ function renderSettingsWeeksList() {
     }
 
     card.innerHTML = `
-      <div class="settings-week-card-head">
-        <span class="settings-week-name">${esc(tab.name)}</span>
-        ${isActive ? `<span class="settings-week-badge">Активная</span>` : ''}
+      <div class="settings-week-card-top">
+        <div class="settings-week-icon">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+        </div>
+        <div class="settings-week-info">
+          <div class="settings-week-name">${esc(tab.name)}</div>
+          <div class="settings-week-dates">${datesText}</div>
+        </div>
+        ${isActive ? `
+          <span class="settings-week-badge">
+            <span class="badge-dot"></span>
+            Активная
+          </span>` : `
+          <span class="settings-week-select-hint">Выбрать</span>`
+        }
       </div>
-      <span class="settings-week-dates">${datesText}</span>
     `;
 
     card.addEventListener('click', () => {
@@ -3086,7 +3097,7 @@ const PRESETS_LAYOUT = {
 
 // ── LEVEL 2: SIDEBAR MENU (Пункты меню) ──
 const STORAGE_MENU_CONFIG = 'schedule_menu_config_v1';
-const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-settings', 'menu-layout-editor'];
+const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-layout-editor'];
 
 const DEFAULT_MENU_SECTION_MAP = {
   'menu-group-badge':   'study',
@@ -3097,7 +3108,6 @@ const DEFAULT_MENU_SECTION_MAP = {
   'menu-english':       'tools',
   'menu-stats':         'tools',
   'menu-change-group':  'tools',
-  'menu-settings':      'system',
   'menu-theme':         'system',
   'menu-refresh':       'system',
   'menu-layout-editor': 'system',
@@ -3113,7 +3123,6 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' }, // По умолчанию СКРЫТ
   { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
   { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-  { id: 'menu-settings',      visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
@@ -3129,7 +3138,6 @@ const PRESETS_MENU = {
     { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
     { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
     { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-    { id: 'menu-settings',      visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
@@ -3140,7 +3148,6 @@ const PRESETS_MENU = {
     { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-    { id: 'menu-settings',      visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'tools',   color: 'default' },
     { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
@@ -3157,7 +3164,6 @@ const PRESETS_MENU = {
     { id: 'menu-stats',         visible: false, section: 'tools',   color: 'default' },
     { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
-    { id: 'menu-settings',      visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: false, section: 'system',  color: 'default' },
@@ -3526,7 +3532,7 @@ function updateResetButtonsVisibility() {
     els.sidebarResetLayoutBtn.style.display = hasAnyCustom ? 'flex' : 'none';
   }
   if (els.modalResetLayoutBtn) {
-    els.modalResetLayoutBtn.style.display = hasAnyCustom ? 'inline-flex' : 'none';
+    els.modalResetLayoutBtn.style.display = 'flex';
   }
 }
 
