@@ -2023,6 +2023,42 @@ input {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.skeleton-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+  margin: 4px auto 10px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .skeleton-sync-badge,
+[data-theme="sakura"] .skeleton-sync-badge,
+[data-theme="nordic"] .skeleton-sync-badge,
+[data-theme="lavender"] .skeleton-sync-badge {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.skeleton-spinner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, #4f8ef7);
+  box-shadow: 0 0 8px var(--accent, #4f8ef7);
+  animation: skeletonPulseDot 1s ease-in-out infinite alternate;
+}
+
+@keyframes skeletonPulseDot {
+  0% { opacity: 0.35; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1.2); }
+}
+
 .skeleton-card {
   display: flex;
   gap: 12px;
@@ -4264,6 +4300,40 @@ body.layout-editing-active {
   overscroll-behavior: none !important;
 }
 
+/* 100% непрозрачный полноэкранный бэкдроп под схемой — 0 видимого реального контента */
+body.layout-editing-active::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--bg-body, #0a0b10) !important;
+  z-index: 1350;
+  pointer-events: auto;
+}
+
+/* Полное сокрытие реального контента страницы под конструктором */
+body.layout-editing-active #mainContent,
+body.layout-editing-active .topbar,
+body.layout-editing-active #bottomNav,
+body.layout-editing-active .hero-section,
+body.layout-editing-active .week-nav-wrap,
+body.layout-editing-active .day-strip-wrap,
+body.layout-editing-active .bell-schedule-wrap,
+body.layout-editing-active .replacement-ticker-wrap,
+body.layout-editing-active #scheduleView,
+body.layout-editing-active #teacherView,
+body.layout-editing-active #classroomView,
+body.layout-editing-active #statsView {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Полное скрытие кнопок-стрелочек во всех 3 режимах конструктора */
+.blueprint-btn-move,
+.menu-btn-move {
+  display: none !important;
+}
+
 /* Полная блокировка любых движений фона во время перетаскивания элементов */
 body.sortable-dragging-active,
 body.sortable-dragging-active * {
@@ -4907,6 +4977,9 @@ body.menu-editing-active #sidebar {
   z-index: 1400 !important;
   padding-bottom: 270px !important;
   transition: width 0.2s ease, transform var(--transition) !important;
+  background: var(--bg-card, #161622) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 body.menu-editing-active.layout-bar-collapsed #sidebar {
@@ -5048,6 +5121,9 @@ body.menu-editing-active #sidebarOverlay {
   display: block !important;
   opacity: 1 !important;
   pointer-events: auto !important;
+  background: var(--bg-body, #0a0b10) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 body.menu-editing-active .menu-drag-handle {
@@ -5242,13 +5318,14 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
   max-height: calc(100vh - 170px);
   overflow-y: auto;
   z-index: 1450;
-  background: var(--bg-card, #1c1c28);
+  background: var(--bg-card, #161622) !important;
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 16px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 1 !important;
   animation: slideDownCardBuilder 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -5519,13 +5596,14 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
   max-height: calc(100vh - 170px);
   overflow-y: auto;
   z-index: 1450;
-  background: var(--bg-card, #1c1c28);
+  background: var(--bg-card, #161622) !important;
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 14px 16px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 1 !important;
   animation: slideDownCardBuilder 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 

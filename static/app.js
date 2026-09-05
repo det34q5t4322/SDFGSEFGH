@@ -161,6 +161,7 @@ const S = {
   refreshTimer:       null,
   isLoading:          false,        // true = запрос расписания в процессе
   isNavigatingWeek:   false,        // true = переключение недели выполняется
+  hasInitiallyLoadedFreshData: false, // true = свежие данные от сервера уже успешно получены в текущей сессии
 };
 
 // ── FAULT TOLERANCE & NETWORK HELPERS ───
@@ -976,6 +977,7 @@ function buildSidebarTabs() {
       S.isNotPublished = false;
       S.parityOverride = null;
       S.activeGid = tab.gid;
+      S.selectedDay = 1; // Всегда открывать понедельник при смене недели
       closeSidebar();
       loadSchedule(true);
       if (S.view === 'teacher') initTeachersView(true);
@@ -1128,6 +1130,7 @@ async function changeWeek(delta) {
     S.weekOffset += delta;
     S.manualTabMode = false;
     S.parityOverride = null;
+    S.selectedDay = 1; // Всегда открывать понедельник при смене недели (стрелки, свайпы)
 
     const targetTab = findTabForWeek(S.weekOffset);
     if (targetTab) {
@@ -1636,8 +1639,12 @@ async function loadSchedule(force = false) {
 
   const cacheKey = STORAGE_CACHE_PREFIX + S.group + '_' + (S.activeGid || 'active');
 
-  // 1. ОФФЛАЙН-КЭШ: Мгновенно отображаем последнее сохранённое расписание (0 мс)
-  if (!S.data) {
+  // 1. ПРИ ПЕРВОМ СТАРТЕ САЙТА: показываем скелетон со спиннером с кадра №1 до прихода свежих данных (без промаргивания старого кэша)
+  if (!S.hasInitiallyLoadedFreshData) {
+    if (S.view === 'today' || S.view === 'week' || S.view === 'schedule') {
+      renderSkeleton();
+    }
+  } else if (!S.data) {
     try {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -1726,6 +1733,7 @@ async function loadSchedule(force = false) {
 
     S.isNotPublished = false;
     S.data = freshData;
+    S.hasInitiallyLoadedFreshData = true;
 
     // Если список вкладок ещё не был заполнен — обновляем из ответа расписания
     if ((!S.tabs || S.tabs.length === 0) && freshData.available_tabs) {
@@ -1828,6 +1836,10 @@ function renderSkeleton() {
   els.scheduleView.setAttribute('aria-busy', 'true');
   els.scheduleView.innerHTML = `
     <div class="skeleton-schedule" id="skeletonLoader">
+      <div class="skeleton-sync-badge">
+        <span class="skeleton-spinner-dot"></span>
+        <span class="skeleton-sync-text">Синхронизация актуального расписания...</span>
+      </div>
       <div class="skeleton-card">
         <div class="skeleton-col-num">
           <div class="skeleton-bar skeleton-num"></div>
@@ -3649,41 +3661,11 @@ function renderBlueprintTiles() {
         <span class="blueprint-tile-name">${esc(meta.name)}</span>
       </div>
       <div class="blueprint-tile-actions">
-        <button type="button" class="blueprint-btn-move" data-action="up" title="Поднять выше" ${isFirst ? 'disabled' : ''}>▲</button>
-        <button type="button" class="blueprint-btn-move" data-action="down" title="Опустить ниже" ${isLast ? 'disabled' : ''}>▼</button>
         <button type="button" class="blueprint-btn-vis ${isVis ? '' : 'is-hidden'}" data-action="vis" title="${isMandatory ? 'Обязательный блок (нельзя скрыть)' : (isVis ? 'Скрыть блок' : 'Показать блок')}" ${isMandatory ? 'disabled' : ''}>
           ${eyeIconHtml}
         </button>
       </div>
     `;
-
-    // Кнопка Вверх ▲
-    tile.querySelector('[data-action="up"]')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      if (idx > 0) {
-        const temp = activeScreenConfig[idx];
-        activeScreenConfig[idx] = activeScreenConfig[idx - 1];
-        activeScreenConfig[idx - 1] = temp;
-        applyLayoutOrder(activeScreenConfig, false);
-        renderBlueprintTiles();
-        updatePresetsUI();
-      }
-    });
-
-    // Кнопка Вниз ▼
-    tile.querySelector('[data-action="down"]')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      if (idx < activeScreenConfig.length - 1) {
-        const temp = activeScreenConfig[idx];
-        activeScreenConfig[idx] = activeScreenConfig[idx + 1];
-        activeScreenConfig[idx + 1] = temp;
-        applyLayoutOrder(activeScreenConfig, false);
-        renderBlueprintTiles();
-        updatePresetsUI();
-      }
-    });
 
     // Кнопка Глаз 👁 (видимость)
     tile.querySelector('[data-action="vis"]')?.addEventListener('click', (e) => {
@@ -4599,50 +4581,6 @@ function initLayoutManager() {
         updatePresetsUI();
       }
     });
-  });
-
-  // Кнопки ▲ и ▼ в меню для перемещения без перетаскивания (1 клик на телефоне)
-  document.querySelectorAll('#sidebar .menu-action-col').forEach(col => {
-    if (!col.querySelector('.menu-btn-move')) {
-      const btnUp = document.createElement('button');
-      btnUp.type = 'button';
-      btnUp.className = 'menu-btn-move';
-      btnUp.title = 'Поднять выше';
-      btnUp.textContent = '▲';
-
-      const btnDown = document.createElement('button');
-      btnDown.type = 'button';
-      btnDown.className = 'menu-btn-move';
-      btnDown.title = 'Опустить ниже';
-      btnDown.textContent = '▼';
-
-      col.insertBefore(btnDown, col.firstChild);
-      col.insertBefore(btnUp, col.firstChild);
-
-      btnUp.addEventListener('click', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        const itemEl = col.closest('.sidebar-nav-item') || col.closest('[data-menu-id]');
-        if (!itemEl) return;
-        const prev = itemEl.previousElementSibling;
-        if (prev && !prev.classList.contains('sidebar-section-header')) {
-          itemEl.parentElement.insertBefore(itemEl, prev);
-          syncActiveMenuConfigFromDOM();
-        }
-      });
-
-      btnDown.addEventListener('click', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        const itemEl = col.closest('.sidebar-nav-item') || col.closest('[data-menu-id]');
-        if (!itemEl) return;
-        const next = itemEl.nextElementSibling;
-        if (next) {
-          itemEl.parentElement.insertBefore(next, itemEl);
-          syncActiveMenuConfigFromDOM();
-        }
-      });
-    }
   });
 
   // Глобальная блокировка скролла фона при перетаскивании любого элемента
