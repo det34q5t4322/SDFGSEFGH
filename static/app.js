@@ -3323,6 +3323,97 @@ function setLayoutBarCollapsed(collapsed) {
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  HIGH-PERFORMANCE TOUCH DRAG ENGINE FOR MOBILE SORTABLE (60 FPS & 0 LAG)
+// ═════════════════════════════════════════════════════════════════════════════
+function setupSortablePerformanceEngine() {
+  if (!window.Sortable || window.__sortableEngineOptimized) return;
+  window.__sortableEngineOptimized = true;
+
+  const origTouchMove = Sortable.prototype._onTouchMove;
+  const origAppendGhost = Sortable.prototype._appendGhost;
+  const origOnDrop = Sortable.prototype._onDrop;
+
+  let rafId = null;
+  let lastMoveEvent = null;
+  let activeInstance = null;
+
+  // 1. Throttling move events via requestAnimationFrame (avoids synchronous layout thrashing)
+  Sortable.prototype._onTouchMove = function(evt) {
+    if (evt && evt.cancelable) {
+      evt.preventDefault();
+    }
+    lastMoveEvent = evt;
+    activeInstance = this;
+
+    if (!rafId) {
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (activeInstance && lastMoveEvent) {
+          origTouchMove.call(activeInstance, lastMoveEvent);
+        }
+      });
+    }
+  };
+
+  // 2. Cancellation of pending animation frames and clean drop
+  Sortable.prototype._onDrop = function(evt) {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    activeInstance = null;
+    lastMoveEvent = null;
+    origOnDrop.call(this, evt);
+  };
+
+  // 3. Lightweight Drag Ghost: replaces heavy cloned DOM tree with GPU-composited badge
+  Sortable.prototype._appendGhost = function() {
+    origAppendGhost.call(this);
+    try {
+      const ghost = document.body.querySelector('.sortable-fallback-active') || document.body.querySelector('.sortable-fallback');
+      if (ghost) {
+        ghost.classList.add('mobile-drag-ghost');
+
+        const origItem = this.el?.querySelector('.sortable-chosen') || document.querySelector('.sortable-chosen');
+        let title = '';
+        if (origItem) {
+          const tEl = origItem.querySelector('.blueprint-tile-name, .field-title, .sidebar-nav-label, .sidebar-group-name');
+          title = tEl ? tEl.textContent.trim() : '';
+        }
+        if (!title) {
+          const tEl = ghost.querySelector('.blueprint-tile-name, .field-title, .sidebar-nav-label, .sidebar-group-name');
+          title = tEl ? tEl.textContent.trim() : 'Элемент';
+        }
+
+        ghost.innerHTML = `
+          <div class="mobile-ghost-inner">
+            <span class="mobile-ghost-grip">⠿</span>
+            <span class="mobile-ghost-text">${esc(title)}</span>
+          </div>
+        `;
+        ghost.style.width = 'auto';
+        ghost.style.maxWidth = '220px';
+        ghost.style.height = '36px';
+        ghost.style.display = 'inline-flex';
+        ghost.style.alignItems = 'center';
+        ghost.style.padding = '0';
+        ghost.style.margin = '0';
+        ghost.style.border = 'none';
+        ghost.style.background = 'transparent';
+        ghost.style.boxShadow = 'none';
+        ghost.style.opacity = '1';
+        ghost.style.pointerEvents = 'none';
+        ghost.style.willChange = 'transform';
+      }
+    } catch (e) {
+      console.warn('Sortable ghost optimization warning:', e);
+    }
+  };
+}
+
+try { setupSortablePerformanceEngine(); } catch (_) {}
+
 let sortableScreenInstance = null;
 let sortableMenuInstances = [];
 let sortableCardInstances = [];
@@ -4174,7 +4265,11 @@ function switchLayoutTab(tabName) {
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
     sortableMenuInstances.forEach(inst => inst.option('disabled', true));
     sortableCardInstances.forEach(inst => inst.option('disabled', true));
-    setLayoutBarCollapsed(false);
+    if (window.innerWidth <= 768) {
+      setLayoutBarCollapsed(true);
+    } else {
+      setLayoutBarCollapsed(false);
+    }
   } else if (tabName === 'menu') {
     openSidebar();
     document.body.classList.add('menu-editing-active');
@@ -4198,11 +4293,20 @@ function switchLayoutTab(tabName) {
     if (cardBuilderEl) cardBuilderEl.style.display = 'block';
     renderCardTemplateDropzone();
     updateCardLivePreview();
+    if (window.innerWidth <= 600) {
+      $('cardLivePreviewWrap')?.classList.remove('is-expanded');
+      const hint = $('cardLivePreviewHint');
+      if (hint) hint.textContent = 'Нажмите, чтобы развернуть';
+    }
 
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
     sortableMenuInstances.forEach(inst => inst.option('disabled', true));
     sortableCardInstances.forEach(inst => inst.option('disabled', false));
-    setLayoutBarCollapsed(false);
+    if (window.innerWidth <= 768) {
+      setLayoutBarCollapsed(true);
+    } else {
+      setLayoutBarCollapsed(false);
+    }
   }
 
   const badgeText = $('layoutCollapsedBadgeText');
@@ -4590,6 +4694,18 @@ function initLayoutManager() {
   $('layoutExpandBtn')?.addEventListener('click', () => setLayoutBarCollapsed(false));
   $('layoutSaveBtnCollapsed')?.addEventListener('click', () => exitLayoutEditor(true));
   $('layoutCancelBtnCollapsed')?.addEventListener('click', () => exitLayoutEditor(false));
+
+  // 5.2. Аккордеон живого предпросмотра карточки
+  $('cardLivePreviewToggleBtn')?.addEventListener('click', () => {
+    const wrap = $('cardLivePreviewWrap');
+    if (wrap) {
+      wrap.classList.toggle('is-expanded');
+      const hint = $('cardLivePreviewHint');
+      if (hint) {
+        hint.textContent = wrap.classList.contains('is-expanded') ? 'Нажмите, чтобы свернуть' : 'Нажмите, чтобы развернуть';
+      }
+    }
+  });
 
   // Автоматическое сворачивание панели на телефонах при клике в пустое место меню
   $('sidebarNav')?.addEventListener('click', (e) => {

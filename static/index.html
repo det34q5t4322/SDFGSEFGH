@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260905_9">
+  <link rel="stylesheet" href="/static/style.css?v=20260905_10">
   <script>
     (function() {
       try {
@@ -659,13 +659,13 @@
     </div>
 
     <!-- ═══ ЖИВОЙ ПРЕДПРОСМОТР КАРТОЧКИ В КОНСТРУКТОРЕ ═══ -->
-    <div class="card-live-preview-wrap">
-      <div class="card-live-preview-header">
+    <div class="card-live-preview-wrap" id="cardLivePreviewWrap">
+      <div class="card-live-preview-header" id="cardLivePreviewToggleBtn" role="button" tabindex="0" title="Нажмите, чтобы свернуть/развернуть живой предпросмотр">
         <span class="preview-badge">
           <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
           <span>Живой предпросмотр карточки</span>
         </span>
-        <span class="preview-hint">Мгновенное отражение ваших настроек</span>
+        <span class="preview-hint" id="cardLivePreviewHint">Предпросмотр</span>
       </div>
       <div class="card-live-preview-stage" id="cardTemplateLivePreviewStage">
         <!-- Сюда в реальном времени рендерится тестовая карточка -->
@@ -1034,6 +1034,6 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/app.js?v=20260905_9"></script>
+  <script src="/static/app.js?v=20260905_10"></script>
 </body>
 </html>
