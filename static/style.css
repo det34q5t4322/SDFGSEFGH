@@ -1814,6 +1814,7 @@ input {
   animation: cardAppear 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: calc(var(--card-index, 0) * 35ms);
   width: 100%;
+  min-width: 0 !important;
   box-sizing: border-box;
 }
 .pair-card:hover {
@@ -1870,7 +1871,7 @@ input {
 }
 .pair-subject.cancelled-text { text-decoration: line-through; color: var(--text-muted); }
 
-.pair-meta { display: flex; flex-wrap: wrap; gap: 5px 6px; align-items: center; width: 100%; }
+.pair-meta { display: flex; flex-wrap: wrap; gap: 5px 6px; align-items: center; width: 100%; min-width: 0; }
 .pair-teacher-btn {
   font-size: calc(clamp(11px, 3vw, 12px) * var(--font-scale, 1));
   color: var(--accent);

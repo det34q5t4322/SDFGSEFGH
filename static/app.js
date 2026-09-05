@@ -17,27 +17,49 @@ const STORAGE_SHOW_BADGES  = 'schedule_show_badges';
 const STORAGE_SHOW_BREAKS  = 'schedule_show_breaks';
 const STORAGE_NAV_POSITION = 'schedule_nav_position';
 
+// ── SAFE LOCALSTORAGE ACCESSORS (Protects against SecurityError / Private mode) ─
+function safeGetItem(key, fallback = null) {
+  try {
+    const val = localStorage.getItem(key);
+    return val !== null ? val : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_) {}
+}
+
+function safeRemoveItem(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (_) {}
+}
+
 (function() {
   try {
-    const savedTheme = localStorage.getItem(STORAGE_THEME) || 'obsidian';
+    const savedTheme = safeGetItem(STORAGE_THEME, 'obsidian');
     document.documentElement.setAttribute('data-theme', savedTheme);
-    const savedFont = localStorage.getItem(STORAGE_FONT_FAMILY) || 'system';
+    const savedFont = safeGetItem(STORAGE_FONT_FAMILY, 'system');
     document.documentElement.setAttribute('data-font', savedFont);
-    const savedSize = localStorage.getItem(STORAGE_FONT_SIZE) || 'normal';
+    const savedSize = safeGetItem(STORAGE_FONT_SIZE, 'normal');
     document.documentElement.setAttribute('data-font-size', savedSize);
-    const savedNavPos = localStorage.getItem(STORAGE_NAV_POSITION) || 'left';
+    const savedNavPos = safeGetItem(STORAGE_NAV_POSITION, 'left');
     document.documentElement.setAttribute('data-nav-position', savedNavPos);
 
-    if (localStorage.getItem(STORAGE_SHOW_TEACHER) === 'false') {
+    if (safeGetItem(STORAGE_SHOW_TEACHER) === 'false') {
       document.documentElement.setAttribute('data-hide-teacher', 'true');
     }
-    if (localStorage.getItem(STORAGE_SHOW_ROOM) === 'false') {
+    if (safeGetItem(STORAGE_SHOW_ROOM) === 'false') {
       document.documentElement.setAttribute('data-hide-room', 'true');
     }
-    if (localStorage.getItem(STORAGE_SHOW_BADGES) === 'false') {
+    if (safeGetItem(STORAGE_SHOW_BADGES) === 'false') {
       document.documentElement.setAttribute('data-hide-badges', 'true');
     }
-    if (localStorage.getItem(STORAGE_SHOW_BREAKS) === 'false') {
+    if (safeGetItem(STORAGE_SHOW_BREAKS) === 'false') {
       document.documentElement.setAttribute('data-hide-breaks', 'true');
     }
   } catch (_) {}
@@ -142,7 +164,7 @@ const DEFAULT_GROUP = 'ИСС9-25';
 
 // ── STATE ───────────────────────────────
 const S = {
-  group:              localStorage.getItem(STORAGE_GROUP) || DEFAULT_GROUP,
+  group:              safeGetItem(STORAGE_GROUP, DEFAULT_GROUP),
   activeGid:          '',
   parity:             'auto',
   parityOverride:     null,         // 'num' | 'den' | null (ручное переключение чётности через чип в шапке)
@@ -192,13 +214,25 @@ function hideOfflineBanner() {
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8500) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  if (options.signal) {
+    if (options.signal.aborted) {
+      clearTimeout(timer);
+      throw new DOMException('Aborted', 'AbortError');
+    }
+    options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
   try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
+    const fetchOptions = { ...options };
+    delete fetchOptions.signal;
+    const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
     clearTimeout(timer);
     return res;
   } catch (err) {
     clearTimeout(timer);
     if (err.name === 'AbortError') {
+      if (options.signal?.aborted) {
+        throw err;
+      }
       throw new Error(`Превышено время ожидания ответа сервера (${Math.round(timeoutMs / 1000)}с)`);
     }
     throw err;
@@ -322,9 +356,104 @@ const els = {
 };
 
 // ════════════════════════════════════════
+//  TELEGRAM WEBAPP INTEGRATION (MOB-01, MOB-02, MOB-03)
+// ════════════════════════════════════════
+function updateTelegramBackButton() {
+  const tg = window.Telegram?.WebApp;
+  if (!tg?.BackButton) return;
+
+  const isModalOpen = Boolean(
+    document.querySelector('.modal-backdrop.open, .modal.open') ||
+    els.groupModal?.classList.contains('open') ||
+    (els.settingsModal || els.themeModal)?.classList.contains('open') ||
+    els.onboardModal?.classList.contains('open')
+  );
+  const isSidebarOpen = Boolean(els.sidebar?.classList.contains('open'));
+  let isEditing = false;
+  try { isEditing = Boolean(isLayoutEditingMode); } catch (_) {}
+  const isNonDefaultView = Boolean(S.view && S.view !== 'today' && S.view !== 'week' && S.view !== 'schedule');
+  const hasEntitySelection = Boolean((S.view === 'teacher' && S.selectedTeacher) || (S.view === 'classroom' && S.selectedClassroom));
+  const isNonDefaultWeek = Boolean(S.weekOffset !== 0);
+
+  if (isEditing || isModalOpen || isSidebarOpen || isNonDefaultView || hasEntitySelection || isNonDefaultWeek) {
+    try { tg.BackButton.show(); } catch (_) {}
+  } else {
+    try { tg.BackButton.hide(); } catch (_) {}
+  }
+}
+
+function handleTelegramBackButtonClick() {
+  let isEditing = false;
+  try { isEditing = Boolean(isLayoutEditingMode); } catch (_) {}
+
+  if (isEditing) {
+    if (typeof exitLayoutEditor === 'function') exitLayoutEditor(false);
+  } else if (els.sidebar?.classList.contains('open')) {
+    closeSidebar();
+  } else if ((els.settingsModal || els.themeModal)?.classList.contains('open')) {
+    closeSettingsModal();
+  } else if (els.groupModal?.classList.contains('open')) {
+    closeGroupModal();
+  } else if (els.onboardModal?.classList.contains('open')) {
+    els.onboardModal.classList.remove('open');
+  } else if (document.querySelector('.modal-backdrop.open, .modal.open')) {
+    document.querySelectorAll('.modal-backdrop.open, .modal.open').forEach(m => m.classList.remove('open'));
+    document.body.style.overflow = '';
+  } else if (S.view === 'teacher' && S.selectedTeacher) {
+    if (typeof window.clearTeacherSelection === 'function') window.clearTeacherSelection();
+  } else if (S.view === 'classroom' && S.selectedClassroom) {
+    if (typeof window.clearClassroomSelection === 'function') window.clearClassroomSelection();
+  } else if (S.view && S.view !== 'today' && S.view !== 'week' && S.view !== 'schedule') {
+    if (typeof setView === 'function') setView('today');
+  } else if (S.weekOffset !== 0) {
+    if (typeof window.resetToCurrentWeek === 'function') window.resetToCurrentWeek();
+  }
+  updateTelegramBackButton();
+}
+
+function setupTelegramWebApp() {
+  const tg = window.Telegram?.WebApp;
+  if (!tg) return;
+
+  try {
+    tg.ready();
+    tg.expand();
+    if (typeof tg.enableClosingConfirmation === 'function') {
+      tg.enableClosingConfirmation();
+    }
+  } catch (e) {
+    console.warn('Telegram WebApp init warning:', e);
+  }
+
+  if (tg.BackButton) {
+    try {
+      tg.BackButton.onClick(handleTelegramBackButtonClick);
+    } catch (e) {
+      console.warn('Telegram BackButton onClick error:', e);
+    }
+    updateTelegramBackButton();
+  }
+
+  try {
+    const observer = new MutationObserver(() => {
+      updateTelegramBackButton();
+    });
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
+      subtree: true
+    });
+  } catch (_) {}
+}
+
+window.updateTelegramBackButton = updateTelegramBackButton;
+window.handleTelegramBackButtonClick = handleTelegramBackButtonClick;
+
+// ════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════
 async function init() {
+  try { setupTelegramWebApp(); } catch (e) { console.error('setupTelegramWebApp error:', e); }
   try { setupThemes(); } catch (e) { console.error('setupThemes error:', e); }
   try { setupSidebar(); } catch (e) { console.error('setupSidebar error:', e); }
   try { setupSidebarNav(); } catch (e) { console.error('setupSidebarNav error:', e); }
@@ -664,12 +793,14 @@ function openSettingsModal(initialTab = 'themes') {
   const modal = els.settingsModal || els.themeModal;
   modal?.classList.add('open');
   document.body.style.overflow = 'hidden';
+  updateTelegramBackButton();
 }
 
 function closeSettingsModal() {
   const modal = els.settingsModal || els.themeModal;
   modal?.classList.remove('open');
   document.body.style.overflow = '';
+  updateTelegramBackButton();
 }
 
 // Алиасы для обратной совместимости
@@ -850,12 +981,14 @@ function openSidebar() {
   els.sidebar?.classList.add('open');
   els.sidebarOverlay?.classList.add('active');
   document.body.style.overflow = 'hidden';
+  updateTelegramBackButton();
 }
 
 function closeSidebar() {
   els.sidebar?.classList.remove('open');
   els.sidebarOverlay?.classList.remove('active');
   document.body.style.overflow = '';
+  updateTelegramBackButton();
 }
 
 function updateSidebarGroupInfo() {
@@ -952,6 +1085,7 @@ window.resetToCurrentWeek = function() {
   buildSidebarTabs();
   buildDayStrip();
   updateTopbarParity();
+  updateTelegramBackButton();
   loadSchedule(false);
 };
 
@@ -1023,6 +1157,7 @@ function setView(view) {
   if (view === 'stats') initStatsView();
   if (view === 'english') startEnglishCountdown();
   else stopEnglishCountdown();
+  updateTelegramBackButton();
 }
 
 // ════════════════════════════════════════
@@ -1132,6 +1267,7 @@ async function changeWeek(delta) {
     S.manualTabMode = false;
     S.parityOverride = null;
     S.selectedDay = 1; // Всегда открывать понедельник при смене недели (стрелки, свайпы)
+    updateTelegramBackButton();
 
     const targetTab = findTabForWeek(S.weekOffset);
     if (targetTab) {
@@ -1208,7 +1344,7 @@ function setupSwipeGestures() {
     const dx = touchEndX - touchStartX;
     const dy = touchEndY - touchStartY;
     if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
-      if (document.querySelector('.modal-backdrop.open') || document.querySelector('.sidebar.open')) {
+      if (isLayoutEditingMode || document.querySelector('.modal-backdrop.open') || document.querySelector('.sidebar.open') || document.querySelector('.modal.open')) {
         return;
       }
       if (dx < 0) {
@@ -1646,11 +1782,18 @@ function fmtTime(min) {
 // ════════════════════════════════════════
 //  LOAD DATA (FAULT TOLERANT & CACHED)
 // ════════════════════════════════════════
+let currentScheduleAbortController = null;
+
 async function loadSchedule(force = false) {
   if (S.isLoading && !force) {
     logApp('info', 'loadSchedule пропущен: предыдущий запрос ещё выполняется');
     return;
   }
+  if (currentScheduleAbortController) {
+    currentScheduleAbortController.abort();
+  }
+  currentScheduleAbortController = new AbortController();
+  const currentSignal = currentScheduleAbortController.signal;
   S.isLoading = true;
 
   if (!S.group) S.group = DEFAULT_GROUP;
@@ -1665,7 +1808,7 @@ async function loadSchedule(force = false) {
     }
   } else if (!S.data) {
     try {
-      const cached = localStorage.getItem(cacheKey);
+      const cached = safeGetItem(cacheKey);
       if (cached) {
         S.data = JSON.parse(cached);
         updateSidebarGroupInfo();
@@ -1696,15 +1839,19 @@ async function loadSchedule(force = false) {
     // Вкладки загружаем только если они ещё не загружены или принудительно (экономия 1-3с на Render)
     if (!S.tabs || S.tabs.length === 0 || force) {
       try {
-        const tabsRes = await fetchWithTimeout(`${API}/tabs`, {}, 8500);
+        const tabsRes = await fetchWithTimeout(`${API}/tabs`, { signal: currentSignal }, 8500);
         if (tabsRes.ok) {
           const tabsData = await tabsRes.json();
           S.tabs = (tabsData.tabs || []).filter(tab => !isTestTab(tab.name));
         }
       } catch (tabsErr) {
-        logApp('warn', 'Не удалось обновить список вкладок:', tabsErr);
+        if (!currentSignal.aborted) {
+          logApp('warn', 'Не удалось обновить список вкладок:', tabsErr);
+        }
       }
     }
+
+    if (currentSignal.aborted) return;
 
     // Автоматическое определение вкладки по датам недели, если не включен ручной выбор
     if (!S.manualTabMode && S.tabs && S.tabs.length > 0) {
@@ -1729,9 +1876,11 @@ async function loadSchedule(force = false) {
     const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
     const forceParam = force ? '&force=true' : '';
     const url = `${API}/schedule?group=${encodeURIComponent(S.group)}${tabParam}${forceParam}`;
-    const res = await fetchWithTimeout(url, {}, 8500);
+    const res = await fetchWithTimeout(url, { signal: currentSignal }, 8500);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const freshData = await res.json();
+
+    if (currentSignal.aborted) return;
 
     if (freshData && freshData.published === false) {
       clearTimeout(wakeupTimer);
@@ -1760,8 +1909,8 @@ async function loadSchedule(force = false) {
     }
 
     try {
-      localStorage.setItem(cacheKey, JSON.stringify(freshData));
-      localStorage.setItem('schedule_last_sync_time', freshData.last_updated || new Date().toLocaleString('ru-RU'));
+      safeSetItem(cacheKey, JSON.stringify(freshData));
+      safeSetItem('schedule_last_sync_time', freshData.last_updated || new Date().toLocaleString('ru-RU'));
     } catch (err) {
       logApp('warn', 'Ошибка записи в кэш:', err);
     }
@@ -1778,13 +1927,17 @@ async function loadSchedule(force = false) {
     logApp('info', `Расписание успешно синхронизировано для ${S.group}`);
   } catch (e) {
     clearTimeout(wakeupTimer);
+    if (currentSignal.aborted || e.name === 'AbortError') {
+      logApp('info', 'Запрос расписания отменён (переключение группы или вкладки)');
+      return;
+    }
     logApp('error', `Сбой синхронизации расписания (${e.message}):`, e);
 
     // Проверяем наличие кэша
     let hasCachedData = Boolean(S.data);
     if (!hasCachedData) {
       try {
-        const cached = localStorage.getItem(cacheKey);
+        const cached = safeGetItem(cacheKey);
         if (cached) {
           S.data = JSON.parse(cached);
           hasCachedData = true;
@@ -2234,6 +2387,7 @@ window.clearTeacherSelection = function() {
   if (els.teacherSearchInput) els.teacherSearchInput.value = '';
   if (els.teacherResult) els.teacherResult.innerHTML = '';
   renderTeachersList('');
+  updateTelegramBackButton();
 };
 
 window.clearClassroomSelection = function() {
@@ -2241,6 +2395,7 @@ window.clearClassroomSelection = function() {
   if (els.classroomSearchInput) els.classroomSearchInput.value = '';
   if (els.classroomResult) els.classroomResult.innerHTML = '';
   renderClassroomsList('');
+  updateTelegramBackButton();
 };
 
 async function fetchEntityList(stateKey, endpoint, force = false) {
@@ -2272,8 +2427,8 @@ function renderEntityScheduleByDay(byDay, metaType) {
       const pn = r.pair_num || '?';
       const timeStr = r.time || '';
       const metaBtn = metaType === 'teacher'
-        ? (r.classroom ? `<button class="pair-room-btn" onclick="openRoom('${esc(r.classroom)}')">${ICONS.mapPin} <span>${esc(r.classroom)}</span></button>` : '')
-        : (r.teacher ? `<button class="pair-teacher-btn" onclick="openTeacher('${esc(r.teacher)}')">${ICONS.user} <span>${esc(r.teacher)}</span></button>` : '');
+        ? (r.classroom ? `<button class="pair-room-btn" data-room="${esc(r.classroom)}" onclick="openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(r.classroom)}</span></button>` : '')
+        : (r.teacher ? `<button class="pair-teacher-btn" data-teacher="${esc(r.teacher)}" onclick="openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(r.teacher)}</span></button>` : '');
 
       html += `<div class="pair-card">
         <div class="pair-num-col"><div class="pair-num">${pn}</div><div class="pair-time-small">${timeStr.split('-')[0] || ''}</div></div>
@@ -2329,9 +2484,18 @@ function renderTeachersList(query = '') {
   });
 }
 
+let currentTeacherAbortController = null;
+
 async function selectTeacher(teacherName) {
   if (!teacherName) return;
+  if (currentTeacherAbortController) {
+    currentTeacherAbortController.abort();
+  }
+  currentTeacherAbortController = new AbortController();
+  const currentSignal = currentTeacherAbortController.signal;
+
   S.selectedTeacher = teacherName;
+  updateTelegramBackButton();
   if (els.teacherSearchInput) els.teacherSearchInput.value = teacherName;
   renderTeachersList(teacherName);
 
@@ -2340,13 +2504,15 @@ async function selectTeacher(teacherName) {
 
   try {
     const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
-    const res = await fetch(`${API}/teacher-schedule?teacher=${encodeURIComponent(teacherName.trim())}${tabParam}`);
+    const res = await fetch(`${API}/teacher-schedule?teacher=${encodeURIComponent(teacherName.trim())}${tabParam}`, { signal: currentSignal });
+    if (currentSignal.aborted) return;
     if (!res.ok) {
       els.teacherResult.innerHTML = `<div class="empty-pairs-hint">Преподаватель "${esc(teacherName)}" не найден</div>`;
       return;
     }
 
     const data = await res.json();
+    if (currentSignal.aborted) return;
     const { html: daysHtml, totalLessons } = renderEntityScheduleByDay(data.days || {}, 'teacher');
 
     let html = `
@@ -2362,6 +2528,7 @@ async function selectTeacher(teacherName) {
     els.teacherResult.innerHTML = html;
     els.teacherResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) {
+    if (currentSignal.aborted || e.name === 'AbortError') return;
     els.teacherResult.innerHTML = `<div class="empty-pairs-hint">Ошибка поиска: ${esc(e.message)}</div>`;
   }
 }
@@ -2381,7 +2548,7 @@ function renderClassroomsList(query = '') {
   }
 
   if (filtered.length === 0) {
-    els.classroomsGrid.innerHTML = `<div class="empty-pairs-hint" style="grid-column: 1/-1; padding: 16px 0;">Аудитории не найдены</div>`;
+    els.classroomsGrid.innerHTML = '<div class="empty-pairs-hint">Аудитории не найдены</div>';
     return;
   }
 
@@ -2402,9 +2569,18 @@ function renderClassroomsList(query = '') {
   });
 }
 
+let currentClassroomAbortController = null;
+
 async function selectClassroom(roomName) {
   if (!roomName) return;
+  if (currentClassroomAbortController) {
+    currentClassroomAbortController.abort();
+  }
+  currentClassroomAbortController = new AbortController();
+  const currentSignal = currentClassroomAbortController.signal;
+
   S.selectedClassroom = roomName;
+  updateTelegramBackButton();
   if (els.classroomSearchInput) els.classroomSearchInput.value = roomName;
   renderClassroomsList(roomName);
 
@@ -2413,13 +2589,15 @@ async function selectClassroom(roomName) {
 
   try {
     const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
-    const res = await fetch(`${API}/classroom-schedule?room=${encodeURIComponent(roomName.trim())}${tabParam}`);
+    const res = await fetch(`${API}/classroom-schedule?room=${encodeURIComponent(roomName.trim())}${tabParam}`, { signal: currentSignal });
+    if (currentSignal.aborted) return;
     if (!res.ok) {
       els.classroomResult.innerHTML = `<div class="empty-pairs-hint">Аудитория "${esc(roomName)}" не найдена</div>`;
       return;
     }
 
     const data = await res.json();
+    if (currentSignal.aborted) return;
     const { html: daysHtml, totalLessons } = renderEntityScheduleByDay(data.days || {}, 'classroom');
 
     let html = `
@@ -2435,6 +2613,7 @@ async function selectClassroom(roomName) {
     els.classroomResult.innerHTML = html;
     els.classroomResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) {
+    if (currentSignal.aborted || e.name === 'AbortError') return;
     els.classroomResult.innerHTML = `<div class="empty-pairs-hint">Ошибка поиска: ${esc(e.message)}</div>`;
   }
 }
@@ -2490,7 +2669,8 @@ function findUpcomingEnglishInSchedule(data) {
     if (parts.length < 2) continue;
     const d = parseInt(parts[0], 10);
     const m = parseInt(parts[1], 10);
-    const year = now.getFullYear();
+    const academicYearStart = (now.getMonth() >= 7) ? now.getFullYear() : now.getFullYear() - 1;
+    const year = (m >= 8) ? academicYearStart : academicYearStart + 1;
 
     for (const p of pairs) {
       if (p.is_empty) continue;
@@ -2750,7 +2930,9 @@ function calculateUnifiedSeptStats(arg1, arg2) {
       if (parts.length < 2) continue;
       const d = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10);
-      const dayDate = new Date(now.getFullYear(), m - 1, d, 0, 0, 0, 0);
+      const academicYearStart = (now.getMonth() >= 7) ? now.getFullYear() : now.getFullYear() - 1;
+      const tabYear = (m >= 8) ? academicYearStart : academicYearStart + 1;
+      const dayDate = new Date(tabYear, m - 1, d, 0, 0, 0, 0);
 
       // Учитываем только прошедшие дни и сегодня
       if (dayDate.getTime() > todayStart.getTime()) {
@@ -3067,8 +3249,8 @@ function ensureGroupsLoaded() {
 function saveActiveGroup(grp) {
   S.group = grp;
   try {
-    localStorage.setItem(STORAGE_GROUP, grp);
-    localStorage.setItem('schedule_group', grp);
+    safeSetItem(STORAGE_GROUP, grp);
+    safeSetItem('schedule_group', grp);
   } catch (_) {}
   if (window.Telegram?.WebApp?.CloudStorage) {
     try {
@@ -3081,7 +3263,11 @@ function saveActiveGroup(grp) {
       fetch('/api/user-group', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: String(tgUser.id), group: grp })
+        body: JSON.stringify({
+          user_id: Number(tgUser.id),
+          group: grp,
+          init_data: window.Telegram?.WebApp?.initData || ''
+        })
       }).catch(() => {});
     }
   } catch (_) {}
@@ -3095,6 +3281,7 @@ function saveActiveGroup(grp) {
 function openGroupModal() {
   ensureGroupsLoaded();
   els.groupModal?.classList.add('open');
+  updateTelegramBackButton();
   buildGroupGrid(els.groupsGrid, els.groupSearchInput, els.courseChips, (grp) => {
     if (S.group === grp && S.data) {
       closeGroupModal();
@@ -3111,6 +3298,7 @@ function openGroupModal() {
 
 function closeGroupModal() {
   els.groupModal?.classList.remove('open');
+  updateTelegramBackButton();
 }
 
 els.closeGroupModal?.addEventListener('click', closeGroupModal);
@@ -3119,9 +3307,11 @@ els.groupModal?.addEventListener('click', e => { if (e.target === els.groupModal
 function showOnboarding() {
   ensureGroupsLoaded();
   els.onboardModal?.classList.add('open');
+  updateTelegramBackButton();
   buildGroupGrid(els.onboardGroupsGrid, els.onboardSearchInput, els.onboardCourseChips, (grp) => {
     saveActiveGroup(grp);
     els.onboardModal?.classList.remove('open');
+    updateTelegramBackButton();
     updateSidebarGroupInfo();
     loadSchedule(true);
     startAutoRefresh();
@@ -3140,11 +3330,17 @@ function buildGroupGrid(gridEl, searchEl, chipsEl, onSelect) {
   let activeFilter = 'all';
 
   function detectCourse(gName) {
-    if (gName.includes('9-') || gName.startsWith('10-') || gName.includes('-26')) return '1 курс';
-    if (gName.includes('-25') || gName.includes('-24')) return '2 курс';
-    if (gName.includes('-23')) return '3 курс';
-    if (gName.includes('-22')) return '4 курс';
-    if (gName.toLowerCase().includes('оз') || gName.toLowerCase().includes('заоч')) return 'Очно-заочное';
+    if (!gName) return 'Другое';
+    const lower = gName.toLowerCase();
+    if (lower.includes('оз') || lower.includes('заоч')) return 'Очно-заочное';
+    if (gName.includes('-26')) return '1 курс';
+    if (gName.includes('-25')) return '2 курс';
+    if (gName.includes('-24')) return '3 курс';
+    if (gName.includes('-23') || gName.includes('-22')) return '4 курс';
+    if (gName.startsWith('10-') || gName.startsWith('1-')) return '1 курс';
+    if (gName.startsWith('20-') || gName.startsWith('2-')) return '2 курс';
+    if (gName.startsWith('30-') || gName.startsWith('3-')) return '3 курс';
+    if (gName.startsWith('40-') || gName.startsWith('4-')) return '4 курс';
     return 'Другое';
   }
 
@@ -3908,7 +4104,8 @@ function applyMenuConfig(cfg, persist = false) {
     }
     if (el) {
       if (item.id !== 'menu-group-badge' && item.id !== 'menu-sync-footer') {
-        const secName = item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'study';
+        const rawSec = item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'study';
+        const secName = ['study', 'tools', 'system'].includes(rawSec) ? rawSec : 'study';
         const secContainer = container.querySelector(`.sidebar-section-container[data-section="${secName}"]`);
         if (secContainer) {
           secContainer.appendChild(el);
@@ -4457,6 +4654,7 @@ function enterLayoutEditor(initialTab = 'screen') {
   cardConfigBeforeEdit = JSON.parse(JSON.stringify(activeCardConfig));
 
   document.body.classList.add('layout-editing-active');
+  updateTelegramBackButton();
   if (els.layoutEditorBar) els.layoutEditorBar.style.display = 'block';
 
   // 1. Инициализация Sortable для экрана (отключен в пользу лёгкого Blueprint-режима)
@@ -4601,6 +4799,7 @@ function exitLayoutEditor(save = false) {
   }
 
   closeSidebar();
+  updateTelegramBackButton();
 }
 
 function resetLayoutOrder() {

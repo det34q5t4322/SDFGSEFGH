@@ -34,16 +34,26 @@ TEACHERS_FIO_FILE = os.path.join(os.path.dirname(__file__), "teachers_fio.json")
 CACHE_TTL_SECONDS = 30  # Сверхбыстрое обновление для живой синхронизации (30 сек)
 
 
+_TEACHERS_FIO_CACHE: Optional[Dict[str, str]] = None
+_TEACHERS_FIO_MTIME: float = 0.0
+
+
 def load_teachers_fio() -> Dict[str, str]:
     """Загрузка словаря сопоставления инициалов преподавателей в полные ФИО."""
+    global _TEACHERS_FIO_CACHE, _TEACHERS_FIO_MTIME
     if not os.path.exists(TEACHERS_FIO_FILE):
         return {}
     try:
+        mtime = os.path.getmtime(TEACHERS_FIO_FILE)
+        if _TEACHERS_FIO_CACHE is not None and mtime == _TEACHERS_FIO_MTIME:
+            return _TEACHERS_FIO_CACHE
         with open(TEACHERS_FIO_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            _TEACHERS_FIO_CACHE = json.load(f)
+            _TEACHERS_FIO_MTIME = mtime
+            return _TEACHERS_FIO_CACHE
     except Exception as e:
         logger.warning(f"Не удалось прочитать teachers_fio.json: {e}")
-        return {}
+        return _TEACHERS_FIO_CACHE or {}
 
 
 def get_full_teacher_name(short_name: str) -> str:
@@ -781,41 +791,12 @@ def _discover_via_htmlview(spreadsheet_id: str) -> List[Dict[str, Any]]:
     return sheets
 
 
-def _discover_via_json_feed(spreadsheet_id: str) -> List[Dict[str, Any]]:
-    """Метод 2: обнаружение вкладок через Google Sheets JSON feed (резервный)."""
-    json_url = (
-        f"https://spreadsheets.google.com/feeds/worksheets/{spreadsheet_id}/public/basic?alt=json"
-    )
-    req = urllib.request.Request(
-        json_url,
-        headers={"User-Agent": "Mozilla/5.0"},
-    )
-    sheets = []
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    entries = data.get("feed", {}).get("entry", [])
-    for entry in entries:
-        title = entry.get("title", {}).get("$t", "")
-        links = entry.get("link", [])
-        gid = ""
-        for link in links:
-            href = link.get("href", "")
-            m = re.search(r"gid=(\d+)", href)
-            if m:
-                gid = m.group(1)
-                break
-        if title and gid:
-            sheets.append({"name": title.strip(), "gid": gid})
-    return sheets
-
-
 def discover_sheets(spreadsheet_id: str) -> List[Dict[str, Any]]:
     """Динамическое обнаружение всех вкладок таблицы.
-    Использует два метода последовательно и берёт тот, что нашёл больше вкладок.
-    При полном провале возвращает жёстко прописанный fallback KNOWN_FALLBACK_SHEETS.
+    Использует метод htmlview.
+    При полном провале возвращает кэш known_tabs.json или жёстко прописанный KNOWN_FALLBACK_SHEETS.
     """
     sheets_htmlview: List[Dict[str, Any]] = []
-    sheets_json: List[Dict[str, Any]] = []
 
     try:
         sheets_htmlview = _discover_via_htmlview(spreadsheet_id)
@@ -823,31 +804,15 @@ def discover_sheets(spreadsheet_id: str) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.warning(f"Метод htmlview не сработал: {e}")
 
-    try:
-        sheets_json = _discover_via_json_feed(spreadsheet_id)
-        logger.info(f"JSON feed нашёл {len(sheets_json)} вкладок")
-    except Exception as e:
-        logger.warning(f"Метод JSON feed не сработал: {e}")
-
-    # Выбираем результат с наибольшим количеством вкладок
-    if sheets_htmlview and sheets_json:
-        if len(sheets_json) >= len(sheets_htmlview):
-            logger.info("Используем результат JSON feed (больше вкладок)")
-            best = sheets_json
-        else:
-            logger.info("Используем результат htmlview")
-            best = sheets_htmlview
-    elif sheets_json:
-        best = sheets_json
-    elif sheets_htmlview:
+    if sheets_htmlview:
         best = sheets_htmlview
     else:
         # Полный fallback: сначала known_tabs.json, затем KNOWN_FALLBACK_SHEETS
         known = _load_known_tabs()
         if known:
-            logger.warning("Оба метода не сработали — используем known_tabs.json")
+            logger.warning("htmlview не сработал — используем known_tabs.json")
             return [{"gid": t["gid"], "name": t["name"]} for t in known]
-        logger.warning("Оба метода не сработали — используем KNOWN_FALLBACK_SHEETS")
+        logger.warning("htmlview не сработал — используем KNOWN_FALLBACK_SHEETS")
         return list(KNOWN_FALLBACK_SHEETS)
 
     found_gids = {s["gid"] for s in best}
@@ -1584,7 +1549,7 @@ class ScheduleParser:
         return result
 
     def save_cache(self) -> None:
-        """Сохранение кэша всех вкладок в файл (исключая тестовые)."""
+        """Сохранение кэша всех вкладок в файл (исключая тестовые) атомарно через временный файл."""
         try:
             clean_tabs = [t for t in self.available_tabs if not is_test_tab(t.get("name"))]
             clean_sheets = {}
@@ -1602,8 +1567,10 @@ class ScheduleParser:
                 "last_updated": self.last_updated,
                 "sheets": clean_sheets,
             }
-            with open(self.cache_file, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
+            tmp_file = f"{self.cache_file}.tmp"
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False)
+            os.replace(tmp_file, self.cache_file)
             logger.info(f"Кэш сохранён в {self.cache_file} ({len(clean_sheets)} вкладок)")
         except Exception as e:
             logger.error(f"Ошибка сохранения кэша: {e}")

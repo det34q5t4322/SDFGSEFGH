@@ -3,6 +3,7 @@ import sys
 import time
 import asyncio
 import logging
+import re
 import urllib.request
 from collections import defaultdict
 from typing import Optional
@@ -11,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from contextlib import asynccontextmanager
 
@@ -79,22 +80,42 @@ MAX_REQUESTS_PER_WINDOW = 120  # запросов в минуту с одног�
 
 _ip_request_timestamps = defaultdict(list)
 
+def get_real_client_ip(request: Request) -> str:
+    """Извлечение реального IP клиента с учетом заголовков обратных прокси (Cloudflare, Render, Nginx)."""
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        return cf_ip.strip()
+    x_forwarded = request.headers.get("x-forwarded-for")
+    if x_forwarded:
+        return x_forwarded.split(",")[0].strip()
+    x_real = request.headers.get("x-real-ip")
+    if x_real:
+        return x_real.strip()
+    return request.client.host if request.client else "unknown"
+
+
 @app.middleware("http")
 async def rate_limiting_middleware(request: Request, call_next):
     if request.url.path.startswith("/api/") and not request.url.path.startswith("/api/ping"):
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = get_real_client_ip(request)
         now = time.time()
         timestamps = _ip_request_timestamps[client_ip]
         # Очищаем устаревшие метки
-        _ip_request_timestamps[client_ip] = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
-        if len(_ip_request_timestamps[client_ip]) >= MAX_REQUESTS_PER_WINDOW:
+        valid = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+        if len(valid) >= MAX_REQUESTS_PER_WINDOW:
+            _ip_request_timestamps[client_ip] = valid
             logger.warning(f"Превышен лимит запросов с IP: {client_ip} на {request.url.path}")
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Слишком много запросов. Пожалуйста, подождите минуту."},
                 headers={"Retry-After": "60"},
             )
-        _ip_request_timestamps[client_ip].append(now)
+        valid.append(now)
+        _ip_request_timestamps[client_ip] = valid
+        if len(_ip_request_timestamps) > 500:
+            for ip in list(_ip_request_timestamps.keys()):
+                if not _ip_request_timestamps[ip] or now - _ip_request_timestamps[ip][-1] > RATE_LIMIT_WINDOW:
+                    _ip_request_timestamps.pop(ip, None)
     return await call_next(request)
 
 @app.middleware("http")
@@ -118,7 +139,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 async def _sync_once():
     """Одна попытка синхронизации с Google Sheets."""
-    data = parser.get_data(force_refresh=True)
+    data = await asyncio.to_thread(parser.get_data, force_refresh=True)
     stale = data.get("stale", False)
     if stale:
         logger.warning(f"Авто-синхронизация: данные устаревшие ({data.get('stale_reason', '')})")
@@ -174,7 +195,7 @@ async def render_keep_alive_task():
 async def startup_event():
     """При старте загружаем или проверяем кэш расписания."""
     try:
-        data = parser.get_data(force_refresh=True)
+        data = await asyncio.to_thread(parser.get_data, force_refresh=True)
         logger.info(f"Расписание инициализировано: {data['groups_count']} групп")
     except Exception as e:
         logger.error(f"Ошибка инициализации расписания: {e}")
@@ -237,7 +258,7 @@ async def root():
 @app.get("/api/tabs")
 async def get_tabs():
     """Список всех обнаруженных вкладок расписания в Google Таблице с отметкой активной."""
-    tabs_data = parser.get_tabs()
+    tabs_data = await asyncio.to_thread(parser.get_tabs)
     return {
         "tabs": _clean_tabs(tabs_data.get("tabs", [])),
         "active_gid": tabs_data.get("active_gid", ""),
@@ -251,7 +272,7 @@ async def get_status(
 ):
     """Текущий статус сервиса, дата обновления, чётность недели, звонки и перемены."""
     selected_tab = tab or gid
-    data = parser.get_data(gid=selected_tab)
+    data = await asyncio.to_thread(parser.get_data, gid=selected_tab)
     return {
         "title": data.get("title", "Колледж телекоммуникаций"),
         "tab_name": data.get("tab_name", ""),
@@ -279,7 +300,7 @@ async def get_groups(
 ):
     """Список всех учебных групп с распределением по курсам."""
     selected_tab = tab or gid
-    data = parser.get_data(gid=selected_tab)
+    data = await asyncio.to_thread(parser.get_data, gid=selected_tab)
     return {
         "groups": data.get("groups", []),
         "courses": ["1 курс", "2 курс", "3 курс", "4 курс", "Очно-заочное"],
@@ -298,9 +319,9 @@ async def get_schedule(
     """Полное расписание для конкретной учебной группы или метаданные со списком групп с авто-сопоставлением вкладки по дате."""
     selected_tab = tab or gid
     if not selected_tab and date:
-        matched_tab = parser.find_tab_for_date(date)
+        matched_tab = await asyncio.to_thread(parser.find_tab_for_date, date)
         if not matched_tab:
-            tabs_data = parser.get_tabs()
+            tabs_data = await asyncio.to_thread(parser.get_tabs)
             return {
                 "published": False,
                 "message": "Расписание на эту неделю ещё не опубликовано",
@@ -311,7 +332,7 @@ async def get_schedule(
             }
         selected_tab = matched_tab["gid"]
 
-    data = parser.get_data(gid=selected_tab)
+    data = await asyncio.to_thread(parser.get_data, gid=selected_tab)
     clean_tabs = _clean_tabs(data.get("available_tabs", []))
 
     if not group:
@@ -362,8 +383,9 @@ async def get_schedule(
 
 
 class UserGroupPayload(BaseModel):
-    user_id: str
-    group: str
+    user_id: int = Field(..., gt=0, description="Telegram User ID (положительное целое число)")
+    group: str = Field(..., min_length=1, max_length=50, description="Код/название группы")
+    init_data: Optional[str] = Field(None, description="Telegram WebApp initData для проверки HMAC подписи")
 
 
 @app.get("/api/user-group")
@@ -372,8 +394,15 @@ async def get_api_user_group(user_id: Optional[str] = Query(None)):
     if not user_id:
         return {"group": "ИСС9-25"}
     try:
+        uid = int(user_id)
+        if uid <= 0:
+            raise HTTPException(status_code=400, detail="user_id должен быть положительным целым числом")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="user_id должен быть числом")
+
+    try:
         from bot import get_user_group
-        grp = get_user_group(int(user_id))
+        grp = get_user_group(uid)
         return {"group": grp}
     except Exception as e:
         logger.warning(f"Error getting user group for {user_id}: {e}")
@@ -382,14 +411,30 @@ async def get_api_user_group(user_id: Optional[str] = Query(None)):
 
 @app.post("/api/user-group")
 async def set_api_user_group(payload: UserGroupPayload):
-    """Сохранить выбранную группу пользователя Telegram."""
+    """Сохранить выбранную группу пользователя Telegram с валидацией и защитой от IDOR."""
+    bot_token = os.getenv("BOT_TOKEN", "")
+    if payload.init_data and bot_token:
+        from bot import verify_telegram_init_data
+        verified_user = verify_telegram_init_data(payload.init_data, bot_token)
+        if not verified_user:
+            raise HTTPException(status_code=401, detail="Неверная подпись данных Telegram (HMAC invalid)")
+        verified_id = verified_user.get("id")
+        if verified_id and int(verified_id) != payload.user_id:
+            raise HTTPException(status_code=403, detail="ID пользователя не совпадает с сессией Telegram (IDOR защита)")
+
+    clean_group = payload.group.strip()
+    if not re.match(r"^[\w\s\-\.\(\)]+$", clean_group, re.UNICODE):
+        raise HTTPException(status_code=400, detail="Недопустимые символы в названии группы")
+
     try:
         from bot import set_user_group
-        set_user_group(int(payload.user_id), "", payload.group)
-        return {"status": "success", "group": payload.group}
+        set_user_group(payload.user_id, "", clean_group)
+        return {"status": "success", "group": clean_group}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.warning(f"Error setting user group for {payload.user_id}: {e}")
-        return {"status": "error", "message": str(e), "group": payload.group}
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка при сохранении группы")
 
 
 @app.get("/api/english-alarm")
@@ -398,7 +443,7 @@ async def get_english_alarm(
 ):
     """Информация о ближайшем занятии по английскому языку / тревоге и обратный отсчет."""
     target_group = (group or "ИСС9-25").strip()
-    return parser.get_upcoming_alarm(target_group, pattern=r"(англ|иностр)")
+    return await asyncio.to_thread(parser.get_upcoming_alarm, target_group, pattern=r"(англ|иностр)")
 
 
 @app.get("/api/teachers")
@@ -408,7 +453,7 @@ async def get_teachers(
 ):
     """Список всех преподавателей."""
     selected_tab = tab or gid
-    data = parser.get_data(gid=selected_tab)
+    data = await asyncio.to_thread(parser.get_data, gid=selected_tab)
     return {
         "teachers": data.get("teachers", []),
         "tab_name": data.get("tab_name", ""),
@@ -424,7 +469,7 @@ async def get_teacher_schedule(
 ):
     """Расписание занятий для конкретного преподавателя."""
     selected_tab = tab or gid
-    data = parser.get_data(gid=selected_tab)
+    data = await asyncio.to_thread(parser.get_data, gid=selected_tab)
     teacher_norm = teacher.strip()
     teacher_schedules = data.get("teacher_schedules", {})
 
@@ -456,7 +501,7 @@ async def get_classrooms(
 ):
     """Список всех кабинетов и аудиторий."""
     selected_tab = tab or gid
-    data = parser.get_data(gid=selected_tab)
+    data = await asyncio.to_thread(parser.get_data, gid=selected_tab)
     return {
         "classrooms": data.get("classrooms", []),
         "tab_name": data.get("tab_name", ""),
@@ -472,7 +517,7 @@ async def get_classroom_schedule(
 ):
     """Занятость конкретной аудитории по дням недели."""
     selected_tab = tab or gid
-    data = parser.get_data(gid=selected_tab)
+    data = await asyncio.to_thread(parser.get_data, gid=selected_tab)
     room_norm = room.strip()
     classroom_schedules = data.get("classroom_schedules", {})
 
@@ -499,11 +544,11 @@ async def health_check():
     import time as _time
     warnings = []
     try:
-        tabs_info = parser.get_tabs()
+        tabs_info = await asyncio.to_thread(parser.get_tabs)
         tabs = tabs_info.get("tabs", [])
         active_gid = tabs_info.get("active_gid", "")
 
-        data = parser.get_data()
+        data = await asyncio.to_thread(parser.get_data)
         last_updated = data.get("last_updated", "")
         timestamp = data.get("timestamp", 0)
         groups_count = data.get("groups_count", 0)
@@ -582,8 +627,8 @@ async def sync_diagnostics():
 async def refresh_schedule(tab: Optional[str] = Query(None, description="GID или название вкладки")):
     """Принудительное обновление расписания из Google Sheets."""
     try:
-        parser.refresh_tabs(force=True)
-        updated = parser.get_data(gid=tab, force_refresh=True)
+        await asyncio.to_thread(parser.refresh_tabs, force=True)
+        updated = await asyncio.to_thread(parser.get_data, gid=tab, force_refresh=True)
         return {
             "status": "success",
             "message": f"Расписание вкладки '{updated.get('tab_name', '')}' успешно обновлено",
