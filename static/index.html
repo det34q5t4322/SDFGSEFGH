@@ -76,91 +76,103 @@
     <!-- Навигация по разделам и действиям (поддерживает реорганизацию) -->
     <div class="sidebar-section-label">Навигация</div>
     <nav class="sidebar-nav" id="sidebarNav">
-      <!-- 1. Расписание группы (Обязательный) -->
-      <button class="sidebar-nav-item active" data-menu-id="menu-schedule" data-view="schedule" id="sidebarSchedule">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg></span>
-        <span class="sidebar-nav-label">Расписание группы</span>
-        <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт">🔒</span></span>
-      </button>
+      <!-- Секция: Основное -->
+      <div class="sidebar-section-header" data-section="study">Основное</div>
+      <div class="sidebar-section-container" data-section="study" id="menuSectionStudy">
+        <!-- 1. Расписание группы (Обязательный) -->
+        <button class="sidebar-nav-item active" data-menu-id="menu-schedule" data-section="study" data-view="schedule" id="sidebarSchedule">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg></span>
+          <span class="sidebar-nav-label">Расписание группы</span>
+          <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
+        </button>
 
-      <!-- 2. Преподаватели -->
-      <button class="sidebar-nav-item" data-menu-id="menu-teacher" data-view="teacher" id="sidebarTeacher">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span>
-        <span class="sidebar-nav-label">Преподаватели</span>
-        <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость">👁️</span></span>
-      </button>
+        <!-- 2. Преподаватели -->
+        <button class="sidebar-nav-item" data-menu-id="menu-teacher" data-section="study" data-view="teacher" id="sidebarTeacher">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span>
+          <span class="sidebar-nav-label">Преподаватели</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
+        </button>
 
-      <!-- 3. Аудитории -->
-      <button class="sidebar-nav-item" data-menu-id="menu-classroom" data-view="classroom" id="sidebarClassroom">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h20"/><path d="M13 20V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"/><path d="M9 12v.01"/></svg></span>
-        <span class="sidebar-nav-label">Аудитории</span>
-        <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость">👁️</span></span>
-      </button>
+        <!-- 3. Аудитории -->
+        <button class="sidebar-nav-item" data-menu-id="menu-classroom" data-section="study" data-view="classroom" id="sidebarClassroom">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h20"/><path d="M13 20V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"/><path d="M9 12v.01"/></svg></span>
+          <span class="sidebar-nav-label">Аудитории</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
+        </button>
 
-      <!-- 4. Статистика пар -->
-      <button class="sidebar-nav-item" data-menu-id="menu-stats" data-view="stats" id="sidebarStats">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
-        <span class="sidebar-nav-label">Статистика пар</span>
-        <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость">👁️</span></span>
-      </button>
+        <!-- 4. Дневник 1С -->
+        <button class="sidebar-nav-item" data-menu-id="menu-diary" data-section="study" id="sidebarDiaryBtn" title="Перейти в электронный дневник 1С">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg></span>
+          <span class="sidebar-nav-label">Дневник 1С</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
+        </button>
+      </div>
 
-      <!-- 5. Английский язык (СКРЫТ ПО УМОЛЧАНИЮ) -->
-      <button class="sidebar-nav-item sidebar-alarm-nav-item menu-item-hidden" data-menu-id="menu-english" data-view="english" id="sidebarEnglish">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon alarm-icon-flash"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
-        <span class="sidebar-nav-label">💀🚨 Английский</span>
-        <span class="sidebar-alarm-sos">SOS</span>
-        <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость">🙈</span></span>
-      </button>
+      <!-- Секция: Инструменты -->
+      <div class="sidebar-section-header" data-section="tools">Инструменты</div>
+      <div class="sidebar-section-container" data-section="tools" id="menuSectionTools">
+        <!-- 5. Английский язык (СКРЫТ ПО УМОЛЧАНИЮ) -->
+        <button class="sidebar-nav-item sidebar-alarm-nav-item menu-item-hidden menu-color-danger" data-menu-id="menu-english" data-section="tools" data-view="english" id="sidebarEnglish">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon alarm-icon-flash"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg></span>
+          <span class="sidebar-nav-label">Английский SOS</span>
+          <span class="sidebar-alarm-sos">SOS</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
+        </button>
 
-      <!-- 6. Дневник 1С -->
-      <button class="sidebar-nav-item" data-menu-id="menu-diary" id="sidebarDiaryBtn" title="Перейти в электронный дневник 1С">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg></span>
-        <span class="sidebar-nav-label">Дневник 1С</span>
-        <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость">👁️</span></span>
-      </button>
+        <!-- 6. Статистика пар -->
+        <button class="sidebar-nav-item" data-menu-id="menu-stats" data-section="tools" data-view="stats" id="sidebarStats">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+          <span class="sidebar-nav-label">Статистика пар</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
+        </button>
 
-      <!-- 7. Оформление и темы -->
-      <button class="sidebar-nav-item" data-menu-id="menu-theme" id="sidebarThemeBtn">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></span>
-        <span class="sidebar-nav-label">Оформление и темы</span>
-        <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость">👁️</span></span>
-      </button>
+        <!-- 7. Сменить группу -->
+        <button class="sidebar-nav-item" data-menu-id="menu-change-group" data-section="tools" id="sidebarChangeGroup">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <span class="sidebar-nav-label">Сменить группу</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
+        </button>
+      </div>
 
-      <!-- 8. Сменить группу -->
-      <button class="sidebar-nav-item" data-menu-id="menu-change-group" id="sidebarChangeGroup">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-        <span class="sidebar-nav-label">Сменить группу</span>
-        <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость">👁️</span></span>
-      </button>
+      <!-- Секция: Система -->
+      <div class="sidebar-section-header" data-section="system">Система</div>
+      <div class="sidebar-section-container" data-section="system" id="menuSectionSystem">
+        <!-- 8. Оформление и темы -->
+        <button class="sidebar-nav-item" data-menu-id="menu-theme" data-section="system" id="sidebarThemeBtn">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></span>
+          <span class="sidebar-nav-label">Оформление и темы</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
+        </button>
 
-      <!-- 9. Обновить расписание (Обязательный) -->
-      <button class="sidebar-nav-item" data-menu-id="menu-refresh" id="sidebarRefresh">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span>
-        <span class="sidebar-nav-label">Обновить расписание</span>
-        <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт">🔒</span></span>
-      </button>
+        <!-- 9. Обновить расписание (Обязательный) -->
+        <button class="sidebar-nav-item" data-menu-id="menu-refresh" data-section="system" id="sidebarRefresh">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span>
+          <span class="sidebar-nav-label">Обновить расписание</span>
+          <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
+        </button>
 
-      <!-- 10. Конструктор (Обязательный) -->
-      <button class="sidebar-nav-item" data-menu-id="menu-layout-editor" id="sidebarLayoutEditorBtn">
-        <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-        <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span>
-        <span class="sidebar-nav-label">Конструктор интерфейса</span>
-        <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт">🔒</span></span>
-      </button>
+        <!-- 10. Конструктор (Обязательный) -->
+        <button class="sidebar-nav-item" data-menu-id="menu-layout-editor" data-section="system" id="sidebarLayoutEditorBtn">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span>
+          <span class="sidebar-nav-label">Конструктор интерфейса</span>
+          <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
+        </button>
+      </div>
 
       <!-- Служебная кнопка аварийного сброса -->
       <button class="sidebar-nav-item" id="sidebarResetLayoutBtn" style="display:none;" title="Сбросить порядок блоков по умолчанию">
         <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></span>
-        <span class="sidebar-nav-label">Сброс расположения</span>
+        <span class="sidebar-nav-label">Сброс интерфейса</span>
       </button>
     </nav>
 
@@ -544,18 +556,50 @@
 
 </div><!-- /app-wrapper -->
 
-<!-- ═══ CARD TEMPLATE BUILDER OVERLAY ═══ -->
+<!-- ═══ CARD TEMPLATE BUILDER OVERLAY (MULTI-ZONE) ═══ -->
 <div class="card-template-builder" id="cardTemplateBuilder" style="display:none;" role="region" aria-label="Конструктор карточки пары">
   <div class="card-template-inner">
     <div class="card-template-header">
       <div class="card-template-badge">
-        <span class="card-template-icon">🏷️</span>
-        <span class="card-template-title">Шаблон карточки пары</span>
+        <span class="card-template-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg></span>
+        <span class="card-template-title">Шаблон карточки пары (Сетка зон)</span>
       </div>
-      <div class="card-template-subtitle">Перетаскивайте поля для смены порядка, нажимайте 👁️ чтобы скрыть</div>
+      <div class="card-template-subtitle">Перетаскивайте поля между зонами карточки, настраивайте размер (S/M/L) и цвет</div>
     </div>
-    <div class="card-template-dropzone" id="cardTemplateDropzone">
-      <!-- 5 draggable fields will be rendered here dynamically -->
+
+    <!-- Интерактивная зональная сетка карточки -->
+    <div class="card-builder-grid" id="cardBuilderGrid">
+      <!-- Верхний ряд: Левый и Правый угол -->
+      <div class="card-builder-row row-top">
+        <div class="card-builder-zone-box zone-box-left">
+          <div class="zone-tag">Верх / Слева</div>
+          <div class="card-builder-zone" data-zone="top-left" id="zoneTopLeft"></div>
+        </div>
+        <div class="card-builder-zone-box zone-box-right">
+          <div class="zone-tag">Верх / Справа</div>
+          <div class="card-builder-zone" data-zone="top-right" id="zoneTopRight"></div>
+        </div>
+      </div>
+
+      <!-- Центральный ряд: Основная зона (Название предмета) -->
+      <div class="card-builder-row row-main">
+        <div class="card-builder-zone-box zone-box-main">
+          <div class="zone-tag">Центр (Основная строка)</div>
+          <div class="card-builder-zone" data-zone="main" id="zoneMain"></div>
+        </div>
+      </div>
+
+      <!-- Нижний ряд: Левая и Правая колонка -->
+      <div class="card-builder-row row-bottom">
+        <div class="card-builder-zone-box zone-box-left">
+          <div class="zone-tag">Низ / Слева</div>
+          <div class="card-builder-zone" data-zone="bottom-left" id="zoneBottomLeft"></div>
+        </div>
+        <div class="card-builder-zone-box zone-box-right">
+          <div class="zone-tag">Низ / Справа</div>
+          <div class="card-builder-zone" data-zone="bottom-right" id="zoneBottomRight"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -566,15 +610,15 @@
     <!-- Сегментированный переключатель уровней редактирования -->
     <div class="layout-tabs-nav" id="layoutTabsNav">
       <button class="layout-tab-btn active" data-tab="screen" id="tabBtnScreen" type="button">
-        <span class="tab-icon">📱</span>
+        <span class="tab-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg></span>
         <span class="tab-text">Экран</span>
       </button>
       <button class="layout-tab-btn" data-tab="menu" id="tabBtnMenu" type="button">
-        <span class="tab-icon">📋</span>
+        <span class="tab-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></span>
         <span class="tab-text">Меню</span>
       </button>
       <button class="layout-tab-btn" data-tab="card" id="tabBtnCard" type="button">
-        <span class="tab-icon">🏷️</span>
+        <span class="tab-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></span>
         <span class="tab-text">Карточка</span>
       </button>
     </div>

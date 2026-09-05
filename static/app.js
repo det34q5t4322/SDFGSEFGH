@@ -63,7 +63,16 @@ const ICONS = {
   chevronRight: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>',
   x: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
   moon: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>',
-  play: '<svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
+  play: '<svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>',
+  eye: '<svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff: '<svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>',
+  lock: '<svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  grip: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>',
+  zap: '<svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  smartphone: '<svg class="lucide-icon" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg>',
+  menuIcon: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>',
+  tag: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>',
+  shieldAlert: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>'
 };
 
 // ── CONFIG ──────────────────────────────
@@ -1927,36 +1936,86 @@ function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelle
     `;
   }
 
-  // Кастомный порядок полей по шаблону
+  // Кастомный зональный рендеринг полей с поддержкой сеток, размеров и цветов
   const FIELD_MAP = {
-    'field-time': () => {
+    'field-time': (item) => {
       if (!pn && !timeStr) return '';
-      return `<div class="card-field field-time">${pn ? `<span class="pair-num-badge">№${pn}</span>` : ''} <span class="pair-time-span">${timeStr}</span></div>`;
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      return `<div class="card-field field-time${szCls}${colCls}">${pn ? `<span class="pair-num-badge">№${pn}</span>` : ''} <span class="pair-time-span">${timeStr}</span></div>`;
     },
-    'field-subject': () => {
-      return `<div class="card-field field-subject pair-subject${cancelled ? ' cancelled-text' : ''}">${esc(p.subject || '')}</div>`;
+    'field-subject': (item) => {
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      return `<div class="card-field field-subject pair-subject${cancelled ? ' cancelled-text' : ''}${szCls}${colCls}">${esc(p.subject || '')}</div>`;
     },
-    'field-teacher': () => {
-      return teacherHtml ? `<div class="card-field field-teacher">${teacherHtml}</div>` : '';
+    'field-teacher': (item) => {
+      if (!teacherHtml) return '';
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      return `<div class="card-field field-teacher${szCls}${colCls}">${teacherHtml}</div>`;
     },
-    'field-room': () => {
-      return roomHtml ? `<div class="card-field field-room">${roomHtml}</div>` : '';
+    'field-room': (item) => {
+      if (!roomHtml) return '';
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      return `<div class="card-field field-room${szCls}${colCls}">${roomHtml}</div>`;
     },
-    'field-badges': () => {
-      return badges ? `<div class="card-field field-badges pair-badges-row">${badges}</div>` : '';
+    'field-badges': (item) => {
+      if (!badges) return '';
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      return `<div class="card-field field-badges pair-badges-row${szCls}${colCls}">${badges}</div>`;
     }
   };
 
-  let fieldsHtml = '';
+  const zones = {
+    'top-left': [],
+    'top-right': [],
+    'main': [],
+    'bottom-left': [],
+    'bottom-right': []
+  };
+
   cfg.forEach(item => {
-    // Название предмета обязательно, остальные уважают флаг видимости
     if (item.id === 'field-subject' || item.visible) {
       const fn = FIELD_MAP[item.id];
-      if (fn) fieldsHtml += fn();
+      if (fn) {
+        const fieldHtml = fn(item);
+        if (fieldHtml) {
+          const z = item.zone && zones[item.zone] ? item.zone : (DEFAULT_CARD_ZONE_MAP[item.id] || 'main');
+          zones[z].push(fieldHtml);
+        }
+      }
     }
   });
 
-  return fieldsHtml;
+  let content = '';
+
+  // Ряд 1: Верх (левый и правый угол)
+  if (zones['top-left'].length > 0 || zones['top-right'].length > 0) {
+    content += `<div class="card-zone-row zone-row-top">
+      <div class="card-zone-col col-left">${zones['top-left'].join('')}</div>
+      <div class="card-zone-col col-right">${zones['top-right'].join('')}</div>
+    </div>`;
+  }
+
+  // Ряд 2: Центральная основная строка
+  if (zones['main'].length > 0) {
+    content += `<div class="card-zone-row zone-row-main">
+      ${zones['main'].join('')}
+    </div>`;
+  }
+
+  // Ряд 3: Низ (левый и правый угол)
+  if (zones['bottom-left'].length > 0 || zones['bottom-right'].length > 0) {
+    content += `<div class="card-zone-row zone-row-bottom">
+      <div class="card-zone-col col-left">${zones['bottom-left'].join('')}</div>
+      <div class="card-zone-col col-right">${zones['bottom-right'].join('')}</div>
+    </div>`;
+  }
+
+  return content;
 }
 
 function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0) {
@@ -2916,55 +2975,68 @@ const PRESETS_LAYOUT = {
 const STORAGE_MENU_CONFIG = 'schedule_menu_config_v1';
 const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-layout-editor'];
 
+const DEFAULT_MENU_SECTION_MAP = {
+  'menu-schedule': 'study',
+  'menu-teacher': 'study',
+  'menu-classroom': 'study',
+  'menu-diary': 'study',
+  'menu-english': 'tools',
+  'menu-stats': 'tools',
+  'menu-change-group': 'tools',
+  'menu-theme': 'system',
+  'menu-refresh': 'system',
+  'menu-layout-editor': 'system'
+};
+
 const DEFAULT_MENU_CONFIG = [
-  { id: 'menu-schedule',      visible: true },
-  { id: 'menu-teacher',       visible: true },
-  { id: 'menu-classroom',     visible: true },
-  { id: 'menu-stats',         visible: true },
-  { id: 'menu-english',       visible: false }, // По умолчанию СКРЫТ по требованию!
-  { id: 'menu-diary',         visible: true },
-  { id: 'menu-theme',         visible: true },
-  { id: 'menu-change-group',  visible: true },
-  { id: 'menu-refresh',       visible: true },
-  { id: 'menu-layout-editor', visible: true },
+  { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
+  { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
+  { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
+  { id: 'menu-diary',         visible: true,  section: 'study',   color: 'default' },
+  { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' }, // По умолчанию СКРЫТ
+  { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
+  { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
+  { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
+  { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
+  { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
 ];
 
 const PRESETS_MENU = {
   standard: [
-    { id: 'menu-schedule',      visible: true },
-    { id: 'menu-teacher',       visible: true },
-    { id: 'menu-classroom',     visible: true },
-    { id: 'menu-stats',         visible: true },
-    { id: 'menu-english',       visible: false },
-    { id: 'menu-diary',         visible: true },
-    { id: 'menu-theme',         visible: true },
-    { id: 'menu-change-group',  visible: true },
-    { id: 'menu-refresh',       visible: true },
-    { id: 'menu-layout-editor', visible: true },
+    { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
+    { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
+    { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
+    { id: 'menu-diary',         visible: true,  section: 'study',   color: 'default' },
+    { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
+    { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
+    { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
   ],
   studyOnly: [
-    { id: 'menu-schedule',      visible: true },
-    { id: 'menu-teacher',       visible: true },
-    { id: 'menu-classroom',     visible: true },
-    { id: 'menu-change-group',  visible: true },
-    { id: 'menu-theme',         visible: true },
-    { id: 'menu-stats',         visible: false },
-    { id: 'menu-english',       visible: false },
-    { id: 'menu-diary',         visible: false },
-    { id: 'menu-refresh',       visible: true },
-    { id: 'menu-layout-editor', visible: true },
+    { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
+    { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
+    { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
+    { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-stats',         visible: false, section: 'tools',   color: 'default' },
+    { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
+    { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
+    { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
   ],
   minimal: [
-    { id: 'menu-schedule',      visible: true },
-    { id: 'menu-change-group',  visible: true },
-    { id: 'menu-teacher',       visible: false },
-    { id: 'menu-classroom',     visible: false },
-    { id: 'menu-stats',         visible: false },
-    { id: 'menu-english',       visible: false },
-    { id: 'menu-diary',         visible: false },
-    { id: 'menu-theme',         visible: false },
-    { id: 'menu-refresh',       visible: true },
-    { id: 'menu-layout-editor', visible: true },
+    { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
+    { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
+    { id: 'menu-teacher',       visible: false, section: 'study',   color: 'default' },
+    { id: 'menu-classroom',     visible: false, section: 'study',   color: 'default' },
+    { id: 'menu-stats',         visible: false, section: 'tools',   color: 'default' },
+    { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
+    { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
+    { id: 'menu-theme',         visible: false, section: 'system',  color: 'default' },
+    { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
   ]
 };
 
@@ -2972,43 +3044,94 @@ const PRESETS_MENU = {
 const STORAGE_CARD_TEMPLATE = 'schedule_card_template_v1';
 const MANDATORY_CARD_FIELDS = ['field-subject'];
 
+const DEFAULT_CARD_ZONE_MAP = {
+  'field-time': 'top-left',
+  'field-badges': 'top-right',
+  'field-subject': 'main',
+  'field-teacher': 'bottom-left',
+  'field-room': 'bottom-right'
+};
+
+const DEFAULT_CARD_SIZE_MAP = {
+  'field-time': 'md',
+  'field-badges': 'md',
+  'field-subject': 'lg',
+  'field-teacher': 'md',
+  'field-room': 'md'
+};
+
 const DEFAULT_CARD_CONFIG = [
-  { id: 'field-time',    visible: true },
-  { id: 'field-subject', visible: true },
-  { id: 'field-teacher', visible: true },
-  { id: 'field-room',    visible: true },
-  { id: 'field-badges',  visible: true }
+  { id: 'field-time',    visible: true, zone: 'top-left',     size: 'md', color: 'default' },
+  { id: 'field-badges',  visible: true, zone: 'top-right',    size: 'md', color: 'default' },
+  { id: 'field-subject', visible: true, zone: 'main',         size: 'lg', color: 'default' },
+  { id: 'field-teacher', visible: true, zone: 'bottom-left',  size: 'md', color: 'default' },
+  { id: 'field-room',    visible: true, zone: 'bottom-right', size: 'md', color: 'default' }
 ];
 
 const CARD_FIELD_LABELS = {
-  'field-time':    '⏰ Номер и время пары',
-  'field-subject': '📚 Название предмета',
-  'field-teacher': '👨‍🏫 Преподаватель',
-  'field-room':    '🚪 Аудитория',
-  'field-badges':  '🏷️ Метки статуса'
+  'field-time':    'Время и номер',
+  'field-subject': 'Предмет',
+  'field-teacher': 'Преподаватель',
+  'field-room':    'Аудитория',
+  'field-badges':  'Статус и бейджи'
 };
+
+const CARD_FIELD_ICONS = {
+  'field-time':    ICONS.clock,
+  'field-subject': ICONS.book,
+  'field-teacher': ICONS.user,
+  'field-room':    ICONS.door,
+  'field-badges':  ICONS.tag
+};
+
+const COLOR_CYCLE = ['default', 'danger', 'cyan', 'emerald', 'amber', 'purple'];
+const COLOR_NAMES = {
+  default: 'По теме',
+  danger: 'Красный',
+  cyan: 'Циан',
+  emerald: 'Изумруд',
+  amber: 'Янтарь',
+  purple: 'Фиолетовый'
+};
+const COLOR_VALUES = {
+  default: 'var(--accent, #6366f1)',
+  danger: '#f43f5e',
+  cyan: '#06b6d4',
+  emerald: '#10b981',
+  amber: '#f59e0b',
+  purple: '#a855f7'
+};
+
+const SIZE_CYCLE = ['sm', 'md', 'lg', 'xl'];
 
 const PRESETS_CARD = {
   classic: [
-    { id: 'field-time',    visible: true },
-    { id: 'field-subject', visible: true },
-    { id: 'field-teacher', visible: true },
-    { id: 'field-room',    visible: true },
-    { id: 'field-badges',  visible: true }
+    { id: 'field-time',    visible: true,  zone: 'top-left',     size: 'md', color: 'default' },
+    { id: 'field-badges',  visible: true,  zone: 'top-right',    size: 'md', color: 'default' },
+    { id: 'field-subject', visible: true,  zone: 'main',         size: 'lg', color: 'default' },
+    { id: 'field-teacher', visible: true,  zone: 'bottom-left',  size: 'md', color: 'default' },
+    { id: 'field-room',    visible: true,  zone: 'bottom-right', size: 'md', color: 'default' }
   ],
-  compact: [
-    { id: 'field-time',    visible: true },
-    { id: 'field-subject', visible: true },
-    { id: 'field-room',    visible: true },
-    { id: 'field-teacher', visible: false },
-    { id: 'field-badges',  visible: false }
+  table: [
+    { id: 'field-time',    visible: true,  zone: 'top-left',     size: 'sm', color: 'default' },
+    { id: 'field-room',    visible: true,  zone: 'top-right',    size: 'sm', color: 'cyan' },
+    { id: 'field-subject', visible: true,  zone: 'main',         size: 'md', color: 'default' },
+    { id: 'field-badges',  visible: true,  zone: 'bottom-right', size: 'sm', color: 'default' },
+    { id: 'field-teacher', visible: false, zone: 'bottom-left',  size: 'sm', color: 'default' }
   ],
-  roomFocus: [
-    { id: 'field-room',    visible: true },
-    { id: 'field-subject', visible: true },
-    { id: 'field-time',    visible: true },
-    { id: 'field-teacher', visible: true },
-    { id: 'field-badges',  visible: true }
+  heroSubject: [
+    { id: 'field-badges',  visible: true,  zone: 'top-right',    size: 'md', color: 'default' },
+    { id: 'field-subject', visible: true,  zone: 'main',         size: 'xl', color: 'cyan' },
+    { id: 'field-time',    visible: true,  zone: 'bottom-left',  size: 'sm', color: 'default' },
+    { id: 'field-room',    visible: true,  zone: 'bottom-right', size: 'sm', color: 'emerald' },
+    { id: 'field-teacher', visible: false, zone: 'bottom-left',  size: 'sm', color: 'default' }
+  ],
+  modular: [
+    { id: 'field-time',    visible: true,  zone: 'top-left',     size: 'md', color: 'default' },
+    { id: 'field-room',    visible: true,  zone: 'top-right',    size: 'lg', color: 'amber' },
+    { id: 'field-subject', visible: true,  zone: 'main',         size: 'lg', color: 'default' },
+    { id: 'field-teacher', visible: true,  zone: 'bottom-left',  size: 'md', color: 'default' },
+    { id: 'field-badges',  visible: true,  zone: 'bottom-right', size: 'md', color: 'default' }
   ]
 };
 
@@ -3017,8 +3140,8 @@ let isLayoutEditingMode = false;
 let currentLayoutTab = 'screen'; // 'screen' | 'menu' | 'card'
 
 let sortableScreenInstance = null;
-let sortableMenuInstance = null;
-let sortableCardInstance = null;
+let sortableMenuInstances = [];
+let sortableCardInstances = [];
 
 // Снимки для отмены изменений
 let screenOrderBeforeEdit = null;
@@ -3071,14 +3194,21 @@ function validateMenuConfig(cfg) {
       const isMandatory = MANDATORY_MENU_IDS.includes(item.id);
       clean.push({
         id: item.id,
-        visible: isMandatory ? true : Boolean(item.visible)
+        visible: isMandatory ? true : Boolean(item.visible),
+        section: item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'study',
+        color: item.color || (item.id === 'menu-english' ? 'danger' : 'default')
       });
     }
   });
 
   DEFAULT_MENU_CONFIG.forEach(def => {
     if (!seen.has(def.id)) {
-      clean.push({ id: def.id, visible: def.visible });
+      clean.push({
+        id: def.id,
+        visible: def.visible,
+        section: def.section,
+        color: def.color
+      });
     }
   });
 
@@ -3109,14 +3239,23 @@ function validateCardConfig(cfg) {
       const isMandatory = MANDATORY_CARD_FIELDS.includes(item.id);
       clean.push({
         id: item.id,
-        visible: isMandatory ? true : Boolean(item.visible)
+        visible: isMandatory ? true : Boolean(item.visible),
+        zone: item.zone || DEFAULT_CARD_ZONE_MAP[item.id] || 'main',
+        size: item.size || DEFAULT_CARD_SIZE_MAP[item.id] || 'md',
+        color: item.color || 'default'
       });
     }
   });
 
   DEFAULT_CARD_CONFIG.forEach(def => {
     if (!seen.has(def.id)) {
-      clean.push({ id: def.id, visible: def.visible });
+      clean.push({
+        id: def.id,
+        visible: def.visible,
+        zone: def.zone,
+        size: def.size,
+        color: def.color
+      });
     }
   });
 
@@ -3141,7 +3280,9 @@ function isCardTemplateCustom() {
   const current = getActiveCardTemplateConfig();
   if (current.length !== DEFAULT_CARD_CONFIG.length) return true;
   for (let i = 0; i < current.length; i++) {
-    if (current[i].id !== DEFAULT_CARD_CONFIG[i].id || current[i].visible !== DEFAULT_CARD_CONFIG[i].visible) {
+    const cur = current[i];
+    const def = DEFAULT_CARD_CONFIG[i];
+    if (cur.id !== def.id || cur.visible !== def.visible || cur.zone !== def.zone || cur.size !== def.size || cur.color !== def.color) {
       return true;
     }
   }
@@ -3162,6 +3303,10 @@ function areConfigsEqual(a, b) {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     if (a[i].id !== b[i].id || a[i].visible !== b[i].visible) return false;
+    if (a[i].section && b[i].section && a[i].section !== b[i].section) return false;
+    if (a[i].zone && b[i].zone && a[i].zone !== b[i].zone) return false;
+    if (a[i].size && b[i].size && a[i].size !== b[i].size) return false;
+    if (a[i].color && b[i].color && a[i].color !== b[i].color) return false;
   }
   return true;
 }
@@ -3194,12 +3339,24 @@ function applyMenuConfig(cfg, persist = false) {
   validated.forEach(item => {
     const el = container.querySelector(`.sidebar-nav-item[data-menu-id="${item.id}"]`);
     if (el) {
-      container.appendChild(el);
+      const secName = item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'study';
+      const secContainer = container.querySelector(`.sidebar-section-container[data-section="${secName}"]`);
+      if (secContainer) {
+        secContainer.appendChild(el);
+      }
+      el.dataset.section = secName;
+
       el.style.display = '';
       el.classList.toggle('menu-item-hidden', !item.visible);
+
+      // Снимаем старые акцентные классы и вешаем актуальный
+      ['danger', 'cyan', 'emerald', 'amber', 'purple'].forEach(c => el.classList.remove(`menu-color-${c}`));
+      if (item.color && item.color !== 'default') {
+        el.classList.add(`menu-color-${item.color}`);
+      }
+
       const toggleBtn = el.querySelector('.menu-vis-toggle-btn');
       if (toggleBtn) {
-        toggleBtn.textContent = item.visible ? '👁️' : '🙈';
         toggleBtn.title = item.visible ? 'Скрыть пункт' : 'Показать пункт';
       }
     }
@@ -3242,44 +3399,162 @@ function updateResetButtonsVisibility() {
   }
 }
 
-// ── РЕНДЕРИНГ ДРОПЗОНЫ ШАБЛОНА КАРТОЧКИ ──
+// ── РЕНДЕРИНГ ДРОПЗОНЫ ШАБЛОНА КАРТОЧКИ (MULTI-ZONE GRID) ──
 function renderCardTemplateDropzone() {
-  const dropzone = els.cardTemplateDropzone || $('cardTemplateDropzone');
-  if (!dropzone) return;
+  const ZONE_ELS = {
+    'top-left': $('zoneTopLeft'),
+    'top-right': $('zoneTopRight'),
+    'main': $('zoneMain'),
+    'bottom-left': $('zoneBottomLeft'),
+    'bottom-right': $('zoneBottomRight')
+  };
 
-  let html = '';
+  // Очищаем зоны
+  Object.values(ZONE_ELS).forEach(el => {
+    if (el) el.innerHTML = '';
+  });
+
   activeCardConfig.forEach(item => {
     const isMandatory = MANDATORY_CARD_FIELDS.includes(item.id);
     const label = CARD_FIELD_LABELS[item.id] || item.id;
-    html += `
-      <div class="card-template-field-item${item.visible ? '' : ' field-hidden'}" data-field-id="${item.id}">
-        <span class="field-drag-grip" title="Перетащить поле">⠿</span>
-        <span class="field-title">${esc(label)}</span>
-        <span class="field-action-col">
-          ${isMandatory
-            ? `<span class="menu-lock-icon" title="Обязательное поле">🔒</span>`
-            : `<button class="field-vis-btn" type="button" data-toggle-field="${item.id}" title="${item.visible ? 'Скрыть поле' : 'Показать поле'}">${item.visible ? '👁️' : '🙈'}</button>`
-          }
-        </span>
+    const iconSvg = CARD_FIELD_ICONS[item.id] || '';
+    const zoneName = item.zone || DEFAULT_CARD_ZONE_MAP[item.id] || 'main';
+    const targetZoneEl = ZONE_ELS[zoneName] || ZONE_ELS['main'];
+    if (!targetZoneEl) return;
+
+    const curSize = item.size || 'md';
+    const curColor = item.color || 'default';
+
+    const itemEl = document.createElement('div');
+    itemEl.className = `card-template-field-item${item.visible ? '' : ' field-hidden'}`;
+    itemEl.dataset.fieldId = item.id;
+    itemEl.innerHTML = `
+      <span class="field-drag-grip" title="Перетащить в любую зону">⠿</span>
+      <span class="field-title">${iconSvg} ${esc(label)}</span>
+      <div class="field-controls-group">
+        <button class="field-size-btn" type="button" data-size-field="${item.id}" title="Размер: ${curSize.toUpperCase()}">${curSize.toUpperCase()}</button>
+        <button class="field-color-btn" type="button" data-color-field="${item.id}" style="--field-color-val: ${COLOR_VALUES[curColor]}" title="Цвет: ${COLOR_NAMES[curColor]}"></button>
+        ${isMandatory
+          ? `<span class="menu-lock-icon" title="Обязательное поле">${ICONS.lock}</span>`
+          : `<button class="field-vis-btn" type="button" data-toggle-field="${item.id}" title="${item.visible ? 'Скрыть поле' : 'Показать поле'}">${item.visible ? ICONS.eye : ICONS.eyeOff}</button>`
+        }
       </div>
     `;
-  });
 
-  dropzone.innerHTML = html;
-
-  dropzone.querySelectorAll('.field-vis-btn').forEach(btn => {
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      const fid = btn.dataset.toggleField;
-      const target = activeCardConfig.find(c => c.id === fid);
-      if (target) {
-        target.visible = !target.visible;
+    // 1. Клик по кнопке размера (S -> M -> L -> XL -> S)
+    const sizeBtn = itemEl.querySelector('.field-size-btn');
+    if (sizeBtn) {
+      sizeBtn.onclick = (e) => {
+        e.stopPropagation();
+        const curIdx = SIZE_CYCLE.indexOf(item.size || 'md');
+        const nextIdx = (curIdx + 1) % SIZE_CYCLE.length;
+        item.size = SIZE_CYCLE[nextIdx];
         renderCardTemplateDropzone();
         applyCardConfig(activeCardConfig, false);
         updatePresetsUI();
-      }
-    };
+      };
+    }
+
+    // 2. Клик по кнопке цвета (цикл цветов)
+    const colorBtn = itemEl.querySelector('.field-color-btn');
+    if (colorBtn) {
+      colorBtn.onclick = (e) => {
+        e.stopPropagation();
+        const curIdx = COLOR_CYCLE.indexOf(item.color || 'default');
+        const nextIdx = (curIdx + 1) % COLOR_CYCLE.length;
+        item.color = COLOR_CYCLE[nextIdx];
+        renderCardTemplateDropzone();
+        applyCardConfig(activeCardConfig, false);
+        updatePresetsUI();
+      };
+    }
+
+    // 3. Клик по кнопке видимости
+    const visBtn = itemEl.querySelector('.field-vis-btn');
+    if (visBtn) {
+      visBtn.onclick = (e) => {
+        e.stopPropagation();
+        item.visible = !item.visible;
+        renderCardTemplateDropzone();
+        applyCardConfig(activeCardConfig, false);
+        updatePresetsUI();
+      };
+    }
+
+    targetZoneEl.appendChild(itemEl);
   });
+
+  // Инициализация / переподключение Sortable для всех 5 зон
+  initCardZonesSortable();
+}
+
+function initCardZonesSortable() {
+  sortableCardInstances.forEach(inst => {
+    try { inst.destroy(); } catch (_) {}
+  });
+  sortableCardInstances = [];
+
+  const zoneIds = ['zoneTopLeft', 'zoneTopRight', 'zoneMain', 'zoneBottomLeft', 'zoneBottomRight'];
+  zoneIds.forEach(zid => {
+    const zEl = $(zid);
+    if (zEl && window.Sortable) {
+      const inst = Sortable.create(zEl, {
+        group: 'card-template-zones',
+        animation: 160,
+        handle: '.field-drag-grip',
+        ghostClass: 'field-sortable-ghost',
+        touchStartThreshold: 3,
+        disabled: currentLayoutTab !== 'card',
+        onEnd: () => syncActiveCardConfigFromDOM()
+      });
+      sortableCardInstances.push(inst);
+    }
+  });
+}
+
+function syncActiveCardConfigFromDOM() {
+  const zoneNames = ['top-left', 'top-right', 'main', 'bottom-left', 'bottom-right'];
+  const newConfig = [];
+
+  zoneNames.forEach(zn => {
+    const box = document.querySelector(`.card-builder-zone[data-zone="${zn}"]`);
+    if (box) {
+      box.querySelectorAll('.card-template-field-item').forEach(el => {
+        const fid = el.dataset.fieldId;
+        const existing = activeCardConfig.find(c => c.id === fid);
+        if (existing) {
+          existing.zone = zn;
+          newConfig.push(existing);
+        }
+      });
+    }
+  });
+
+  activeCardConfig = validateCardConfig(newConfig);
+  applyCardConfig(activeCardConfig, false);
+  updatePresetsUI();
+}
+
+function syncActiveMenuConfigFromDOM() {
+  const newCfg = [];
+  const sectionContainers = document.querySelectorAll('#sidebarNav .sidebar-section-container');
+  sectionContainers.forEach(secEl => {
+    const secName = secEl.dataset.section || 'study';
+    secEl.querySelectorAll('.sidebar-nav-item[data-menu-id]').forEach(item => {
+      const mid = item.dataset.menuId;
+      const existing = activeMenuConfig.find(m => m.id === mid);
+      const isVis = !item.classList.contains('menu-item-hidden');
+      newCfg.push({
+        id: mid,
+        visible: isVis,
+        section: secName,
+        color: existing ? existing.color : 'default'
+      });
+    });
+  });
+
+  activeMenuConfig = validateMenuConfig(newCfg);
+  updatePresetsUI();
 }
 
 // ── ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК И ПРЕСЕТЫ ──
@@ -3329,13 +3604,15 @@ function updatePresetsUI() {
     });
   } else if (currentLayoutTab === 'card') {
     const isClassic = areConfigsEqual(activeCardConfig, PRESETS_CARD.classic);
-    const isCompact = areConfigsEqual(activeCardConfig, PRESETS_CARD.compact);
-    const isRoom = areConfigsEqual(activeCardConfig, PRESETS_CARD.roomFocus);
+    const isTable = areConfigsEqual(activeCardConfig, PRESETS_CARD.table);
+    const isHero = areConfigsEqual(activeCardConfig, PRESETS_CARD.heroSubject);
+    const isMod = areConfigsEqual(activeCardConfig, PRESETS_CARD.modular);
 
     row.innerHTML = `
       <button class="preset-chip${isClassic ? ' active' : ''}" type="button" data-preset="classic">Классика</button>
-      <button class="preset-chip${isCompact ? ' active' : ''}" type="button" data-preset="compact">Компакт</button>
-      <button class="preset-chip${isRoom ? ' active' : ''}" type="button" data-preset="roomFocus">Кабинет в фокусе</button>
+      <button class="preset-chip${isTable ? ' active' : ''}" type="button" data-preset="table">Таблица</button>
+      <button class="preset-chip${isHero ? ' active' : ''}" type="button" data-preset="heroSubject">Акцент</button>
+      <button class="preset-chip${isMod ? ' active' : ''}" type="button" data-preset="modular">Блочный</button>
     `;
 
     row.querySelectorAll('.preset-chip').forEach(btn => {
@@ -3364,16 +3641,16 @@ function switchLayoutTab(tabName) {
     if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'none';
 
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', false);
-    if (sortableMenuInstance) sortableMenuInstance.option('disabled', true);
-    if (sortableCardInstance) sortableCardInstance.option('disabled', true);
+    sortableMenuInstances.forEach(inst => inst.option('disabled', true));
+    sortableCardInstances.forEach(inst => inst.option('disabled', true));
   } else if (tabName === 'menu') {
     openSidebar();
     document.body.classList.add('menu-editing-active');
     if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'none';
 
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
-    if (sortableMenuInstance) sortableMenuInstance.option('disabled', false);
-    if (sortableCardInstance) sortableCardInstance.option('disabled', true);
+    sortableMenuInstances.forEach(inst => inst.option('disabled', false));
+    sortableCardInstances.forEach(inst => inst.option('disabled', true));
   } else if (tabName === 'card') {
     closeSidebar();
     document.body.classList.remove('menu-editing-active');
@@ -3381,8 +3658,8 @@ function switchLayoutTab(tabName) {
     renderCardTemplateDropzone();
 
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
-    if (sortableMenuInstance) sortableMenuInstance.option('disabled', true);
-    if (sortableCardInstance) sortableCardInstance.option('disabled', false);
+    sortableMenuInstances.forEach(inst => inst.option('disabled', true));
+    sortableCardInstances.forEach(inst => inst.option('disabled', false));
   }
 
   updatePresetsUI();
@@ -3427,49 +3704,30 @@ function enterLayoutEditor(initialTab = 'screen') {
     });
   }
 
-  // 2. Инициализация Sortable для меню
-  const navContainer = els.sidebarNav || $('sidebarNav');
-  if (navContainer && window.Sortable && !sortableMenuInstance) {
-    sortableMenuInstance = Sortable.create(navContainer, {
-      animation: 200,
-      handle: '.menu-drag-handle',
-      ghostClass: 'sortable-ghost',
-      touchStartThreshold: 4,
-      filter: '#sidebarResetLayoutBtn',
-      onEnd: () => {
-        const newCfg = [];
-        navContainer.querySelectorAll('.sidebar-nav-item[data-menu-id]').forEach(item => {
-          const mid = item.dataset.menuId;
-          const isVis = !item.classList.contains('menu-item-hidden');
-          newCfg.push({ id: mid, visible: isVis });
-        });
-        activeMenuConfig = validateMenuConfig(newCfg);
-        updatePresetsUI();
-      }
-    });
-  }
+  // 2. Инициализация Sortable для меню по секциям
+  sortableMenuInstances.forEach(inst => {
+    try { inst.destroy(); } catch (_) {}
+  });
+  sortableMenuInstances = [];
+
+  const sectionContainers = document.querySelectorAll('#sidebarNav .sidebar-section-container');
+  sectionContainers.forEach(secEl => {
+    if (window.Sortable) {
+      const inst = Sortable.create(secEl, {
+        group: 'sidebar-menu-sections',
+        animation: 180,
+        handle: '.menu-drag-handle',
+        ghostClass: 'menu-sortable-ghost',
+        touchStartThreshold: 4,
+        disabled: true,
+        onEnd: () => syncActiveMenuConfigFromDOM()
+      });
+      sortableMenuInstances.push(inst);
+    }
+  });
 
   // 3. Инициализация Sortable для карточки
-  const cardDropzone = els.cardTemplateDropzone || $('cardTemplateDropzone');
-  if (cardDropzone && window.Sortable && !sortableCardInstance) {
-    sortableCardInstance = Sortable.create(cardDropzone, {
-      animation: 200,
-      handle: '.field-drag-grip',
-      ghostClass: 'sortable-ghost',
-      touchStartThreshold: 3,
-      onEnd: () => {
-        const newFields = [];
-        cardDropzone.querySelectorAll('.card-template-field-item').forEach(el => {
-          const fid = el.dataset.fieldId;
-          const old = activeCardConfig.find(c => c.id === fid);
-          if (old) newFields.push(old);
-        });
-        activeCardConfig = validateCardConfig(newFields);
-        applyCardConfig(activeCardConfig, false);
-        updatePresetsUI();
-      }
-    });
-  }
+  initCardZonesSortable();
 
   switchLayoutTab(initialTab);
 }
@@ -3496,8 +3754,8 @@ function exitLayoutEditor(save = false) {
   if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'none';
 
   if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
-  if (sortableMenuInstance) sortableMenuInstance.option('disabled', true);
-  if (sortableCardInstance) sortableCardInstance.option('disabled', true);
+  sortableMenuInstances.forEach(inst => inst.option('disabled', true));
+  sortableCardInstances.forEach(inst => inst.option('disabled', true));
 
   closeSidebar();
 }
@@ -3559,7 +3817,7 @@ function showLayoutNotification(msg) {
     `;
     document.body.appendChild(toast);
   }
-  toast.innerHTML = `<span>⚡</span> <span>${esc(msg)}</span>`;
+  toast.innerHTML = `<span>${ICONS.zap}</span> <span>${esc(msg)}</span>`;
   requestAnimationFrame(() => {
     toast.style.opacity = '1';
     toast.style.transform = 'translateX(-50%) translateY(0)';
