@@ -30,6 +30,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from telegram.request import HTTPXRequest
 
 # Загружаем настройки из .env
 load_dotenv()
@@ -734,7 +735,26 @@ def create_bot_app():
         logger.warning("BOT_TOKEN не задан в .env! Бот не может запуститься.")
         return None
 
-    builder = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init)
+    request = HTTPXRequest(
+        connect_timeout=20.0,
+        read_timeout=30.0,
+        write_timeout=20.0,
+        pool_timeout=10.0,
+    )
+    get_updates_request = HTTPXRequest(
+        connect_timeout=20.0,
+        read_timeout=35.0,
+        write_timeout=20.0,
+        pool_timeout=10.0,
+    )
+
+    builder = (
+        ApplicationBuilder()
+        .token(BOT_TOKEN)
+        .request(request)
+        .get_updates_request(get_updates_request)
+        .post_init(post_init)
+    )
     builder = builder.defaults(Defaults(disable_notification=True))
 
     if TELEGRAM_API_URL:
