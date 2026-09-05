@@ -516,6 +516,7 @@ async def health_check():
             "data_age_seconds": age_sec,
             "stale": is_stale,
             "circuit_breaker": cb,
+            "sync_errors_recent": parser.get_sync_errors()[-10:] if hasattr(parser, "get_sync_errors") else [],
             "uptime_check": "PASS" if not warnings else "WARN",
         }
     except Exception as e:
@@ -527,9 +528,23 @@ async def health_check():
                 "error": str(e),
                 "warnings": [f"Критическая ошибка сервиса: {e}"],
                 "circuit_breaker": _circuit_breaker.status_dict(),
+                "sync_errors_recent": parser.get_sync_errors()[-10:] if hasattr(parser, "get_sync_errors") else [],
                 "uptime_check": "FAIL",
             },
         )
+
+
+@app.get("/api/sync-diagnostics")
+async def sync_diagnostics():
+    """Возвращает историю сбоев синхронизации с Google Sheets и состояние CircuitBreaker."""
+    errors = parser.get_sync_errors() if hasattr(parser, "get_sync_errors") else []
+    cb = _circuit_breaker.status_dict()
+    return {
+        "status": "ok",
+        "circuit_breaker": cb,
+        "total_errors_recorded": len(errors),
+        "recent_errors": errors,
+    }
 
 
 @app.post("/api/refresh")

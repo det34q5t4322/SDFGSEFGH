@@ -1339,12 +1339,13 @@ function updateActiveBreakDividers() {
   const now = new Date();
   const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   document.querySelectorAll('.schedule-break-divider').forEach(div => {
+    const isDividerToday = (div.dataset.isToday === 'true') && (S.weekOffset === 0);
     const sMin = parseInt(div.dataset.sMin, 10);
     const eMin = parseInt(div.dataset.eMin, 10);
     if (!isNaN(sMin) && !isNaN(eMin)) {
       const sSec = sMin * 60;
       const eSec = eMin * 60;
-      const isActive = (nowSec >= sSec && nowSec < eSec);
+      const isActive = isDividerToday && (nowSec >= sSec && nowSec < eSec);
       div.classList.toggle('break-active-glow', isActive);
       let badge = div.querySelector('.break-active-badge');
       if (isActive) {
@@ -1469,8 +1470,11 @@ function updateLiveCard() {
   const dayName = DAYS[todayDow];
   const pairs = getGroupDayPairs(dayName);
 
-  // 1. Проверяем текущие пары сегодня
-  if (pairs && pairs.length > 0) {
+  // Проверка: сегодня выходной (воскресенье) или у группы нет пар
+  const isWeekendOrNoPairs = (todayDow === 0) || (!pairs || pairs.length === 0);
+
+  // 1. Проверяем текущие пары сегодня (если сегодня учебный день с парами)
+  if (!isWeekendOrNoPairs && pairs && pairs.length > 0) {
     for (const p of pairs) {
       const pn = p.pair_num;
       if (!pn || pn < 1 || pn > 6) continue;
@@ -1513,22 +1517,27 @@ function updateLiveCard() {
         return;
       }
 
-      // Перемена между парами сегодня
+      // Перемена между парами сегодня: ТОЛЬКО если сегодня ещё будут пары после текущей!
       if (pn < 6) {
-        const brk = BREAKS[pn];
-        if (brk) {
-          const brkStartSec = brk.s * 60;
-          const brkEndSec = brk.e * 60;
-          if (nowSec >= brkStartSec && nowSec < brkEndSec) {
-            const leftSec = brkEndSec - nowSec;
-            const pct = Math.min(100, Math.max(0, ((nowSec - brkStartSec) / (brk.dur * 60)) * 100));
-            setLiveCard('break', brk.dur >= 20 ? ICONS.utensils : ICONS.coffee,
-              `${brk.name} • до ${fmtTime(brk.e)}`,
-              `До начала ${pn + 1} пары осталось <b>${fmtSec(leftSec)}</b>`,
-              `<b>${brk.name}</b>: осталось <b>${fmtSec(leftSec)}</b>`
-            );
-            if (els.liveCardProgress) els.liveCardProgress.style.width = pct.toFixed(1) + '%';
-            return;
+        const hasNextPairToday = pairs.some(other => (other.pair_num || other.pair_number) > pn);
+        if (hasNextPairToday) {
+          const brk = BREAKS[pn];
+          if (brk) {
+            const brkStartSec = brk.s * 60;
+            const brkEndSec = brk.e * 60;
+            if (nowSec >= brkStartSec && nowSec < brkEndSec) {
+              const nextPairObj = pairs.find(other => (other.pair_num || other.pair_number) > pn);
+              const nextPn = nextPairObj ? (nextPairObj.pair_num || nextPairObj.pair_number) : (pn + 1);
+              const leftSec = brkEndSec - nowSec;
+              const pct = Math.min(100, Math.max(0, ((nowSec - brkStartSec) / (brk.dur * 60)) * 100));
+              setLiveCard('break', brk.dur >= 20 ? ICONS.utensils : ICONS.coffee,
+                `${brk.name} • до ${fmtTime(brk.e)}`,
+                `До начала ${nextPn} пары осталось <b>${fmtSec(leftSec)}</b>`,
+                `<b>${brk.name}</b>: осталось <b>${fmtSec(leftSec)}</b>`
+              );
+              if (els.liveCardProgress) els.liveCardProgress.style.width = pct.toFixed(1) + '%';
+              return;
+            }
           }
         }
       }
@@ -1554,7 +1563,9 @@ function updateLiveCard() {
     }
   }
 
-  // 3. Пары на сегодня окончены (или сегодня выходной) -> Ищем следующий учебный день и считаем время!
+  // 3. Пары на сегодня окончены или сегодня выходной -> Ищем следующий учебный день
+  const weekendTitle = todayDow === 0 ? 'Воскресенье — выходной' : (isWeekendOrNoPairs ? 'Сегодня пар нет' : 'Пары на сегодня окончены');
+
   for (let offset = 1; offset <= 7; offset++) {
     const nextDow = (todayDow + offset) % 7;
     const nextDayName = DAYS[nextDow];
@@ -1577,10 +1588,10 @@ function updateLiveCard() {
           const subj = firstPair.subject ? esc(firstPair.subject.slice(0, 45)) : '';
           const timeStr = fmtHoursSec(diffSec);
 
-          setLiveCard('soon', ICONS.clock,
-            `Следующие пары — ${dayLabel}`,
-            `До ${pn} пары (${fmtTime(bell.s)}) осталось <b>${timeStr}</b> • ${subj}`,
-            `${pn} пара ${dayLabel}: <b>${timeStr}</b>`
+          setLiveCard('free', ICONS.moon,
+            `${weekendTitle}`,
+            `Следующие пары — ${dayLabel} в ${fmtTime(bell.s)} (через ${timeStr})`,
+            `${weekendTitle} • Следующие: ${dayLabel}`
           );
           if (els.liveCardProgress) els.liveCardProgress.style.width = '0%';
           return;
@@ -1590,7 +1601,7 @@ function updateLiveCard() {
   }
 
   // 4. Если на неделю вперёд пар нет
-  setLiveCard('free', ICONS.moon, 'Пары на сегодня окончены', 'Хорошего отдыха!', 'Пары окончены');
+  setLiveCard('free', ICONS.moon, 'Пар нет', 'Хорошего отдыха!', 'Пар нет');
 }
 
 function setLiveCard(type, icon, title, sub, restoreText = '') {
@@ -1762,8 +1773,7 @@ async function loadSchedule(force = false) {
     updateSyncStatus(false, hasCachedData);
 
     if (hasCachedData) {
-      const updTime = S.data?.last_updated || localStorage.getItem('schedule_last_sync_time') || 'ранее';
-      showOfflineBanner(`Показано сохранённое расписание, обновлено ${updTime}`);
+      hideOfflineBanner();
     } else if (els.scheduleView) {
       hideOfflineBanner();
       els.scheduleView.removeAttribute('aria-busy');
@@ -1976,13 +1986,13 @@ function renderDayPairs(dayName) {
         if (brk) {
           const brkStartSec = brk.s * 60;
           const brkEndSec = brk.e * 60;
-          const isBreakActive = isToday && nowSec >= brkStartSec && nowSec < brkEndSec;
+          const isBreakActive = isToday && (S.weekOffset === 0) && nowSec >= brkStartSec && nowSec < brkEndSec;
           const leftSec = isBreakActive ? (brkEndSec - nowSec) : 0;
           const glowClass = isBreakActive ? ' break-active-glow' : '';
           const activeBadge = isBreakActive ? `<span class="break-active-badge">${ICONS.play} Идёт сейчас (${fmtSec(leftSec)})</span>` : '';
           const breakIconSvg = brk.dur >= 20 ? ICONS.utensils : ICONS.coffee;
 
-          html += `<div class="schedule-break-divider${glowClass}" data-s-min="${brk.s}" data-e-min="${brk.e}">
+          html += `<div class="schedule-break-divider${glowClass}" data-day="${esc(dayName)}" data-is-today="${isToday}" data-s-min="${brk.s}" data-e-min="${brk.e}">
             <div class="break-info-left">
               <span class="break-icon">${breakIconSvg}</span>
               <span class="break-name">${brk.name}</span>
@@ -2495,9 +2505,17 @@ async function startEnglishCountdown() {
   const teacherEl = document.getElementById('alarmPairTeacher');
   const roomEl = document.getElementById('alarmPairRoom');
 
+  const countdownGrid = document.querySelector('.alarm-countdown-grid');
+  if (countdownGrid) countdownGrid.classList.add('is-loading');
+
+  if (daysEl) daysEl.textContent = '—';
+  if (hoursEl) hoursEl.textContent = '—';
+  if (minsEl) minsEl.textContent = '—';
+  if (secsEl) secsEl.textContent = '—';
+
   if (groupNoticeEl) groupNoticeEl.textContent = `Группа: ${S.group || '—'}`;
-  if (dateEl) dateEl.textContent = 'Поиск ближайшей пары по расписанию...';
-  if (timeEl) timeEl.textContent = 'Определение времени...';
+  if (dateEl) dateEl.textContent = '⏳ Загрузка расписания и поиск пары...';
+  if (timeEl) timeEl.textContent = 'Пожалуйста, подождите...';
 
   // 1. Быстрый и безошибочный серверный API
   let serverAlarm = null;
@@ -2558,6 +2576,7 @@ async function startEnglishCountdown() {
     }
 
     if (!englishPair) {
+      if (countdownGrid) countdownGrid.classList.remove('is-loading');
       if (dateEl) dateEl.textContent = 'В расписании группы пар не найдено';
       if (timeEl) timeEl.textContent = '—';
       if (subjEl) subjEl.textContent = 'Иностранный язык';
@@ -2578,6 +2597,8 @@ async function startEnglishCountdown() {
 
     currentEnglishTargetDate = englishPair.targetDate;
   }
+
+  if (countdownGrid) countdownGrid.classList.remove('is-loading');
 
   function tick() {
     if (!currentEnglishTargetDate) return;
@@ -3467,7 +3488,7 @@ function applyLayoutOrder(order, persist = false) {
     const el = container.querySelector(`.flow-widget[data-widget="${item.id}"]`);
     if (el) {
       container.appendChild(el);
-      const isVis = (item.visible !== false);
+      const isVis = (item.id === MANDATORY_LAYOUT_WIDGET) ? true : (item.visible !== false);
       el.classList.toggle('flow-widget-hidden', !isVis);
       const toggleBtn = el.querySelector('.widget-vis-toggle-btn');
       if (toggleBtn) {
@@ -4091,7 +4112,29 @@ function exitLayoutEditor(save = false) {
   sortableMenuInstances.forEach(inst => inst.option('disabled', true));
   sortableCardInstances.forEach(inst => inst.option('disabled', true));
 
-  try { renderSchedule(); } catch (_) {}
+  // Гарантируем возврат к расписанию и полную видимость всех блоков
+  if (S.view !== 'week' && S.view !== 'today' && S.view !== 'schedule') {
+    S.view = 'today';
+  }
+  if (els.scheduleView) {
+    els.scheduleView.style.display = 'block';
+  }
+  const schedWidget = document.querySelector('.flow-widget[data-widget="widget-schedule-content"]');
+  if (schedWidget) {
+    schedWidget.classList.remove('flow-widget-hidden');
+  }
+  const navWrap = document.querySelector('.week-nav-wrap');
+  if (navWrap) navWrap.style.display = 'block';
+  if (els.dayStrip?.parentElement) els.dayStrip.parentElement.style.display = 'block';
+
+  try {
+    buildDayStrip();
+    updateTopbarParity();
+    renderSchedule();
+    updateLiveCard();
+  } catch (err) {
+    console.error('Ошибка отрисовки расписания при выходе из конструктора:', err);
+  }
 
   closeSidebar();
 }

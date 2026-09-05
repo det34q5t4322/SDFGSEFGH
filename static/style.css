@@ -1856,13 +1856,17 @@ input {
 
 .pair-body { flex: 1; min-width: 0; padding-right: 4px; }
 .pair-subject {
+  display: block !important;
   font-size: calc(clamp(13px, 3.6vw, 14.5px) * var(--font-scale, 1));
   font-weight: 700;
   color: var(--text);
   margin-bottom: 5px;
   line-height: 1.35;
-  word-break: break-word;
-  overflow-wrap: break-word;
+  width: 100% !important;
+  min-width: 0 !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: auto;
 }
 .pair-subject.cancelled-text { text-decoration: line-through; color: var(--text-muted); }
 
@@ -3911,6 +3915,22 @@ input {
   text-shadow: 0 0 12px rgba(239, 68, 68, 0.7);
 }
 
+.alarm-countdown-grid.is-loading {
+  position: relative;
+  opacity: 0.88;
+}
+
+.alarm-countdown-grid.is-loading .alarm-num {
+  animation: alarmPulse 1.1s ease-in-out infinite alternate;
+  color: #fb7185 !important;
+  opacity: 0.6;
+}
+
+@keyframes alarmPulse {
+  0% { opacity: 0.35; transform: scale(0.96); }
+  100% { opacity: 0.9; transform: scale(1.02); }
+}
+
 .alarm-label {
   font-size: 10px;
   font-weight: 700;
@@ -5453,6 +5473,10 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
 }
 
 .card-zone-row.zone-row-main {
+  width: 100% !important;
+  display: flex !important;
+  align-items: stretch !important;
+  min-width: 0 !important;
   margin-bottom: 4px;
 }
 
@@ -5499,11 +5523,16 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
 }
 
 .card-field.field-subject {
-  width: 100%;
+  display: block !important;
+  width: 100% !important;
+  flex: 1 1 100% !important;
+  min-width: 0 !important;
   font-weight: 700;
   color: var(--text);
   line-height: 1.35;
-  word-break: break-word;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: auto;
 }
 
 .card-field.field-badges {

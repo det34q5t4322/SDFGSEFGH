@@ -1,9 +1,11 @@
+import collections
 import csv
 import io
 import json
 import logging
 import os
 import re
+import socket
 import time
 import urllib.request
 import urllib.error
@@ -158,18 +160,41 @@ class CircuitBreaker:
 _circuit_breaker = CircuitBreaker()
 
 
+# Circular buffer для последних 50 ошибок синхронизации Google Sheets
+_sync_error_log = collections.deque(maxlen=50)
+
+def record_sync_error(category: str, message: str, url: str = "", http_status: Optional[int] = None, attempt: int = 1) -> None:
+    """Записывает детализированную ошибку синхронизации в кольцевой буфер и системный лог."""
+    entry = {
+        "timestamp": time.time(),
+        "iso_time": datetime.now().isoformat(),
+        "category": category,
+        "message": message,
+        "http_status": http_status,
+        "url_sample": (url[:80] + "...") if len(url) > 80 else url,
+        "attempt": attempt,
+    }
+    _sync_error_log.append(entry)
+    logger.error(f"[GoogleSheets Sync Failure] [{category}] (попытка {attempt}, code={http_status}): {message} | {entry['url_sample']}")
+
+def get_sync_errors() -> List[dict]:
+    """Возвращает историю последних ошибок синхронизации Google Sheets."""
+    return list(_sync_error_log)
+
+
 # ─────────────────────────────────────────────
-#  Retry с экспоненциальным backoff
+#  Retry с экспоненциальным backoff и логированием причин сбоев
 # ─────────────────────────────────────────────
 def fetch_with_retry(url: str, retries: int = 3, timeout: int = 20) -> bytes:
     """Загружает URL с повторными попытками при сбое (backoff: 2с → 4с → 8с).
     Уважает CircuitBreaker: если OPEN — сразу бросает исключение.
+    Логирует точные причины отвала (таймаут, 403, 429, пустой ответ, сброс сети).
     """
     if not _circuit_breaker.allow_request():
-        raise RuntimeError(
-            f"CircuitBreaker OPEN — запросы к Google заблокированы "
-            f"(восстановление через ~{max(0, int(_circuit_breaker.OPEN_TIMEOUT - (time.time() - _circuit_breaker._opened_at)))} сек)"
-        )
+        wait_left = max(0, int(_circuit_breaker.OPEN_TIMEOUT - (time.time() - _circuit_breaker._opened_at)))
+        err_msg = f"CircuitBreaker OPEN — запросы к Google временно заблокированы (пауза {wait_left} сек)"
+        record_sync_error("CIRCUIT_BREAKER_OPEN", err_msg, url=url)
+        raise RuntimeError(err_msg)
 
     headers = {
         "User-Agent": (
@@ -183,39 +208,77 @@ def fetch_with_retry(url: str, retries: int = 3, timeout: int = 20) -> bytes:
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 data = resp.read()
+
+            if not data or len(data.strip()) == 0:
+                empty_err = f"Пустой ответ от Google Sheets (0 байт) при экспорте: {url[:80]}"
+                record_sync_error("EMPTY_RESPONSE", empty_err, url=url, attempt=attempt)
+                raise ValueError(empty_err)
+
             _circuit_breaker.record_success()
             if attempt > 1:
-                logger.info(f"Успех на попытке {attempt}: {url[:80]}")
+                logger.info(f"Успешная загрузка Google Sheets на попытке {attempt}: {url[:80]}")
             return data
+
         except urllib.error.HTTPError as http_err:
             last_exc = http_err
+            category = f"HTTP_{http_err.code}"
+
             if http_err.code in (401, 403):
-                logger.critical(
-                    f"🚨 КРИТИЧЕСКАЯ ОШИБКА ДОСТУПА: Google Таблица вернула HTTP {http_err.code}! "
-                    f"Доступ закрыт или отозван. Проверьте права общего доступа: {url[:80]}"
-                )
+                category = "HTTP_403_FORBIDDEN"
+                msg = f"Доступ закрыт или отозван (HTTP {http_err.code}). Проверьте публичные права таблицы."
+                record_sync_error(category, msg, url=url, http_status=http_err.code, attempt=attempt)
+                logger.critical(f"🚨 КРИТИЧЕСКАЯ ОШИБКА ДОСТУПА: {msg} {url[:80]}")
                 break  # Бесполезно ретраить при 401/403
             elif http_err.code in (404, 410):
-                logger.critical(
-                    f"🚨 КРИТИЧЕСКАЯ ОШИБКА: Google Таблица не найдена (HTTP {http_err.code})! "
-                    f"Таблица удалена или изменён идентификатор: {url[:80]}"
-                )
+                category = "HTTP_404_NOT_FOUND"
+                msg = f"Таблица не найдена (HTTP {http_err.code}). Проверьте ID таблицы."
+                record_sync_error(category, msg, url=url, http_status=http_err.code, attempt=attempt)
+                logger.critical(f"🚨 КРИТИЧЕСКАЯ ОШИБКА: {msg} {url[:80]}")
                 break  # Бесполезно ретраить при 404
             elif http_err.code == 429:
-                logger.warning(f"⚠️ Превышен лимит запросов Google Sheets (HTTP 429). Попытка {attempt}/{retries}")
+                category = "HTTP_429_RATE_LIMIT"
+                msg = f"Превышен лимит запросов к Google Sheets (HTTP 429 Rate Limit)."
+                record_sync_error(category, msg, url=url, http_status=http_err.code, attempt=attempt)
+                logger.warning(f"⚠️ {msg} Попытка {attempt}/{retries}")
+            elif http_err.code >= 500:
+                category = f"HTTP_{http_err.code}_SERVER_ERROR"
+                msg = f"Серверная ошибка Google Sheets (HTTP {http_err.code})."
+                record_sync_error(category, msg, url=url, http_status=http_err.code, attempt=attempt)
+            else:
+                record_sync_error(category, f"HTTP ошибка {http_err.code}: {http_err.reason}", url=url, http_status=http_err.code, attempt=attempt)
 
             wait = 2 ** attempt
             if attempt < retries:
-                logger.warning(f"HTTP ошибка {http_err.code} на попытке {attempt}/{retries}, повтор через {wait}с")
+                logger.warning(f"HTTP {http_err.code} на попытке {attempt}/{retries}, повтор через {wait}с")
                 time.sleep(wait)
+
         except Exception as exc:
             last_exc = exc
-            wait = 2 ** attempt  # 2, 4, 8 сек
+            exc_str = str(exc)
+            category = "NETWORK_ERROR"
+
+            if isinstance(exc, (TimeoutError, socket.timeout)) or "timed out" in exc_str.lower():
+                category = "TIMEOUT"
+                msg = f"Таймаут ожидания ответа от Google Sheets ({timeout} сек): {exc_str}"
+            elif "getaddrinfo failed" in exc_str or "name or service not known" in exc_str.lower():
+                category = "DNS_FAILURE"
+                msg = f"Сбой разрешения доменного имени Google: {exc_str}"
+            elif "connection reset" in exc_str.lower() or "connection refused" in exc_str.lower():
+                category = "CONNECTION_RESET"
+                msg = f"Сброс соединения удалённым сервером: {exc_str}"
+            elif isinstance(exc, ValueError) and "Пустой ответ" in exc_str:
+                category = "EMPTY_RESPONSE"
+                msg = exc_str
+            else:
+                msg = f"Сбой сетевого подключения: {exc_str}"
+
+            record_sync_error(category, msg, url=url, attempt=attempt)
+            wait = 2 ** attempt
             if attempt < retries:
-                logger.warning(f"Попытка {attempt}/{retries} не удалась ({exc}), повтор через {wait}с: {url[:80]}")
+                logger.warning(f"Попытка {attempt}/{retries} не удалась [{category}] ({msg}), повтор через {wait}с: {url[:80]}")
                 time.sleep(wait)
             else:
-                logger.error(f"Все {retries} попытки исчерпаны: {url[:80]} — {exc}")
+                logger.error(f"Все {retries} попытки исчерпаны [{category}]: {url[:80]} — {msg}")
 
     _circuit_breaker.record_failure()
     raise last_exc
@@ -969,6 +1032,10 @@ class ScheduleParser:
         if self.sheets_cache:
             return next(iter(self.sheets_cache.values()))
         return None
+
+    def get_sync_errors(self) -> List[Dict[str, Any]]:
+        """Возвращает историю последних ошибок синхронизации Google Sheets."""
+        return get_sync_errors()
 
     def refresh_tabs(self, force: bool = False) -> List[Dict[str, Any]]:
         """Обновление списка вкладок, сопоставление диапазонов дат и определение активной недели."""
