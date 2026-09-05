@@ -342,6 +342,15 @@ async def set_api_user_group(payload: UserGroupPayload):
         return {"status": "error", "message": str(e), "group": payload.group}
 
 
+@app.get("/api/english-alarm")
+async def get_english_alarm(
+    group: Optional[str] = Query(None, description="Название группы")
+):
+    """Информация о ближайшем занятии по английскому языку / тревоге и обратный отсчет."""
+    target_group = (group or "ИСС9-25").strip()
+    return parser.get_upcoming_alarm(target_group, pattern=r"(англ|иностр)")
+
+
 @app.get("/api/teachers")
 async def get_teachers(
     tab: Optional[str] = Query(None, description="GID или название вкладки"),

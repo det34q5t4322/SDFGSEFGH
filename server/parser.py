@@ -1638,6 +1638,159 @@ class ScheduleParser:
             "Дождитесь восстановления соединения или перезапустите сервер."
         )
 
+    def get_upcoming_alarm(self, group_name: str, pattern: str = r"(англ|иностр)") -> Dict[str, Any]:
+        """Быстрый и безошибочный поиск ближайшей пары (по умолчанию: английский/иностранный язык)
+        для указанной группы по всем доступным вкладкам с расчетом точного обратного отсчета по МСК.
+        """
+        now = get_moscow_now()
+        self.refresh_tabs()
+
+        regex = re.compile(pattern, re.IGNORECASE)
+        candidates = []
+
+        tabs_to_check = []
+        if self.active_gid:
+            tabs_to_check.append(self.active_gid)
+        for t in self.available_tabs:
+            if t["gid"] not in tabs_to_check:
+                tabs_to_check.append(t["gid"])
+
+        for gid in tabs_to_check:
+            try:
+                sheet_data = self.get_data(gid=gid)
+            except Exception as ex:
+                logger.debug(f"Ошибка загрузки вкладки {gid} для будильника: {ex}")
+                continue
+
+            schedules = sheet_data.get("schedules", {})
+            if not schedules:
+                continue
+
+            g_data = schedules.get(group_name)
+            if not g_data:
+                for g_k, g_v in schedules.items():
+                    if g_k.lower() == group_name.lower():
+                        g_data = g_v
+                        group_name = g_k
+                        break
+            if not g_data:
+                continue
+
+            day_dates = sheet_data.get("day_dates", {})
+            days_dict = g_data.get("days", {})
+            year = now.year if now.month >= 8 else now.year - 1
+
+            for day_name, pairs in days_dict.items():
+                dm = day_dates.get(day_name, "")
+                d, m = None, None
+                if dm and "." in dm:
+                    parts = dm.split(".")
+                    try:
+                        d, m = int(parts[0]), int(parts[1])
+                    except Exception:
+                        pass
+
+                if d is None or m is None:
+                    dr = parse_tab_date_range(sheet_data.get("tab_name", ""), now)
+                    if dr:
+                        day_idx = DAYS_ORDER.index(day_name) if day_name in DAYS_ORDER else -1
+                        if day_idx >= 0:
+                            day_dt = dr[0] + timedelta(days=day_idx)
+                            d, m = day_dt.day, day_dt.month
+
+                if d is None or m is None:
+                    continue
+
+                pair_year = year if m >= 8 else year + 1
+
+                for p in pairs:
+                    if p.get("is_empty"):
+                        continue
+                    p_num = p.get("pair_num", 1)
+
+                    tab_parity = sheet_data.get("week_info", {}).get("parity")
+                    if tab_parity == "num":
+                        pair_options = [p.get("both"), p.get("numerator")]
+                    elif tab_parity == "den":
+                        pair_options = [p.get("both"), p.get("denominator")]
+                    else:
+                        pair_options = [p.get("both"), p.get("numerator"), p.get("denominator")]
+
+                    for opt in pair_options:
+                        if not opt or opt.get("is_cancelled"):
+                            continue
+                        subj = opt.get("subject", "")
+                        if regex.search(subj):
+                            bell = BELL_TIMES.get(p_num) or BELL_TIMES.get(str(p_num)) or {}
+                            bell_start = bell.get("start", "08:30")
+                            bell_end = bell.get("end", "10:05")
+                            time_display = f"{bell_start} - {bell_end}"
+
+                            sh, sm = map(int, bell_start.split(":"))
+                            eh, em = map(int, bell_end.split(":"))
+
+                            start_dt = datetime(pair_year, m, d, sh, sm, 0)
+                            end_dt = datetime(pair_year, m, d, eh, em, 0)
+
+                            if end_dt > now:
+                                diff = start_dt - now
+                                is_going_now = (start_dt <= now < end_dt)
+                                total_sec = max(0, int(diff.total_seconds()))
+
+                                candidates.append({
+                                    "target_dt": start_dt,
+                                    "end_dt": end_dt,
+                                    "is_going_now": is_going_now,
+                                    "diff_seconds": total_sec,
+                                    "group": group_name,
+                                    "day_name": day_name,
+                                    "date_formatted": f"{d:02d}.{m:02d}.{pair_year}",
+                                    "display_date": f"{day_name}, {d:02d}.{m:02d}.{pair_year}",
+                                    "pair_num": p_num,
+                                    "time": time_display,
+                                    "subject": subj,
+                                    "teacher": opt.get("teacher", ""),
+                                    "classroom": opt.get("classroom", ""),
+                                })
+                                break
+
+        if not candidates:
+            return {
+                "found": False,
+                "group": group_name,
+                "message": "В расписании группы пар иностранного языка не найдено"
+            }
+
+        candidates.sort(key=lambda x: x["target_dt"])
+        best = candidates[0]
+
+        total_sec = best["diff_seconds"]
+        days_left = total_sec // 86400
+        hours_left = (total_sec % 86400) // 3600
+        mins_left = (total_sec % 3600) // 60
+        secs_left = total_sec % 60
+
+        return {
+            "found": True,
+            "group": best["group"],
+            "day_name": best["day_name"],
+            "date_formatted": best["date_formatted"],
+            "display_date": best["display_date"],
+            "pair_num": best["pair_num"],
+            "time": best["time"],
+            "subject": best["subject"],
+            "teacher": best["teacher"],
+            "classroom": best["classroom"],
+            "target_iso": best["target_dt"].isoformat(),
+            "is_going_now": best["is_going_now"],
+            "total_seconds": total_sec,
+            "days_left": days_left,
+            "hours_left": hours_left,
+            "minutes_left": mins_left,
+            "seconds_left_mod": secs_left,
+            "now_msk": now.strftime("%d.%m.%Y %H:%M:%S"),
+        }
+
 
 # Синглтон парсера
 parser = ScheduleParser()

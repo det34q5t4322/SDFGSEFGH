@@ -1504,8 +1504,7 @@ async function loadSchedule(force = false) {
     updateLiveCard();
     updateSyncStatus(true, false);
     if (S.view === 'stats') renderStatsView(currentStatsScope);
-    const tabEng = document.getElementById('tabSettingsEnglish');
-    if (tabEng && tabEng.classList.contains('active')) startEnglishCountdown();
+    if (S.view === 'english') startEnglishCountdown();
     logApp('info', `Расписание успешно синхронизировано для ${S.group}`);
   } catch (e) {
     clearTimeout(wakeupTimer);
@@ -2167,61 +2166,87 @@ async function startEnglishCountdown() {
 
   if (groupNoticeEl) groupNoticeEl.textContent = `Группа: ${S.group || '—'}`;
   if (dateEl) dateEl.textContent = 'Поиск ближайшей пары по расписанию...';
+  if (timeEl) timeEl.textContent = 'Определение времени...';
 
-  let englishPair = findUpcomingEnglishInSchedule(S.data);
-
-  // If not found in current tab, look in future tabs
-  if (!englishPair && S.data?.available_tabs?.length) {
-    const activeGid = S.data.active_gid || S.activeGid;
-    for (const tab of S.data.available_tabs) {
-      if (tab.gid === activeGid) continue;
-      try {
-        let tabData = null;
-        const cacheKey = `schedule_${S.group}_${tab.gid}`;
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          try { tabData = JSON.parse(cached); } catch (_) {}
-        }
-        if (!tabData) {
-          const res = await fetchWithTimeout(`${API}/schedule?group=${encodeURIComponent(S.group)}&tab=${encodeURIComponent(tab.gid)}`, {}, 4000);
-          if (res.ok) {
-            tabData = await res.json();
-            try { localStorage.setItem(cacheKey, JSON.stringify(tabData)); } catch (_) {}
-          }
-        }
-        if (tabData) {
-          const candidate = findUpcomingEnglishInSchedule(tabData);
-          if (candidate) {
-            englishPair = candidate;
-            break;
-          }
-        }
-      } catch (err) {
-        console.warn('Error querying tab for English:', err);
+  // 1. Быстрый и безошибочный серверный API
+  let serverAlarm = null;
+  try {
+    const res = await fetchWithTimeout(`${API}/english-alarm?group=${encodeURIComponent(S.group || 'ИСС9-25')}`, {}, 6000);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.found) {
+        serverAlarm = data;
       }
     }
+  } catch (err) {
+    console.warn('Серверный запрос будильника не удался, переходим на клиентский поиск:', err);
   }
 
-  if (!englishPair) {
-    if (dateEl) dateEl.textContent = 'В расписании группы пар не найдено';
-    if (timeEl) timeEl.textContent = '—';
-    if (subjEl) subjEl.textContent = 'Иностранный язык';
-    if (teacherEl) teacherEl.textContent = '—';
-    if (roomEl) roomEl.textContent = '—';
-    if (daysEl) daysEl.textContent = '00';
-    if (hoursEl) hoursEl.textContent = '00';
-    if (minsEl) minsEl.textContent = '00';
-    if (secsEl) secsEl.textContent = '00';
-    return;
+  if (serverAlarm) {
+    if (dateEl) dateEl.textContent = serverAlarm.display_date;
+    if (timeEl) timeEl.textContent = `${serverAlarm.pair_num} пара (${serverAlarm.time})`;
+    if (subjEl) subjEl.textContent = serverAlarm.subject;
+    if (teacherEl) teacherEl.textContent = serverAlarm.teacher || 'Не указан';
+    if (roomEl) roomEl.textContent = serverAlarm.classroom ? `ауд. ${serverAlarm.classroom}` : 'Не указана';
+
+    currentEnglishTargetDate = new Date(serverAlarm.target_iso);
+  } else {
+    // 2. Клиентский резервный поиск
+    let englishPair = findUpcomingEnglishInSchedule(S.data);
+
+    // Если в текущей вкладке нет — проверяем другие вкладки
+    if (!englishPair && S.data?.available_tabs?.length) {
+      const activeGid = S.data.active_gid || S.activeGid;
+      for (const tab of S.data.available_tabs) {
+        if (tab.gid === activeGid) continue;
+        try {
+          let tabData = null;
+          const cacheKey = `schedule_${S.group}_${tab.gid}`;
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+            try { tabData = JSON.parse(cached); } catch (_) {}
+          }
+          if (!tabData) {
+            const res = await fetchWithTimeout(`${API}/schedule?group=${encodeURIComponent(S.group)}&tab=${encodeURIComponent(tab.gid)}`, {}, 5000);
+            if (res.ok) {
+              tabData = await res.json();
+              try { localStorage.setItem(cacheKey, JSON.stringify(tabData)); } catch (_) {}
+            }
+          }
+          if (tabData) {
+            const candidate = findUpcomingEnglishInSchedule(tabData);
+            if (candidate) {
+              englishPair = candidate;
+              break;
+            }
+          }
+        } catch (err) {
+          console.warn('Ошибка проверки вкладки на английский:', err);
+        }
+      }
+    }
+
+    if (!englishPair) {
+      if (dateEl) dateEl.textContent = 'В расписании группы пар не найдено';
+      if (timeEl) timeEl.textContent = '—';
+      if (subjEl) subjEl.textContent = 'Иностранный язык';
+      if (teacherEl) teacherEl.textContent = '—';
+      if (roomEl) roomEl.textContent = '—';
+      if (daysEl) daysEl.textContent = '00';
+      if (hoursEl) hoursEl.textContent = '00';
+      if (minsEl) minsEl.textContent = '00';
+      if (secsEl) secsEl.textContent = '00';
+      return;
+    }
+
+    if (dateEl) dateEl.textContent = `${englishPair.dayName}, ${englishPair.dateFormatted}`;
+    if (timeEl) timeEl.textContent = `${englishPair.pairNum} пара (${englishPair.time})`;
+    if (subjEl) subjEl.textContent = englishPair.subject;
+    if (teacherEl) teacherEl.textContent = englishPair.teacher || 'Не указан';
+    if (roomEl) roomEl.textContent = englishPair.room ? `ауд. ${englishPair.room}` : 'Не указана';
+
+    currentEnglishTargetDate = englishPair.targetDate;
   }
-
-  if (dateEl) dateEl.textContent = `${englishPair.dayName}, ${englishPair.dateFormatted}`;
-  if (timeEl) timeEl.textContent = `${englishPair.pairNum} пара (${englishPair.time})`;
-  if (subjEl) subjEl.textContent = englishPair.subject;
-  if (teacherEl) teacherEl.textContent = englishPair.teacher || 'Не указан';
-  if (roomEl) roomEl.textContent = englishPair.room ? `ауд. ${englishPair.room}` : 'Не указана';
-
-  currentEnglishTargetDate = englishPair.targetDate;
 
   function tick() {
     if (!currentEnglishTargetDate) return;

@@ -126,6 +126,7 @@ def build_main_keyboard(group: str = DEFAULT_GROUP) -> ReplyKeyboardMarkup:
         keyboard.append([KeyboardButton("🚀 Открыть приложение", web_app=WebAppInfo(url=wa_url))])
     keyboard.append([KeyboardButton("📅 Сегодня"), KeyboardButton("📆 Завтра")])
     keyboard.append([KeyboardButton("🗓 Вся неделя"), KeyboardButton("⚙️ Сменить группу")])
+    keyboard.append([KeyboardButton("💀🚨 Английский"), KeyboardButton("📚 Дневник 1С")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
@@ -151,7 +152,8 @@ def build_schedule_keyboard(offset_days: int = 0, group: str = DEFAULT_GROUP) ->
     ]
     buttons.append(actions)
     buttons.append([
-        InlineKeyboardButton("📚 Электронный дневник 1С", url=DIARY_1C_URL)
+        InlineKeyboardButton("💀🚨 До английского", callback_data="view_alarm"),
+        InlineKeyboardButton("📚 Электронный дневник 1С", url=DIARY_1C_URL),
     ])
 
     return InlineKeyboardMarkup(buttons)
@@ -542,6 +544,10 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await send_week_schedule(update, context)
     elif "групп" in text.lower():
         await show_courses_menu(update, context)
+    elif any(kw in text.lower() for kw in ["английск", "тревог", "alarm", "💀", "🚨", "до англ"]):
+        await alarm_command(update, context)
+    elif "дневник" in text.lower() or "1с" in text.lower():
+        await diary_command(update, context)
     elif "приложен" in text.lower() or "расписан" in text.lower():
         await app_command(update, context)
     else:
@@ -563,6 +569,64 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
                 "Используйте кнопки меню для навигации по расписанию:",
                 reply_markup=build_schedule_keyboard(0),
             )
+
+
+async def alarm_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """💀🚨 Сигнал тревоги — обратный отсчёт до ближайшего английского."""
+    user = update.effective_user
+    group_name = get_user_group(user.id) if user else DEFAULT_GROUP
+
+    alarm = parser.get_upcoming_alarm(group_name, pattern=r"(англ|иностр)")
+
+    if not alarm.get("found"):
+        text = (
+            "💀🚨 **СИГНАЛ ТРЕВОГИ: АНГЛИЙСКИЙ**\n"
+            f"👥 Группа: **{group_name}**\n\n"
+            "❌ В расписании группы пар иностранного языка не найдено.\n"
+            "Возможно, расписание на следующую неделю ещё не опубликовано."
+        )
+    else:
+        d = alarm["days_left"]
+        h = alarm["hours_left"]
+        m = alarm["minutes_left"]
+        s = alarm["seconds_left_mod"]
+
+        countdown_str = ""
+        if d > 0:
+            countdown_str += f"{d} дн. "
+        countdown_str += f"{h:02d}:{m:02d}:{s:02d}"
+
+        going_label = " ⚡ ИДЁТ ПРЯМО СЕЙЧАС!" if alarm.get("is_going_now") else ""
+
+        text = (
+            "💀🚨 **СИГНАЛ ТРЕВОГИ: АНГЛИЙСКИЙ**\n"
+            f"👥 Группа: **{group_name}**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📅 Дата: **{alarm['display_date']}**\n"
+            f"⏰ Пара: **{alarm['pair_num']} пара ({alarm['time']})**\n"
+            f"📚 Предмет: {alarm['subject']}\n"
+            f"👨‍🏫 Преподаватель: {alarm.get('teacher') or 'Не указан'}\n"
+            f"🏫 Аудитория: {('ауд. ' + alarm['classroom']) if alarm.get('classroom') else 'Не указана'}\n\n"
+            f"⏳ До начала: **{countdown_str}**{going_label}\n"
+            f"🕐 МСК сейчас: {alarm['now_msk']}"
+        )
+
+    wa_url = get_webapp_url(group_name)
+    buttons = []
+    if wa_url:
+        buttons.append([InlineKeyboardButton("💀🚨 Открыть тревогу в приложении", web_app=WebAppInfo(url=wa_url))])
+    buttons.append([
+        InlineKeyboardButton("🔄 Обновить", callback_data="view_alarm"),
+        InlineKeyboardButton("📅 Сегодня", callback_data="day_0"),
+    ])
+    keyboard = InlineKeyboardMarkup(buttons) if buttons else None
+
+    await send_or_edit(update, context, text, reply_markup=keyboard)
+
+
+async def alarm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback для инлайн-кнопки view_alarm."""
+    await alarm_command(update, context)
 
 
 async def diary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -590,6 +654,7 @@ async def post_init(application) -> None:
             BotCommand("today", "📅 Расписание на сегодня"),
             BotCommand("tomorrow", "📆 Расписание на завтра"),
             BotCommand("week", "🗓 Расписание на неделю"),
+            BotCommand("alarm", "💀🚨 До английского"),
             BotCommand("group", "⚙️ Сменить группу"),
             BotCommand("diary", "📚 Дневник 1С"),
             BotCommand("start", "🔄 Главное меню"),
@@ -623,6 +688,7 @@ def create_bot_app():
     app.add_handler(CommandHandler("today", lambda u, c: send_schedule_for_day(u, c, 0)))
     app.add_handler(CommandHandler("tomorrow", lambda u, c: send_schedule_for_day(u, c, 1)))
     app.add_handler(CommandHandler("week", send_week_schedule))
+    app.add_handler(CommandHandler(["alarm", "english"], alarm_command))
     app.add_handler(CommandHandler("group", show_courses_menu))
     app.add_handler(CommandHandler(["diary", "dnevnik"], diary_command))
 
@@ -631,6 +697,7 @@ def create_bot_app():
     app.add_handler(CallbackQueryHandler(show_groups_for_course, pattern="^course_"))
     app.add_handler(CallbackQueryHandler(set_group_callback, pattern="^setgrp_"))
     app.add_handler(CallbackQueryHandler(send_week_schedule, pattern="^view_week$"))
+    app.add_handler(CallbackQueryHandler(alarm_callback, pattern="^view_alarm$"))
     app.add_handler(CallbackQueryHandler(day_offset_callback, pattern=r"^day_(-?\d+)$"))
     app.add_handler(CallbackQueryHandler(day_dow_callback, pattern=r"^day_dow_(\d+)$"))
 
