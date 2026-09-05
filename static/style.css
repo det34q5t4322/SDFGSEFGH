@@ -6488,29 +6488,4 @@ body.menu-editing-active .sidebar-footer.menu-item-hidden {
   filter: grayscale(0.85);
 }
 
-/* ════════════════════════════════════════════
-   СЕЛЕКТОР ЗОН КАРТОЧКИ (1-CLICK MOVE)
-════════════════════════════════════════════ */
-.field-zone-select {
-  background: rgba(255, 255, 255, 0.09);
-  color: var(--text, #fff);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 3px 6px;
-  font-size: 10.5px;
-  font-weight: 600;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-  max-width: 95px;
-}
 
-.field-zone-select:focus,
-.field-zone-select:hover {
-  border-color: var(--accent, #6366f1);
-}
-
-.field-zone-select option {
-  background: #1e1e2d;
-  color: #fff;
-}

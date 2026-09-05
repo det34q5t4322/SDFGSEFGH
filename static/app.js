@@ -3763,16 +3763,6 @@ function renderCardTemplateDropzone() {
     const curColor = item.color || 'default';
     const isVis = item.visible !== false;
 
-    const zoneSelectHtml = `
-      <select class="field-zone-select" data-zone-field="${item.id}" title="Переместить в другую зону">
-        <option value="top-left"${zoneName === 'top-left' ? ' selected' : ''}>↖ В-Лев</option>
-        <option value="top-right"${zoneName === 'top-right' ? ' selected' : ''}>↗ В-Прав</option>
-        <option value="main"${zoneName === 'main' ? ' selected' : ''}>⬛ Центр</option>
-        <option value="bottom-left"${zoneName === 'bottom-left' ? ' selected' : ''}>↙ Н-Лев</option>
-        <option value="bottom-right"${zoneName === 'bottom-right' ? ' selected' : ''}>↘ Н-Прав</option>
-      </select>
-    `;
-
     const itemEl = document.createElement('div');
     itemEl.className = `card-template-field-item${isVis ? '' : ' field-hidden'}`;
     itemEl.dataset.fieldId = item.id;
@@ -3780,7 +3770,6 @@ function renderCardTemplateDropzone() {
       <span class="field-drag-grip" title="Хватайте и перетаскивайте в любую зону">⠿</span>
       <span class="field-title">${iconSvg} <span class="field-title-text">${esc(label)}</span></span>
       <div class="field-controls-group">
-        ${zoneSelectHtml}
         <button class="field-size-btn" type="button" data-size-field="${item.id}" title="Размер: ${curSize.toUpperCase()} (нажмите для смены)">
           <span class="size-btn-text">${curSize.toUpperCase()}</span>
         </button>
@@ -3793,21 +3782,6 @@ function renderCardTemplateDropzone() {
         }
       </div>
     `;
-
-    // 0. Смена зоны через селектор (1 тап на телефоне)
-    const zoneSelect = itemEl.querySelector('.field-zone-select');
-    if (zoneSelect) {
-      zoneSelect.onchange = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const target = activeCardConfig.find(x => x.id === item.id) || item;
-        target.zone = zoneSelect.value;
-        applyCardConfig(activeCardConfig, false);
-        renderCardTemplateDropzone();
-        updateCardLivePreview();
-        updatePresetsUI();
-      };
-    }
 
     // 1. Клик по кнопке размера (SM -> MD -> LG -> XL -> SM)
     const sizeBtn = itemEl.querySelector('.field-size-btn');
@@ -3879,7 +3853,7 @@ function initCardZonesSortable() {
         group: 'card-template-zones',
         animation: 160,
         handle: '.field-drag-grip, .field-title',
-        filter: 'button, select, input, .field-controls-group, .field-zone-select',
+        filter: 'button, select, input, .field-controls-group',
         preventOnFilter: false,
         ghostClass: 'field-sortable-ghost',
         chosenClass: 'field-sortable-chosen',
