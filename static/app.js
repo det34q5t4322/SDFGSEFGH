@@ -687,7 +687,13 @@ function switchSettingsTab(tabName) {
   validTabs.forEach(t => {
     const p = paneMap[t];
     if (p) {
-      p.style.display = (t === targetTab) ? 'flex' : 'none';
+      const isAct = (t === targetTab);
+      p.classList.toggle('active', isAct);
+      p.style.display = isAct ? 'flex' : 'none';
+      if (isAct) {
+        p.style.flexDirection = 'column';
+        p.style.width = '100%';
+      }
     }
   });
 

@@ -4960,9 +4960,25 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
 }
 
 .settings-tab-pane {
+  display: none;
+  flex-direction: column !important;
+  gap: 22px;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+.settings-tab-pane.active {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.settings-tab-pane .theme-section {
+  width: 100% !important;
+  max-width: 100% !important;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  box-sizing: border-box;
 }
 
 /* Сетка карточек быстрого запуска конструктора */
