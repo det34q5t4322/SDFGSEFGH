@@ -3596,14 +3596,23 @@ function renderBlueprintTiles() {
 
   if (window.Sortable && container) {
     sortableBlueprintInstance = Sortable.create(container, {
-      animation: 180,
+      animation: 160,
       handle: '.blueprint-tile-grip',
       ghostClass: 'sortable-ghost',
       chosenClass: 'sortable-chosen',
-      touchStartThreshold: 5,
-      delay: 50,
-      delayOnTouchOnly: true,
+      forceFallback: true,
+      fallbackOnBody: true,
+      fallbackClass: 'sortable-fallback-active',
+      fallbackTolerance: 3,
+      delay: 0,
+      delayOnTouchOnly: false,
+      touchStartThreshold: 2,
+      scroll: false,
+      onStart: () => {
+        document.body.classList.add('sortable-dragging-active');
+      },
       onEnd: () => {
+        document.body.classList.remove('sortable-dragging-active');
         const newConfig = [];
         container.querySelectorAll('.blueprint-tile').forEach(t => {
           const wid = t.dataset.widget;
@@ -3754,6 +3763,16 @@ function renderCardTemplateDropzone() {
     const curColor = item.color || 'default';
     const isVis = item.visible !== false;
 
+    const zoneSelectHtml = `
+      <select class="field-zone-select" data-zone-field="${item.id}" title="Переместить в другую зону">
+        <option value="top-left"${zoneName === 'top-left' ? ' selected' : ''}>↖ В-Лев</option>
+        <option value="top-right"${zoneName === 'top-right' ? ' selected' : ''}>↗ В-Прав</option>
+        <option value="main"${zoneName === 'main' ? ' selected' : ''}>⬛ Центр</option>
+        <option value="bottom-left"${zoneName === 'bottom-left' ? ' selected' : ''}>↙ Н-Лев</option>
+        <option value="bottom-right"${zoneName === 'bottom-right' ? ' selected' : ''}>↘ Н-Прав</option>
+      </select>
+    `;
+
     const itemEl = document.createElement('div');
     itemEl.className = `card-template-field-item${isVis ? '' : ' field-hidden'}`;
     itemEl.dataset.fieldId = item.id;
@@ -3761,6 +3780,7 @@ function renderCardTemplateDropzone() {
       <span class="field-drag-grip" title="Хватайте и перетаскивайте в любую зону">⠿</span>
       <span class="field-title">${iconSvg} <span class="field-title-text">${esc(label)}</span></span>
       <div class="field-controls-group">
+        ${zoneSelectHtml}
         <button class="field-size-btn" type="button" data-size-field="${item.id}" title="Размер: ${curSize.toUpperCase()} (нажмите для смены)">
           <span class="size-btn-text">${curSize.toUpperCase()}</span>
         </button>
@@ -3773,6 +3793,21 @@ function renderCardTemplateDropzone() {
         }
       </div>
     `;
+
+    // 0. Смена зоны через селектор (1 тап на телефоне)
+    const zoneSelect = itemEl.querySelector('.field-zone-select');
+    if (zoneSelect) {
+      zoneSelect.onchange = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = activeCardConfig.find(x => x.id === item.id) || item;
+        target.zone = zoneSelect.value;
+        applyCardConfig(activeCardConfig, false);
+        renderCardTemplateDropzone();
+        updateCardLivePreview();
+        updatePresetsUI();
+      };
+    }
 
     // 1. Клик по кнопке размера (SM -> MD -> LG -> XL -> SM)
     const sizeBtn = itemEl.querySelector('.field-size-btn');
@@ -3843,15 +3878,25 @@ function initCardZonesSortable() {
       const inst = Sortable.create(zEl, {
         group: 'card-template-zones',
         animation: 160,
-        handle: '.field-drag-grip', // ТОЛЬКО за значок ⠿ — кнопки больше никогда не блокируются!
-        filter: 'button, .field-controls-group',
+        handle: '.field-drag-grip, .field-title',
+        filter: 'button, select, input, .field-controls-group, .field-zone-select',
         preventOnFilter: false,
         ghostClass: 'field-sortable-ghost',
-        touchStartThreshold: 8,
-        delay: 60,
-        delayOnTouchOnly: true,
+        chosenClass: 'field-sortable-chosen',
+        forceFallback: true,
+        fallbackOnBody: true,
+        fallbackClass: 'sortable-fallback-active',
+        fallbackTolerance: 3,
+        delay: 0,
+        delayOnTouchOnly: false,
+        touchStartThreshold: 2,
+        scroll: false,
         disabled: currentLayoutTab !== 'card',
+        onStart: () => {
+          document.body.classList.add('sortable-dragging-active');
+        },
         onEnd: () => {
+          document.body.classList.remove('sortable-dragging-active');
           syncActiveCardConfigFromDOM();
           updateCardLivePreview();
         }
@@ -4182,16 +4227,25 @@ function enterLayoutEditor(initialTab = 'screen') {
   const flowContainer = els.mainFlowContainer || $('mainFlowContainer');
   if (flowContainer && window.Sortable && !sortableScreenInstance) {
     sortableScreenInstance = Sortable.create(flowContainer, {
-      animation: 220,
+      animation: 180,
       handle: '.widget-drag-handle',
       ghostClass: 'sortable-ghost',
       chosenClass: 'sortable-chosen',
       dragClass: 'sortable-drag',
-      touchStartThreshold: 8,
-      delay: 60,
-      delayOnTouchOnly: true,
+      forceFallback: true,
+      fallbackOnBody: true,
+      fallbackClass: 'sortable-fallback-active',
+      fallbackTolerance: 3,
+      delay: 0,
+      delayOnTouchOnly: false,
+      touchStartThreshold: 2,
+      scroll: false,
       disabled: true,
+      onStart: () => {
+        document.body.classList.add('sortable-dragging-active');
+      },
       onEnd: () => {
+        document.body.classList.remove('sortable-dragging-active');
         const newConfig = [];
         flowContainer.querySelectorAll('.flow-widget').forEach(w => {
           const wid = w.dataset.widget;
@@ -4222,14 +4276,26 @@ function enterLayoutEditor(initialTab = 'screen') {
     if (window.Sortable) {
       const inst = Sortable.create(secEl, {
         group: 'sidebar-menu-sections',
-        animation: 180,
+        animation: 160,
         handle: '.menu-drag-handle',
         ghostClass: 'menu-sortable-ghost',
-        touchStartThreshold: 8,
-        delay: 60,
-        delayOnTouchOnly: true,
+        chosenClass: 'menu-sortable-chosen',
+        forceFallback: true,
+        fallbackOnBody: true,
+        fallbackClass: 'sortable-fallback-active',
+        fallbackTolerance: 3,
+        delay: 0,
+        delayOnTouchOnly: false,
+        touchStartThreshold: 2,
+        scroll: false,
         disabled: true,
-        onEnd: () => syncActiveMenuConfigFromDOM()
+        onStart: () => {
+          document.body.classList.add('sortable-dragging-active');
+        },
+        onEnd: () => {
+          document.body.classList.remove('sortable-dragging-active');
+          syncActiveMenuConfigFromDOM();
+        }
       });
       sortableMenuInstances.push(inst);
     }
@@ -4419,6 +4485,57 @@ function initLayoutManager() {
       }
     });
   });
+
+  // Кнопки ▲ и ▼ в меню для перемещения без перетаскивания (1 клик на телефоне)
+  document.querySelectorAll('#sidebar .menu-action-col').forEach(col => {
+    if (!col.querySelector('.menu-btn-move')) {
+      const btnUp = document.createElement('button');
+      btnUp.type = 'button';
+      btnUp.className = 'menu-btn-move';
+      btnUp.title = 'Поднять выше';
+      btnUp.textContent = '▲';
+
+      const btnDown = document.createElement('button');
+      btnDown.type = 'button';
+      btnDown.className = 'menu-btn-move';
+      btnDown.title = 'Опустить ниже';
+      btnDown.textContent = '▼';
+
+      col.insertBefore(btnDown, col.firstChild);
+      col.insertBefore(btnUp, col.firstChild);
+
+      btnUp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const itemEl = col.closest('.sidebar-nav-item') || col.closest('[data-menu-id]');
+        if (!itemEl) return;
+        const prev = itemEl.previousElementSibling;
+        if (prev && !prev.classList.contains('sidebar-section-header')) {
+          itemEl.parentElement.insertBefore(itemEl, prev);
+          syncActiveMenuConfigFromDOM();
+        }
+      });
+
+      btnDown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const itemEl = col.closest('.sidebar-nav-item') || col.closest('[data-menu-id]');
+        if (!itemEl) return;
+        const next = itemEl.nextElementSibling;
+        if (next) {
+          itemEl.parentElement.insertBefore(next, itemEl);
+          syncActiveMenuConfigFromDOM();
+        }
+      });
+    }
+  });
+
+  // Глобальная блокировка скролла фона при перетаскивании любого элемента
+  document.addEventListener('touchmove', (e) => {
+    if (document.body.classList.contains('sortable-dragging-active')) {
+      if (e.cancelable) e.preventDefault();
+    }
+  }, { passive: false });
 
   // 3. Обработчики запуска конструктора из модалки настроек
   const openScreenAction = () => {

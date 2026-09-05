@@ -4259,6 +4259,54 @@ input {
 /* Режим редактирования (активируется через body.layout-editing-active) */
 body.layout-editing-active {
   padding-bottom: 160px !important;
+  overflow: hidden !important;
+  height: 100% !important;
+  overscroll-behavior: none !important;
+}
+
+/* Полная блокировка любых движений фона во время перетаскивания элементов */
+body.sortable-dragging-active,
+body.sortable-dragging-active * {
+  touch-action: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  overscroll-behavior: none !important;
+}
+
+/* Все элементы управления и ручки перетаскивания: запрет нативного жеста скролла */
+.blueprint-tile,
+.blueprint-tile-grip,
+.card-template-field-item,
+.field-drag-grip,
+.menu-drag-handle,
+.widget-drag-handle,
+.menu-btn-move,
+.blueprint-btn-move {
+  touch-action: none !important;
+  -webkit-touch-callout: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Контейнеры конструктора: изоляция скролла (contain) */
+.screen-blueprint-builder,
+.card-template-builder,
+#cardBuilderGrid,
+.card-builder-zone,
+.blueprint-tiles-list,
+#sidebar,
+#sidebarNav {
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Стили активного элемента при перетаскивании через forceFallback (плавно 60fps) */
+.sortable-fallback-active {
+  opacity: 0.95 !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.75), 0 0 0 2px var(--accent, #4f8ef7) !important;
+  transform: scale(1.03) !important;
+  pointer-events: none !important;
+  z-index: 999999 !important;
 }
 
 body.layout-editing-active .pair-card {
@@ -4725,6 +4773,31 @@ body.menu-editing-active .menu-action-col {
   justify-content: center;
   margin-left: auto;
   padding-left: 8px;
+}
+
+.menu-btn-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  color: var(--text, #fff);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+  margin-right: 4px;
+  padding: 0;
+}
+
+.menu-btn-move:hover {
+  background: var(--accent, #6366f1);
+  color: #fff;
+  border-color: var(--accent, #6366f1);
 }
 
 .sidebar-section-header {
