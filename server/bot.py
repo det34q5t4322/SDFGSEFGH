@@ -11,6 +11,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
+    MenuButtonWebApp,
     ReplyKeyboardMarkup,
     Update,
     WebAppInfo,
@@ -642,7 +643,7 @@ async def diary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def post_init(application) -> None:
-    """Регистрация команд в официальном меню Telegram."""
+    """Регистрация команд в официальном меню Telegram и кнопки WebApp."""
     try:
         await application.bot.set_my_commands([
             BotCommand("app", "🚀 Открыть приложение"),
@@ -655,8 +656,14 @@ async def post_init(application) -> None:
             BotCommand("start", "🔄 Главное меню"),
         ])
         logger.info("Команды меню бота успешно зарегистрированы!")
+
+        if WEB_APP_URL:
+            await application.bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(text="Расписание", web_app=WebAppInfo(url=WEB_APP_URL))
+            )
+            logger.info(f"Кнопка WebApp 'Расписание' ({WEB_APP_URL}) в меню чата успешно установлена!")
     except Exception as e:
-        logger.warning(f"Не удалось установить команды меню: {e}")
+        logger.warning(f"Не удалось установить команды меню или кнопку WebApp: {e}")
 
 
 def create_bot_app():
