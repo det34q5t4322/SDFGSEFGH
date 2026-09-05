@@ -225,6 +225,12 @@
             <span class="drag-grip-icon">⠿</span>
             <span class="widget-drag-title">Статус пары</span>
           </div>
+          <div class="widget-header-actions">
+            <button class="widget-vis-toggle-btn is-visible" type="button" data-widget-id="widget-live-status" title="Скрыть/показать блок" aria-label="Скрыть или показать статус пары">
+              <svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+            </button>
+          </div>
         </div>
         <div class="live-card-wrap" id="liveCardWrap">
           <div class="live-card" id="liveCard">
@@ -253,6 +259,12 @@
             <span class="drag-grip-icon">⠿</span>
             <span class="widget-drag-title">Навигация по неделям</span>
           </div>
+          <div class="widget-header-actions">
+            <button class="widget-vis-toggle-btn is-visible" type="button" data-widget-id="widget-week-nav" title="Скрыть/показать блок" aria-label="Скрыть или показать навигацию по неделям">
+              <svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+            </button>
+          </div>
         </div>
         <div class="week-nav-wrap" id="weekNavWrap">
           <div class="week-nav-bar">
@@ -273,6 +285,12 @@
             <span class="drag-grip-icon">⠿</span>
             <span class="widget-drag-title">Выбор дней (Пн–Сб)</span>
           </div>
+          <div class="widget-header-actions">
+            <button class="widget-vis-toggle-btn is-visible" type="button" data-widget-id="widget-day-strip" title="Скрыть/показать блок" aria-label="Скрыть или показать дни недели">
+              <svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+            </button>
+          </div>
         </div>
         <div class="day-strip-wrap" id="dayStripWrap">
           <div class="day-strip" id="dayStrip">
@@ -287,6 +305,9 @@
           <div class="widget-drag-handle" title="Перетащить блок" aria-label="Перетащить блок" role="button" tabindex="0">
             <span class="drag-grip-icon">⠿</span>
             <span class="widget-drag-title">Основное расписание</span>
+          </div>
+          <div class="widget-header-actions">
+            <span class="menu-lock-icon" title="Обязательный блок расписания"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
           </div>
         </div>
         <main class="main-content" id="mainContent">
@@ -780,6 +801,20 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
+
+            <div class="minimal-mode-section" style="margin-top: 10px;">
+              <div class="minimal-mode-text-col">
+                <div class="minimal-mode-header">
+                  <svg class="lucide-icon minimal-mode-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span class="minimal-mode-title">Перемены между парами</span>
+                </div>
+                <p class="minimal-mode-desc">Длительность и время перерывов в списке пар</p>
+              </div>
+              <label class="toggle-switch" for="toggleShowBreaks" aria-label="Показывать перемены между парами">
+                <input type="checkbox" id="toggleShowBreaks" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -848,61 +883,6 @@
                 <button class="font-size-btn" data-size="small">Мелкий</button>
                 <button class="font-size-btn" data-size="normal">Стандарт</button>
                 <button class="font-size-btn" data-size="large">Крупный</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="theme-section">
-            <div class="theme-section-header">
-              <span class="theme-section-title">Отображение в карточках</span>
-            </div>
-            <div class="display-options-list">
-              <!-- Преподаватель -->
-              <div class="display-option-item">
-                <div class="display-option-text">
-                  <span class="display-option-title">Имя преподавателя</span>
-                  <span class="display-option-desc">ФИО преподавателя и быстрый переход</span>
-                </div>
-                <label class="toggle-switch" for="toggleShowTeacher" aria-label="Показывать имя преподавателя">
-                  <input type="checkbox" id="toggleShowTeacher" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <!-- Номер аудитории -->
-              <div class="display-option-item">
-                <div class="display-option-text">
-                  <span class="display-option-title">Номер аудитории</span>
-                  <span class="display-option-desc">Кабинет или ссылка на дистант</span>
-                </div>
-                <label class="toggle-switch" for="toggleShowRoom" aria-label="Показывать номер аудитории">
-                  <input type="checkbox" id="toggleShowRoom" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <!-- Метка «ЗАМЕНА» / «ОТМЕНА» -->
-              <div class="display-option-item">
-                <div class="display-option-text">
-                  <span class="display-option-title">Метка «Замена» / «Отмена»</span>
-                  <span class="display-option-desc">Индикаторы замен и отмен пар</span>
-                </div>
-                <label class="toggle-switch" for="toggleShowBadges" aria-label="Показывать метки изменений">
-                  <input type="checkbox" id="toggleShowBadges" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <!-- Перемены между парами -->
-              <div class="display-option-item">
-                <div class="display-option-text">
-                  <span class="display-option-title">Перемены между парами</span>
-                  <span class="display-option-desc">Длительность и время перерывов</span>
-                </div>
-                <label class="toggle-switch" for="toggleShowBreaks" aria-label="Показывать перемены между парами">
-                  <input type="checkbox" id="toggleShowBreaks" checked>
-                  <span class="toggle-slider"></span>
-                </label>
               </div>
             </div>
           </div>

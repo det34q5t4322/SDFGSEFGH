@@ -4264,8 +4264,8 @@ body.layout-editing-active .widget-drag-header {
   touch-action: none;
   -webkit-touch-callout: none;
   min-height: 44px;
-  min-width: 44px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   color: var(--text, #fff);
   font-weight: 600;
   font-size: 13.5px;
@@ -4273,6 +4273,71 @@ body.layout-editing-active .widget-drag-header {
 
 .widget-drag-handle:active {
   cursor: grabbing;
+}
+
+.widget-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.widget-vis-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  padding: 0;
+}
+
+.widget-vis-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  border-color: var(--border-focus);
+}
+
+.widget-vis-toggle-btn.is-visible .icon-eye-off {
+  display: none;
+}
+.widget-vis-toggle-btn.is-visible .icon-eye-on {
+  display: block;
+}
+
+.widget-vis-toggle-btn.is-hidden .icon-eye-on {
+  display: none;
+}
+.widget-vis-toggle-btn.is-hidden .icon-eye-off {
+  display: block;
+  color: var(--text-muted);
+}
+
+/* Скрытие виджетов экрана */
+.flow-widget.flow-widget-hidden {
+  display: none !important;
+}
+
+body.layout-editing-active .flow-widget.flow-widget-hidden {
+  display: block !important;
+  opacity: 0.52;
+  outline: 2px dashed rgba(255, 255, 255, 0.22) !important;
+  animation: none !important;
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+body.layout-editing-active .flow-widget.flow-widget-hidden > *:not(.widget-drag-header) {
+  display: none !important;
+}
+
+body.layout-editing-active .flow-widget.flow-widget-hidden .widget-drag-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
 }
 
 .drag-grip-icon {
@@ -5366,47 +5431,289 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
   align-items: center;
 }
 
-/* ── Размеры полей карточки ── */
-.field-size-sm {
-  font-size: 0.78rem !important;
+/* ─── CARD SIZES (SM / MD / LG / XL) FOR ALL FIELDS ─── */
+.card-field.field-size-sm {
+  font-size: 0.76rem !important;
   line-height: 1.2 !important;
 }
-.field-size-md {
-  font-size: 0.92rem !important;
+.card-field.field-size-md {
+  font-size: 0.90rem !important;
   line-height: 1.3 !important;
 }
-.field-size-lg {
-  font-size: 1.14rem !important;
+.card-field.field-size-lg {
+  font-size: 1.15rem !important;
   font-weight: 700 !important;
   line-height: 1.35 !important;
 }
-.field-size-xl {
-  font-size: 1.35rem !important;
+.card-field.field-size-xl {
+  font-size: 1.40rem !important;
   font-weight: 800 !important;
   letter-spacing: -0.02em !important;
   line-height: 1.25 !important;
 }
 
-/* ── Цветовые акценты полей карточки ── */
-.field-color-danger {
+/* 1. Преподаватель и Аудитория кнопки */
+.card-field.field-size-sm .pair-teacher-btn,
+.card-field.field-size-sm .pair-room-btn {
+  font-size: 0.72rem !important;
+  padding: 2px 6px !important;
+  gap: 4px !important;
+}
+.card-field.field-size-sm .pair-teacher-btn svg,
+.card-field.field-size-sm .pair-room-btn svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.card-field.field-size-md .pair-teacher-btn,
+.card-field.field-size-md .pair-room-btn {
+  font-size: 0.86rem !important;
+  padding: 3px 8px !important;
+  gap: 5px !important;
+}
+.card-field.field-size-md .pair-teacher-btn svg,
+.card-field.field-size-md .pair-room-btn svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.card-field.field-size-lg .pair-teacher-btn,
+.card-field.field-size-lg .pair-room-btn {
+  font-size: 1.05rem !important;
+  padding: 5px 12px !important;
+  font-weight: 650 !important;
+  gap: 6px !important;
+}
+.card-field.field-size-lg .pair-teacher-btn svg,
+.card-field.field-size-lg .pair-room-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.card-field.field-size-xl .pair-teacher-btn,
+.card-field.field-size-xl .pair-room-btn {
+  font-size: 1.25rem !important;
+  padding: 6px 14px !important;
+  font-weight: 750 !important;
+  gap: 8px !important;
+}
+.card-field.field-size-xl .pair-teacher-btn svg,
+.card-field.field-size-xl .pair-room-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* 2. Бейджи и статус */
+.card-field.field-size-sm .pair-badge {
+  font-size: 0.65rem !important;
+  padding: 1px 5px !important;
+}
+.card-field.field-size-sm .pair-badge svg {
+  width: 10px !important;
+  height: 10px !important;
+}
+.card-field.field-size-md .pair-badge {
+  font-size: 0.75rem !important;
+  padding: 2px 7px !important;
+}
+.card-field.field-size-md .pair-badge svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+.card-field.field-size-lg .pair-badge {
+  font-size: 0.95rem !important;
+  padding: 4px 10px !important;
+  font-weight: 700 !important;
+}
+.card-field.field-size-lg .pair-badge svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+.card-field.field-size-xl .pair-badge {
+  font-size: 1.15rem !important;
+  padding: 5px 12px !important;
+  font-weight: 800 !important;
+}
+.card-field.field-size-xl .pair-badge svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+/* 3. Время и номер */
+.card-field.field-size-sm .pair-time-span {
+  font-size: 0.75rem !important;
+}
+.card-field.field-size-sm .pair-num-badge {
+  font-size: 9.5px !important;
+  padding: 1px 4px !important;
+}
+.card-field.field-size-md .pair-time-span {
+  font-size: 0.88rem !important;
+}
+.card-field.field-size-md .pair-num-badge {
+  font-size: 11px !important;
+  padding: 1px 6px !important;
+}
+.card-field.field-size-lg .pair-time-span {
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+}
+.card-field.field-size-lg .pair-num-badge {
+  font-size: 13px !important;
+  padding: 2px 8px !important;
+}
+.card-field.field-size-xl .pair-time-span {
+  font-size: 1.28rem !important;
+  font-weight: 800 !important;
+}
+.card-field.field-size-xl .pair-num-badge {
+  font-size: 15px !important;
+  padding: 3px 10px !important;
+}
+
+/* 4. Предмет */
+.card-field.field-subject.field-size-sm {
+  font-size: 0.82rem !important;
+}
+.card-field.field-subject.field-size-md {
+  font-size: 0.96rem !important;
+}
+.card-field.field-subject.field-size-lg {
+  font-size: 1.18rem !important;
+}
+.card-field.field-subject.field-size-xl {
+  font-size: 1.45rem !important;
+}
+
+/* ─── CARD COLORS (Кнопки, текст, бейджи, рамки) ─── */
+/* Danger (Красный) */
+.card-field.field-color-danger,
+.card-field.field-color-danger.pair-subject,
+.card-field.field-color-danger .pair-time-span {
   color: #f43f5e !important;
   text-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
 }
-.field-color-cyan {
+.card-field.field-color-danger .pair-teacher-btn,
+.card-field.field-color-danger .pair-room-btn {
+  color: #f43f5e !important;
+  border-color: rgba(244, 63, 94, 0.45) !important;
+  background: rgba(244, 63, 94, 0.1) !important;
+}
+.card-field.field-color-danger .pair-teacher-btn svg,
+.card-field.field-color-danger .pair-room-btn svg {
+  stroke: #f43f5e !important;
+}
+.card-field.field-color-danger .pair-num-badge {
+  background: #f43f5e !important;
+  color: #fff !important;
+}
+.card-field.field-color-danger .pair-badge {
+  border: 1px solid rgba(244, 63, 94, 0.5) !important;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.3) !important;
+}
+
+/* Cyan (Циан) */
+.card-field.field-color-cyan,
+.card-field.field-color-cyan.pair-subject,
+.card-field.field-color-cyan .pair-time-span {
   color: #06b6d4 !important;
   text-shadow: 0 0 10px rgba(6, 182, 212, 0.25);
 }
-.field-color-emerald {
+.card-field.field-color-cyan .pair-teacher-btn,
+.card-field.field-color-cyan .pair-room-btn {
+  color: #06b6d4 !important;
+  border-color: rgba(6, 182, 212, 0.45) !important;
+  background: rgba(6, 182, 212, 0.1) !important;
+}
+.card-field.field-color-cyan .pair-teacher-btn svg,
+.card-field.field-color-cyan .pair-room-btn svg {
+  stroke: #06b6d4 !important;
+}
+.card-field.field-color-cyan .pair-num-badge {
+  background: #06b6d4 !important;
+  color: #fff !important;
+}
+.card-field.field-color-cyan .pair-badge {
+  border: 1px solid rgba(6, 182, 212, 0.5) !important;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.3) !important;
+}
+
+/* Emerald (Изумруд) */
+.card-field.field-color-emerald,
+.card-field.field-color-emerald.pair-subject,
+.card-field.field-color-emerald .pair-time-span {
   color: #10b981 !important;
   text-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
 }
-.field-color-amber {
+.card-field.field-color-emerald .pair-teacher-btn,
+.card-field.field-color-emerald .pair-room-btn {
+  color: #10b981 !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  background: rgba(16, 185, 129, 0.1) !important;
+}
+.card-field.field-color-emerald .pair-teacher-btn svg,
+.card-field.field-color-emerald .pair-room-btn svg {
+  stroke: #10b981 !important;
+}
+.card-field.field-color-emerald .pair-num-badge {
+  background: #10b981 !important;
+  color: #fff !important;
+}
+.card-field.field-color-emerald .pair-badge {
+  border: 1px solid rgba(16, 185, 129, 0.5) !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3) !important;
+}
+
+/* Amber (Янтарь) */
+.card-field.field-color-amber,
+.card-field.field-color-amber.pair-subject,
+.card-field.field-color-amber .pair-time-span {
   color: #f59e0b !important;
   text-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
 }
-.field-color-purple {
+.card-field.field-color-amber .pair-teacher-btn,
+.card-field.field-color-amber .pair-room-btn {
+  color: #f59e0b !important;
+  border-color: rgba(245, 158, 11, 0.45) !important;
+  background: rgba(245, 158, 11, 0.1) !important;
+}
+.card-field.field-color-amber .pair-teacher-btn svg,
+.card-field.field-color-amber .pair-room-btn svg {
+  stroke: #f59e0b !important;
+}
+.card-field.field-color-amber .pair-num-badge {
+  background: #f59e0b !important;
+  color: #fff !important;
+}
+.card-field.field-color-amber .pair-badge {
+  border: 1px solid rgba(245, 158, 11, 0.5) !important;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3) !important;
+}
+
+/* Purple (Фиолетовый) */
+.card-field.field-color-purple,
+.card-field.field-color-purple.pair-subject,
+.card-field.field-color-purple .pair-time-span {
   color: #a855f7 !important;
   text-shadow: 0 0 10px rgba(168, 85, 247, 0.25);
+}
+.card-field.field-color-purple .pair-teacher-btn,
+.card-field.field-color-purple .pair-room-btn {
+  color: #a855f7 !important;
+  border-color: rgba(168, 85, 247, 0.45) !important;
+  background: rgba(168, 85, 247, 0.1) !important;
+}
+.card-field.field-color-purple .pair-teacher-btn svg,
+.card-field.field-color-purple .pair-room-btn svg {
+  stroke: #a855f7 !important;
+}
+.card-field.field-color-purple .pair-num-badge {
+  background: #a855f7 !important;
+  color: #fff !important;
+}
+.card-field.field-color-purple .pair-badge {
+  border: 1px solid rgba(168, 85, 247, 0.5) !important;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.3) !important;
 }
 
 /* ════════════════════════════════════════════

@@ -3052,31 +3052,34 @@ function buildGroupGrid(gridEl, searchEl, chipsEl, onSelect) {
 // ── LEVEL 1: SCREEN (Крупные блоки экрана) ──
 const STORAGE_LAYOUT_ORDER = 'schedule_layout_order_v1';
 const MANDATORY_LAYOUT_WIDGET = 'widget-schedule-content';
-const DEFAULT_LAYOUT_ORDER = [
-  'widget-live-status',
-  'widget-week-nav',
-  'widget-day-strip',
-  'widget-schedule-content'
+
+const DEFAULT_LAYOUT_CONFIG = [
+  { id: 'widget-live-status',      visible: true },
+  { id: 'widget-week-nav',         visible: true },
+  { id: 'widget-day-strip',        visible: true },
+  { id: 'widget-schedule-content', visible: true }
 ];
+
+const DEFAULT_LAYOUT_ORDER = DEFAULT_LAYOUT_CONFIG.map(x => x.id);
 
 const PRESETS_LAYOUT = {
   standard: [
-    'widget-live-status',
-    'widget-week-nav',
-    'widget-day-strip',
-    'widget-schedule-content'
+    { id: 'widget-live-status',      visible: true },
+    { id: 'widget-week-nav',         visible: true },
+    { id: 'widget-day-strip',        visible: true },
+    { id: 'widget-schedule-content', visible: true }
   ],
   daysFirst: [
-    'widget-day-strip',
-    'widget-live-status',
-    'widget-week-nav',
-    'widget-schedule-content'
+    { id: 'widget-day-strip',        visible: true },
+    { id: 'widget-live-status',      visible: true },
+    { id: 'widget-week-nav',         visible: true },
+    { id: 'widget-schedule-content', visible: true }
   ],
   scheduleFocus: [
-    'widget-schedule-content',
-    'widget-live-status',
-    'widget-week-nav',
-    'widget-day-strip'
+    { id: 'widget-schedule-content', visible: true },
+    { id: 'widget-live-status',      visible: true },
+    { id: 'widget-week-nav',         visible: true },
+    { id: 'widget-day-strip',        visible: true }
   ]
 };
 
@@ -3264,36 +3267,59 @@ let menuConfigBeforeEdit = null;
 let cardConfigBeforeEdit = null;
 
 // Текущие рабочие конфигурации
-let activeScreenOrder = [...DEFAULT_LAYOUT_ORDER];
-let activeMenuConfig = JSON.parse(JSON.stringify(DEFAULT_MENU_CONFIG));
-let activeCardConfig = JSON.parse(JSON.stringify(DEFAULT_CARD_CONFIG));
-
 // ── ВАЛИДАЦИЯ И ЧТЕНИЕ ИЗ STORAGE ──
-function validateLayoutOrder(order) {
-  if (!Array.isArray(order) || order.length === 0) {
-    return [...DEFAULT_LAYOUT_ORDER];
-  }
-  if (!order.includes(MANDATORY_LAYOUT_WIDGET)) {
-    return [...DEFAULT_LAYOUT_ORDER];
+function validateLayoutConfig(input) {
+  if (!Array.isArray(input) || input.length === 0) {
+    return JSON.parse(JSON.stringify(DEFAULT_LAYOUT_CONFIG));
   }
   const validWidgets = new Set(DEFAULT_LAYOUT_ORDER);
-  const cleanOrder = order.filter(id => validWidgets.has(id));
-  const uniqueOrder = Array.from(new Set(cleanOrder));
-  DEFAULT_LAYOUT_ORDER.forEach(id => {
-    if (!uniqueOrder.includes(id)) uniqueOrder.push(id);
+  const result = [];
+  const seen = new Set();
+
+  input.forEach(item => {
+    let id = '';
+    let visible = true;
+    if (typeof item === 'string') {
+      id = item;
+      visible = true;
+    } else if (item && typeof item === 'object') {
+      id = item.id;
+      visible = (item.visible !== false);
+    }
+    if (validWidgets.has(id) && !seen.has(id)) {
+      if (id === MANDATORY_LAYOUT_WIDGET) visible = true;
+      result.push({ id, visible });
+      seen.add(id);
+    }
   });
-  return uniqueOrder;
+
+  DEFAULT_LAYOUT_CONFIG.forEach(item => {
+    if (!seen.has(item.id)) {
+      result.push({ id: item.id, visible: true });
+    }
+  });
+
+  return result;
 }
 
-function getStoredLayoutOrder() {
+function getStoredLayoutConfig() {
   try {
     const raw = localStorage.getItem(STORAGE_LAYOUT_ORDER);
-    if (!raw) return [...DEFAULT_LAYOUT_ORDER];
-    return validateLayoutOrder(JSON.parse(raw));
+    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_LAYOUT_CONFIG));
+    return validateLayoutConfig(JSON.parse(raw));
   } catch (_) {
-    return [...DEFAULT_LAYOUT_ORDER];
+    return JSON.parse(JSON.stringify(DEFAULT_LAYOUT_CONFIG));
   }
 }
+
+const validateLayoutOrder = (x) => validateLayoutConfig(x);
+const getStoredLayoutOrder = () => getStoredLayoutConfig();
+
+// Текущие рабочие конфигурации
+let activeScreenConfig = getStoredLayoutConfig();
+let activeScreenOrder = activeScreenConfig.map(x => x.id);
+let activeMenuConfig = JSON.parse(JSON.stringify(DEFAULT_MENU_CONFIG));
+let activeCardConfig = JSON.parse(JSON.stringify(DEFAULT_CARD_CONFIG));
 
 function validateMenuConfig(cfg) {
   if (!Array.isArray(cfg) || cfg.length === 0) {
@@ -3431,14 +3457,25 @@ function areConfigsEqual(a, b) {
 
 // ── ПРИМЕНЕНИЕ КОНФИГУРАЦИЙ ──
 function applyLayoutOrder(order, persist = false) {
-  const validated = validateLayoutOrder(order);
-  activeScreenOrder = validated;
+  const validated = validateLayoutConfig(order);
+  activeScreenConfig = validated;
+  activeScreenOrder = validated.map(x => x.id);
   const container = els.mainFlowContainer || $('mainFlowContainer');
   if (!container) return;
 
-  validated.forEach(widgetId => {
-    const el = container.querySelector(`.flow-widget[data-widget="${widgetId}"]`);
-    if (el) container.appendChild(el);
+  validated.forEach(item => {
+    const el = container.querySelector(`.flow-widget[data-widget="${item.id}"]`);
+    if (el) {
+      container.appendChild(el);
+      const isVis = (item.visible !== false);
+      el.classList.toggle('flow-widget-hidden', !isVis);
+      const toggleBtn = el.querySelector('.widget-vis-toggle-btn');
+      if (toggleBtn) {
+        toggleBtn.classList.toggle('is-visible', isVis);
+        toggleBtn.classList.toggle('is-hidden', !isVis);
+        toggleBtn.title = isVis ? 'Скрыть блок' : 'Показать блок';
+      }
+    }
   });
 
   if (persist) {
@@ -3508,7 +3545,7 @@ function applyCardConfig(cfg, persist = false) {
 }
 
 function updateResetButtonsVisibility() {
-  const customScreen = !areArraysEqual(activeScreenOrder, DEFAULT_LAYOUT_ORDER);
+  const customScreen = !areConfigsEqual(activeScreenConfig, DEFAULT_LAYOUT_CONFIG);
   const customMenu = !areConfigsEqual(activeMenuConfig, DEFAULT_MENU_CONFIG);
   const customCard = isCardTemplateCustom();
   const hasAnyCustom = customScreen || customMenu || customCard;
@@ -3834,9 +3871,9 @@ function updatePresetsUI() {
   if (!row) return;
 
   if (currentLayoutTab === 'screen') {
-    const isStd = areArraysEqual(activeScreenOrder, PRESETS_LAYOUT.standard);
-    const isDays = areArraysEqual(activeScreenOrder, PRESETS_LAYOUT.daysFirst);
-    const isFocus = areArraysEqual(activeScreenOrder, PRESETS_LAYOUT.scheduleFocus);
+    const isStd = areConfigsEqual(activeScreenConfig, PRESETS_LAYOUT.standard);
+    const isDays = areConfigsEqual(activeScreenConfig, PRESETS_LAYOUT.daysFirst);
+    const isFocus = areConfigsEqual(activeScreenConfig, PRESETS_LAYOUT.scheduleFocus);
 
     row.innerHTML = `
       <button class="preset-chip${isStd ? ' active' : ''}" type="button" data-preset="standard">Стандарт</button>
@@ -3955,7 +3992,8 @@ function enterLayoutEditor(initialTab = 'screen') {
   try { closeThemeModal(); } catch (_) {}
 
   // Сохраняем начальные снимки для отмены
-  screenOrderBeforeEdit = [...activeScreenOrder];
+  // Сохраняем начальные снимки для отмены
+  screenOrderBeforeEdit = JSON.parse(JSON.stringify(activeScreenConfig));
   menuConfigBeforeEdit = JSON.parse(JSON.stringify(activeMenuConfig));
   cardConfigBeforeEdit = JSON.parse(JSON.stringify(activeCardConfig));
 
@@ -3973,15 +4011,24 @@ function enterLayoutEditor(initialTab = 'screen') {
       dragClass: 'sortable-drag',
       touchStartThreshold: 4,
       onEnd: () => {
-        const order = [];
+        const newConfig = [];
         flowContainer.querySelectorAll('.flow-widget').forEach(w => {
-          if (w.dataset.widget) order.push(w.dataset.widget);
+          const wid = w.dataset.widget;
+          if (wid) {
+            const existing = activeScreenConfig.find(x => x.id === wid);
+            newConfig.push({
+              id: wid,
+              visible: existing ? existing.visible !== false : true
+            });
+          }
         });
-        activeScreenOrder = validateLayoutOrder(order);
+        activeScreenConfig = validateLayoutConfig(newConfig);
+        activeScreenOrder = activeScreenConfig.map(x => x.id);
         updatePresetsUI();
       }
     });
   }
+
 
   // 2. Инициализация Sortable для меню по секциям
   sortableMenuInstances.forEach(inst => {
@@ -4015,7 +4062,7 @@ function exitLayoutEditor(save = false) {
   if (!isLayoutEditingMode) return;
 
   if (save) {
-    applyLayoutOrder(activeScreenOrder, true);
+    applyLayoutOrder(activeScreenConfig, true);
     applyMenuConfig(activeMenuConfig, true);
     applyCardConfig(activeCardConfig, true);
     showLayoutNotification('Все настройки интерфейса сохранены!');
@@ -4042,7 +4089,7 @@ function exitLayoutEditor(save = false) {
 function resetLayoutOrder() {
   if (isLayoutEditingMode) {
     if (currentLayoutTab === 'screen') {
-      applyLayoutOrder(DEFAULT_LAYOUT_ORDER, false);
+      applyLayoutOrder(DEFAULT_LAYOUT_CONFIG, false);
       showLayoutNotification('Расположение экрана сброшено');
     } else if (currentLayoutTab === 'menu') {
       applyMenuConfig(DEFAULT_MENU_CONFIG, false);
@@ -4061,7 +4108,7 @@ function resetLayoutOrder() {
       localStorage.removeItem(STORAGE_CARD_TEMPLATE);
     } catch (_) {}
 
-    applyLayoutOrder(DEFAULT_LAYOUT_ORDER, false);
+    applyLayoutOrder(DEFAULT_LAYOUT_CONFIG, false);
     applyMenuConfig(DEFAULT_MENU_CONFIG, false);
     applyCardConfig(DEFAULT_CARD_CONFIG, false);
     showLayoutNotification('Интерфейс полностью сброшен по умолчанию');
@@ -4121,6 +4168,22 @@ function initLayoutManager() {
   els.sidebarResetLayoutBtn?.addEventListener('click', () => {
     resetLayoutOrder();
     closeSidebar();
+  });
+
+  // Переключение видимости блоков экрана по клику на глаз
+  document.querySelectorAll('.widget-vis-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const wid = btn.dataset.widgetId;
+      if (wid === MANDATORY_LAYOUT_WIDGET) return;
+      const target = activeScreenConfig.find(w => w.id === wid);
+      if (target) {
+        target.visible = !target.visible;
+        applyLayoutOrder(activeScreenConfig, false);
+        updatePresetsUI();
+      }
+    });
   });
 
   // Переключение видимости пунктов меню по клику на глаз (включая шапку группы и футер)
