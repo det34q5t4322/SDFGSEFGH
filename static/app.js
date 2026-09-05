@@ -1508,19 +1508,11 @@ async function loadSchedule(force = false) {
 
     // Автоматическое определение вкладки по датам недели, если не включен ручной выбор
     if (!S.manualTabMode && S.tabs && S.tabs.length > 0) {
-      const autoTab = findTabForWeek(S.weekOffset || 0);
-      if (autoTab) {
-        S.activeGid = autoTab.gid;
-      } else if (!S.activeGid || S.activeGid === 'active') {
-        const foundActive = S.tabs.find(t => t.is_active);
-        S.activeGid = foundActive ? foundActive.gid : (S.tabs[0]?.gid || '');
-      }
-    }
-
-    // Если в автоматическом режиме целевая неделя не покрыта ни одной вкладкой
-    if (!S.manualTabMode && S.tabs && S.tabs.length > 0) {
       const targetTab = findTabForWeek(S.weekOffset || 0);
-      if (!targetTab && S.weekOffset !== 0) {
+      if (targetTab) {
+        S.activeGid = targetTab.gid;
+      } else if (S.weekOffset !== 0) {
+        // Целевая неделя ещё не опубликована
         clearTimeout(wakeupTimer);
         hideOfflineBanner();
         S.isNotPublished = true;
@@ -1528,6 +1520,9 @@ async function loadSchedule(force = false) {
         buildDayStrip();
         renderScheduleNotPublished();
         return;
+      } else if (!S.activeGid || S.activeGid === 'active') {
+        const foundActive = S.tabs.find(t => t.is_active);
+        S.activeGid = foundActive ? foundActive.gid : (S.tabs[0]?.gid || '');
       }
     }
 
@@ -1976,19 +1971,57 @@ window.clearClassroomSelection = function() {
   renderClassroomsList('');
 };
 
-async function initTeachersView(force = false) {
-  if (S.teachersList.length === 0 || force) {
+async function fetchEntityList(stateKey, endpoint, force = false) {
+  if (S[stateKey].length === 0 || force) {
     try {
       const tabParam = S.activeGid ? `?tab=${encodeURIComponent(S.activeGid)}` : '';
-      const res = await fetch(`${API}/teachers${tabParam}`);
+      const res = await fetch(`${API}/${endpoint}${tabParam}`);
       if (res.ok) {
         const data = await res.json();
-        S.teachersList = data.teachers || [];
+        S[stateKey] = data[endpoint] || [];
       }
     } catch (e) {
-      console.error('Ошибка загрузки преподавателей:', e);
+      console.error(`Ошибка загрузки ${endpoint}:`, e);
     }
   }
+}
+
+function renderEntityScheduleByDay(byDay, metaType) {
+  let html = '';
+  let totalLessons = 0;
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+
+  days.forEach(day => {
+    const rows = byDay[day];
+    if (!rows || rows.length === 0) return;
+    totalLessons += rows.length;
+    html += `<div class="week-day-header"><span class="week-day-name">${day}</span></div>`;
+    rows.forEach(r => {
+      const pn = r.pair_num || '?';
+      const timeStr = r.time || '';
+      const metaBtn = metaType === 'teacher'
+        ? (r.classroom ? `<button class="pair-room-btn" onclick="openRoom('${esc(r.classroom)}')">${ICONS.mapPin} <span>${esc(r.classroom)}</span></button>` : '')
+        : (r.teacher ? `<button class="pair-teacher-btn" onclick="openTeacher('${esc(r.teacher)}')">${ICONS.user} <span>${esc(r.teacher)}</span></button>` : '');
+
+      html += `<div class="pair-card">
+        <div class="pair-num-col"><div class="pair-num">${pn}</div><div class="pair-time-small">${timeStr.split('-')[0] || ''}</div></div>
+        <div class="pair-body">
+          <div class="pair-subject">${esc(r.subject)}</div>
+          <div class="pair-meta">
+            <span class="pair-badge badge-going">${esc(r.group)}</span>
+            ${metaBtn}
+            ${r.week ? `<span class="pair-badge">${esc(r.week)}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+
+  return { html, totalLessons };
+}
+
+async function initTeachersView(force = false) {
+  await fetchEntityList('teachersList', 'teachers', force);
   renderTeachersList(els.teacherSearchInput?.value || '');
 }
 
@@ -2042,7 +2075,7 @@ async function selectTeacher(teacherName) {
     }
 
     const data = await res.json();
-    const byDay = data.days || {};
+    const { html: daysHtml, totalLessons } = renderEntityScheduleByDay(data.days || {}, 'teacher');
 
     let html = `
       <div class="selected-target-banner">
@@ -2053,34 +2086,7 @@ async function selectTeacher(teacherName) {
       </div>
     `;
 
-    let totalLessons = 0;
-    ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'].forEach(day => {
-      const rows = byDay[day];
-      if (!rows || rows.length === 0) return;
-      totalLessons += rows.length;
-      html += `<div class="week-day-header"><span class="week-day-name">${day}</span></div>`;
-      rows.forEach(r => {
-        const pn = r.pair_num || '?';
-        const timeStr = r.time || '';
-        const room = r.classroom || '';
-        html += `<div class="pair-card">
-          <div class="pair-num-col"><div class="pair-num">${pn}</div><div class="pair-time-small">${timeStr.split('-')[0] || ''}</div></div>
-          <div class="pair-body">
-            <div class="pair-subject">${esc(r.subject)}</div>
-            <div class="pair-meta">
-              <span class="pair-badge badge-going">${esc(r.group)}</span>
-              ${room ? `<button class="pair-room-btn" onclick="openRoom('${esc(room)}')">${ICONS.mapPin} <span>${esc(room)}</span></button>` : ''}
-              ${r.week ? `<span class="pair-badge">${esc(r.week)}</span>` : ''}
-            </div>
-          </div>
-        </div>`;
-      });
-    });
-
-    if (totalLessons === 0) {
-      html += `<div class="empty-pairs-hint">Занятий на текущую неделю не найдено</div>`;
-    }
-
+    html += (totalLessons > 0) ? daysHtml : '<div class="empty-pairs-hint">Занятий на текущую неделю не найдено</div>';
     els.teacherResult.innerHTML = html;
     els.teacherResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) {
@@ -2089,18 +2095,7 @@ async function selectTeacher(teacherName) {
 }
 
 async function initClassroomsView(force = false) {
-  if (S.classroomsList.length === 0 || force) {
-    try {
-      const tabParam = S.activeGid ? `?tab=${encodeURIComponent(S.activeGid)}` : '';
-      const res = await fetch(`${API}/classrooms${tabParam}`);
-      if (res.ok) {
-        const data = await res.json();
-        S.classroomsList = data.classrooms || [];
-      }
-    } catch (e) {
-      console.error('Ошибка загрузки аудиторий:', e);
-    }
-  }
+  await fetchEntityList('classroomsList', 'classrooms', force);
   renderClassroomsList(els.classroomSearchInput?.value || '');
 }
 
@@ -2153,7 +2148,7 @@ async function selectClassroom(roomName) {
     }
 
     const data = await res.json();
-    const byDay = data.days || {};
+    const { html: daysHtml, totalLessons } = renderEntityScheduleByDay(data.days || {}, 'classroom');
 
     let html = `
       <div class="selected-target-banner">
@@ -2164,34 +2159,7 @@ async function selectClassroom(roomName) {
       </div>
     `;
 
-    let totalLessons = 0;
-    ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'].forEach(day => {
-      const rows = byDay[day];
-      if (!rows || rows.length === 0) return;
-      totalLessons += rows.length;
-      html += `<div class="week-day-header"><span class="week-day-name">${day}</span></div>`;
-      rows.forEach(r => {
-        const pn = r.pair_num || '?';
-        const timeStr = r.time || '';
-        const teacher = r.teacher || '';
-        html += `<div class="pair-card">
-          <div class="pair-num-col"><div class="pair-num">${pn}</div><div class="pair-time-small">${timeStr.split('-')[0] || ''}</div></div>
-          <div class="pair-body">
-            <div class="pair-subject">${esc(r.subject)}</div>
-            <div class="pair-meta">
-              <span class="pair-badge badge-going">${esc(r.group)}</span>
-              ${teacher ? `<button class="pair-teacher-btn" onclick="openTeacher('${esc(teacher)}')">${ICONS.user} <span>${esc(teacher)}</span></button>` : ''}
-              ${r.week ? `<span class="pair-badge">${esc(r.week)}</span>` : ''}
-            </div>
-          </div>
-        </div>`;
-      });
-    });
-
-    if (totalLessons === 0) {
-      html += `<div class="empty-pairs-hint">Занятий в аудитории не найдено</div>`;
-    }
-
+    html += (totalLessons > 0) ? daysHtml : '<div class="empty-pairs-hint">Занятий в аудитории не найдено</div>';
     els.classroomResult.innerHTML = html;
     els.classroomResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) {
@@ -2443,6 +2411,35 @@ function calculateUnifiedSeptStats(currentScheduleData, septFirstScheduleData) {
   const passedSubjectsMap = {};
   const uniqueDatesSet = new Set();
 
+  function recordPassedPair(p, pairInfo, subj, dateStr, dayName) {
+    totalPassed++;
+    uniqueDatesSet.add(dateStr);
+
+    if (!passedSubjectsMap[subj]) {
+      passedSubjectsMap[subj] = {
+        name: subj,
+        count: 0,
+        sessions: [],
+        teacher: pairInfo.teacher || p.teacher || '',
+        room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || ''
+      };
+    }
+    const entry = passedSubjectsMap[subj];
+    entry.count++;
+    entry.sessions.push({
+      date: dateStr,
+      dayName,
+      num: p.pair_num || p.num || 1,
+      time: p.time || `${p.start || ''} - ${p.end || ''}`.trim()
+    });
+    if (!entry.teacher && (pairInfo.teacher || p.teacher)) {
+      entry.teacher = pairInfo.teacher || p.teacher;
+    }
+    if (!entry.room && (pairInfo.classroom || p.room)) {
+      entry.room = pairInfo.classroom || p.room;
+    }
+  }
+
   // 1. Вкладка «Расписание 1 сентября» (01.09.2026, Вторник)
   if (septFirstScheduleData && septFirstScheduleData.days) {
     for (const [dayName, pairs] of Object.entries(septFirstScheduleData.days)) {
@@ -2451,32 +2448,7 @@ function calculateUnifiedSeptStats(currentScheduleData, septFirstScheduleData) {
         const pairInfo = p.both || p.numerator || p.denominator || {};
         const subj = (pairInfo.subject || p.subject || '').trim();
         if (!subj || /самостоятельн/i.test(subj)) continue;
-
-        totalPassed++;
-        uniqueDatesSet.add('01.09');
-
-        if (!passedSubjectsMap[subj]) {
-          passedSubjectsMap[subj] = {
-            name: subj,
-            count: 0,
-            sessions: [],
-            teacher: pairInfo.teacher || p.teacher || '',
-            room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || ''
-          };
-        }
-        passedSubjectsMap[subj].count++;
-        passedSubjectsMap[subj].sessions.push({
-          date: '01.09',
-          dayName: 'Вторник',
-          num: p.pair_num || p.num || 1,
-          time: p.time || `${p.start || ''} - ${p.end || ''}`.trim()
-        });
-        if (!passedSubjectsMap[subj].teacher && (pairInfo.teacher || p.teacher)) {
-          passedSubjectsMap[subj].teacher = pairInfo.teacher || p.teacher;
-        }
-        if (!passedSubjectsMap[subj].room && (pairInfo.classroom || p.room)) {
-          passedSubjectsMap[subj].room = pairInfo.classroom || p.room;
-        }
+        recordPassedPair(p, pairInfo, subj, '01.09', 'Вторник');
       }
     }
   }
@@ -2517,31 +2489,7 @@ function calculateUnifiedSeptStats(currentScheduleData, septFirstScheduleData) {
         }
 
         if (isPassed) {
-          totalPassed++;
-          uniqueDatesSet.add(dm);
-
-          if (!passedSubjectsMap[subj]) {
-            passedSubjectsMap[subj] = {
-              name: subj,
-              count: 0,
-              sessions: [],
-              teacher: pairInfo.teacher || p.teacher || '',
-              room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || ''
-            };
-          }
-          passedSubjectsMap[subj].count++;
-          passedSubjectsMap[subj].sessions.push({
-            date: dm,
-            dayName,
-            num: p.pair_num || p.num || 1,
-            time: p.time || `${p.start || ''} - ${p.end || ''}`.trim()
-          });
-          if (!passedSubjectsMap[subj].teacher && (pairInfo.teacher || p.teacher)) {
-            passedSubjectsMap[subj].teacher = pairInfo.teacher || p.teacher;
-          }
-          if (!passedSubjectsMap[subj].room && (pairInfo.classroom || p.room)) {
-            passedSubjectsMap[subj].room = pairInfo.classroom || p.room;
-          }
+          recordPassedPair(p, pairInfo, subj, dm, dayName);
         }
       }
     }
@@ -2711,6 +2659,34 @@ function ensureGroupsLoaded() {
   return S.groupsList || DEFAULT_GROUPS;
 }
 
+function saveActiveGroup(grp) {
+  S.group = grp;
+  try {
+    localStorage.setItem(STORAGE_GROUP, grp);
+    localStorage.setItem('schedule_group', grp);
+  } catch (_) {}
+  if (window.Telegram?.WebApp?.CloudStorage) {
+    try {
+      window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, grp);
+    } catch (_) {}
+  }
+  try {
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (tgUser?.id) {
+      fetch('/api/user-group', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: String(tgUser.id), group: grp })
+      }).catch(() => {});
+    }
+  } catch (_) {}
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.set('group', grp);
+    window.history.replaceState(null, '', u.toString());
+  } catch (_) {}
+}
+
 function openGroupModal() {
   ensureGroupsLoaded();
   els.groupModal?.classList.add('open');
@@ -2719,33 +2695,7 @@ function openGroupModal() {
       closeGroupModal();
       return;
     }
-    S.group = grp;
-    try {
-      localStorage.setItem(STORAGE_GROUP, grp);
-      localStorage.setItem('schedule_group', grp);
-    } catch (_) {}
-    if (window.Telegram?.WebApp?.CloudStorage) {
-      try {
-        window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, grp);
-      } catch (_) {}
-    }
-    // Сохраняем на сервере для данного пользователя Telegram
-    try {
-      const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-      if (tgUser?.id) {
-        fetch('/api/user-group', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: String(tgUser.id), group: grp })
-        }).catch(() => {});
-      }
-    } catch (_) {}
-    // Синхронизируем URL без перезагрузки (чтобы F5 и свайпы сохраняли выбранную группу)
-    try {
-      const u = new URL(window.location.href);
-      u.searchParams.set('group', grp);
-      window.history.replaceState(null, '', u.toString());
-    } catch (_) {}
+    saveActiveGroup(grp);
     closeGroupModal();
     updateSidebarGroupInfo();
     renderSkeleton();
@@ -2765,8 +2715,7 @@ function showOnboarding() {
   ensureGroupsLoaded();
   els.onboardModal?.classList.add('open');
   buildGroupGrid(els.onboardGroupsGrid, els.onboardSearchInput, els.onboardCourseChips, (grp) => {
-    S.group = grp;
-    localStorage.setItem(STORAGE_GROUP, grp);
+    saveActiveGroup(grp);
     els.onboardModal?.classList.remove('open');
     updateSidebarGroupInfo();
     loadSchedule(true);
@@ -2794,21 +2743,23 @@ function buildGroupGrid(gridEl, searchEl, chipsEl, onSelect) {
     return 'Другое';
   }
 
+  const normalizedGroups = groups.map(item => {
+    const name = typeof item === 'string' ? item : item.name;
+    const course = (typeof item === 'object' && item.course) ? item.course : detectCourse(name);
+    return { name, course, lower: name.toLowerCase() };
+  });
+
   function render(filter, query) {
     const q = (query || '').toLowerCase().trim();
-    const filtered = groups.filter(item => {
-      const name = typeof item === 'string' ? item : item.name;
-      const course = (typeof item === 'object' && item.course) ? item.course : detectCourse(name);
-      const matchQ = !q || name.toLowerCase().includes(q);
-      const matchF = filter === 'all' || course === filter;
+    const filtered = normalizedGroups.filter(item => {
+      const matchQ = !q || item.lower.includes(q);
+      const matchF = filter === 'all' || item.course === filter;
       return matchQ && matchF;
     });
 
     const byCourse = {};
     filtered.forEach(item => {
-      const name = typeof item === 'string' ? item : item.name;
-      const course = (typeof item === 'object' && item.course) ? item.course : detectCourse(name);
-      (byCourse[course] = byCourse[course] || []).push({ name, course });
+      (byCourse[item.course] = byCourse[item.course] || []).push(item);
     });
 
     let html = '<div class="groups-container">';

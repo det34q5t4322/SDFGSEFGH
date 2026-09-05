@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Optional
 
 from dotenv import load_dotenv
@@ -103,14 +103,14 @@ def set_user_group(user_id: int, username: str, group: str) -> None:
     users[str(user_id)] = {
         "group": group,
         "username": username or "",
-        "updated_at": datetime.now().isoformat(),
+        "updated_at": get_moscow_now().isoformat(),
     }
     save_users(users)
 
 
 def get_current_week_parity() -> str:
-    """Определение текущей недели: num (числитель/I) или den (знаменатель/II)."""
-    now = datetime.now()
+    """Определение текущей недели: num (числитель/I) или den (знаменатель/II) по времени МСК."""
+    now = get_moscow_now()
     year = now.year if now.month >= 8 else now.year - 1
     sept_first = datetime(year, 9, 1)
     diff_days = (now - sept_first).days
@@ -295,8 +295,6 @@ async def set_group_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     set_user_group(user.id, user.username, group_name)
     await send_schedule_for_day(update, context, offset_days=0)
 
-
-from datetime import datetime, timedelta
 
 def get_break_description(after_pair: int, before_pair: int) -> str:
     """Возвращает текстовое описание перемены между парами."""
@@ -527,7 +525,7 @@ async def day_dow_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     """Обработчик перехода на конкретный день недели из меню недели."""
     query = update.callback_query
     target_dow = int(query.data.replace("day_dow_", ""))
-    now = datetime.now()
+    now = get_moscow_now()
     offset = target_dow - now.weekday()
     await send_schedule_for_day(update, context, offset_days=offset)
 
@@ -553,11 +551,8 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         # Проверяем введенное название группы
         data = parser.get_data()
-        group_match = None
-        for g in data.get("groups", []):
-            if g["name"].lower() == text.lower():
-                group_match = g["name"]
-                break
+        groups = data.get("groups", [])
+        group_match = next((g["name"] for g in groups if g["name"].lower() == text.lower()), None)
 
         if group_match:
             user = update.effective_user

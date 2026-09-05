@@ -40,7 +40,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
 
 # Скользящее окно для ограничения частоты запросов (защита бесплатного инстанса Render)
@@ -154,10 +153,24 @@ async def startup_event():
     asyncio.create_task(render_keep_alive_task())
 
 
-@app.get("/api/health")
+def _clean_tabs(tabs: list) -> list:
+    """Фильтрация служебных и тестовых вкладок."""
+    return [t for t in tabs if not is_test_tab(t.get("name"))]
+
+
+def _group_lessons_by_day(lessons: list) -> dict:
+    """Группировка списка пар по дням недели с сортировкой по номеру пары."""
+    grouped = {}
+    for item in lessons:
+        grouped.setdefault(item["day"], []).append(item)
+    for d in grouped:
+        grouped[d].sort(key=lambda x: x.get("pair_num", 0))
+    return grouped
+
+
 @app.get("/api/ping")
-async def health_check():
-    """Проверка жизнеспособности сервера, кэша и времени МСК."""
+async def ping():
+    """Легковесный ping для keep-alive пингера и быстрой проверки доступности."""
     now_msk = get_moscow_now()
     active_data = parser.data
     cache_age = round(time.time() - parser.last_updated, 1) if parser.last_updated else None
@@ -194,9 +207,8 @@ async def root():
 async def get_tabs():
     """Список всех обнаруженных вкладок расписания в Google Таблице с отметкой активной."""
     tabs_data = parser.get_tabs()
-    clean_tabs = [t for t in tabs_data.get("tabs", []) if not is_test_tab(t.get("name"))]
     return {
-        "tabs": clean_tabs,
+        "tabs": _clean_tabs(tabs_data.get("tabs", [])),
         "active_gid": tabs_data.get("active_gid", ""),
     }
 
@@ -209,13 +221,12 @@ async def get_status(
     """Текущий статус сервиса, дата обновления, чётность недели, звонки и перемены."""
     selected_tab = tab or gid
     data = parser.get_data(gid=selected_tab)
-    clean_tabs = [t for t in data.get("available_tabs", []) if not is_test_tab(t.get("name"))]
     return {
         "title": data.get("title", "Колледж телекоммуникаций"),
         "tab_name": data.get("tab_name", ""),
         "gid": data.get("gid", ""),
         "is_active_tab": data.get("is_active_tab", True),
-        "available_tabs": clean_tabs,
+        "available_tabs": _clean_tabs(data.get("available_tabs", [])),
         "active_gid": data.get("active_gid", ""),
         "subtitle": data.get("subtitle", ""),
         "last_updated": data.get("last_updated", ""),
@@ -259,19 +270,18 @@ async def get_schedule(
         matched_tab = parser.find_tab_for_date(date)
         if not matched_tab:
             tabs_data = parser.get_tabs()
-            clean_tabs = [t for t in tabs_data.get("tabs", []) if not is_test_tab(t.get("name"))]
             return {
                 "published": False,
                 "message": "Расписание на эту неделю ещё не опубликовано",
                 "target_date": date,
                 "group": group or "",
-                "available_tabs": clean_tabs,
+                "available_tabs": _clean_tabs(tabs_data.get("tabs", [])),
                 "active_gid": tabs_data.get("active_gid", ""),
             }
         selected_tab = matched_tab["gid"]
 
     data = parser.get_data(gid=selected_tab)
-    clean_tabs = [t for t in data.get("available_tabs", []) if not is_test_tab(t.get("name"))]
+    clean_tabs = _clean_tabs(data.get("available_tabs", []))
 
     if not group:
         return {
@@ -294,14 +304,10 @@ async def get_schedule(
     schedules = data.get("schedules", {})
 
     if group_norm not in schedules:
-        # Попробуем регистронезависимый поиск
-        found = None
-        for g_name in schedules:
-            if g_name.lower() == group_norm.lower():
-                found = g_name
-                break
-        if found:
-            group_norm = found
+        # Регистронезависимый поиск группы
+        matched = next((g for g in schedules if g.lower() == group_norm.lower()), None)
+        if matched:
+            group_norm = matched
         else:
             raise HTTPException(status_code=404, detail=f"Группа '{group}' не найдена")
 
@@ -403,17 +409,9 @@ async def get_teacher_schedule(
                 raise HTTPException(status_code=404, detail=f"Преподаватель '{teacher}' не найден")
 
     lessons = teacher_schedules.get(teacher_norm, [])
-    grouped_by_day = {}
-    for item in lessons:
-        d = item["day"]
-        grouped_by_day.setdefault(d, []).append(item)
-
-    for d in grouped_by_day:
-        grouped_by_day[d].sort(key=lambda x: x["pair_num"])
-
     return {
         "teacher": teacher_norm,
-        "days": grouped_by_day,
+        "days": _group_lessons_by_day(lessons),
         "tab_name": data.get("tab_name", ""),
         "gid": data.get("gid", ""),
         "last_updated": data.get("last_updated", ""),
@@ -448,24 +446,16 @@ async def get_classroom_schedule(
     classroom_schedules = data.get("classroom_schedules", {})
 
     if room_norm not in classroom_schedules:
-        matches = [r for r in classroom_schedules if room_norm.lower() == r.lower()]
-        if matches:
-            room_norm = matches[0]
+        matched = next((r for r in classroom_schedules if room_norm.lower() == r.lower()), None)
+        if matched:
+            room_norm = matched
         else:
             raise HTTPException(status_code=404, detail=f"Аудитория '{room}' не найдена")
 
     lessons = classroom_schedules.get(room_norm, [])
-    grouped_by_day = {}
-    for item in lessons:
-        d = item["day"]
-        grouped_by_day.setdefault(d, []).append(item)
-
-    for d in grouped_by_day:
-        grouped_by_day[d].sort(key=lambda x: x["pair_num"])
-
     return {
         "classroom": room_norm,
-        "days": grouped_by_day,
+        "days": _group_lessons_by_day(lessons),
         "tab_name": data.get("tab_name", ""),
         "gid": data.get("gid", ""),
         "last_updated": data.get("last_updated", ""),
