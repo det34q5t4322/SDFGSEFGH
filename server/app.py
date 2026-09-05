@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from contextlib import asynccontextmanager
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
@@ -22,10 +24,39 @@ from parser import parser, _circuit_breaker, is_test_tab, get_full_teacher_name,
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
+_bot_app = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _bot_app
+    try:
+        from bot import create_bot_app
+        _bot_app = create_bot_app()
+        if _bot_app:
+            await _bot_app.initialize()
+            await _bot_app.start()
+            await _bot_app.updater.start_polling()
+            logger.info("Telegram-бот успешно запущен и опрашивает обновления (long polling)!")
+    except Exception as e:
+        logger.warning(f"Не удалось запустить Telegram-бот в фоне: {e}")
+
+    yield
+
+    if _bot_app:
+        try:
+            logger.info("Остановка Telegram-бота...")
+            await _bot_app.updater.stop()
+            await _bot_app.stop()
+            await _bot_app.shutdown()
+            logger.info("Telegram-бот остановлен.")
+        except Exception as e:
+            logger.warning(f"Ошибка при остановке бота: {e}")
+
 app = FastAPI(
     title="College Schedule API",
     description="API расписания занятий Колледжа телекоммуникаций",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Gzip-сжатие ответов (сжимает JS, CSS, JSON расписания до 70-80% меньше размера)
