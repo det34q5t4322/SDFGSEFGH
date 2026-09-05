@@ -72,7 +72,8 @@ const ICONS = {
   smartphone: '<svg class="lucide-icon" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg>',
   menuIcon: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>',
   tag: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>',
-  shieldAlert: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>'
+  shieldAlert: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>',
+  settings: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>'
 };
 
 // ── CONFIG ──────────────────────────────
@@ -208,11 +209,14 @@ const els = {
   menuBtn:              $('menuBtn'),
   sidebarGroupName:     $('sidebarGroupName'),
   sidebarGroupAvatar:   $('sidebarGroupAvatar'),
+  sidebarGroupBadge:    $('sidebarGroupBadge'),
   sidebarTabList:       $('sidebarTabList'),
   sidebarSyncStatus:    $('sidebarSyncStatus'),
   sidebarUpdated:       $('sidebarUpdated'),
+  sidebarFooter:        $('sidebarFooter'),
   sidebarChangeGroup:   $('sidebarChangeGroup'),
   sidebarRefresh:       $('sidebarRefresh'),
+  sidebarSettingsBtn:   $('sidebarSettingsBtn') || $('sidebarThemeBtn'),
 
   topbarGroupName:      $('topbarGroupName'),
   topbarParity:         $('topbarParity'),
@@ -229,9 +233,13 @@ const els = {
 
   topbarThemeBtn:       $('topbarThemeBtn'),
   sidebarThemeBtn:      $('sidebarThemeBtn'),
-  themeModal:           $('themeModal'),
-  closeThemeModal:      $('closeThemeModal'),
+  themeModal:           $('settingsModal') || $('themeModal'),
+  settingsModal:        $('settingsModal') || $('themeModal'),
+  closeThemeModal:      $('closeSettingsModal') || $('closeThemeModal'),
+  closeSettingsModal:   $('closeSettingsModal') || $('closeThemeModal'),
   themesGrid:           $('themesGrid'),
+  settingsWeeksList:    $('settingsWeeksList'),
+  settingsTabsNav:      $('settingsTabsNav'),
 
   dayStrip:             $('dayStrip'),
   prevWeekBtn:          $('prevWeekBtn'),
@@ -605,18 +613,32 @@ function setupThemes() {
     applyMinimalMode(e.target.checked);
   });
 
-  els.topbarThemeBtn?.addEventListener('click', openThemeModal);
-  els.sidebarThemeBtn?.addEventListener('click', () => {
+  els.topbarThemeBtn?.addEventListener('click', () => openSettingsModal('themes'));
+  (els.sidebarSettingsBtn || els.sidebarThemeBtn)?.addEventListener('click', () => {
     closeSidebar();
-    openThemeModal();
+    openSettingsModal('themes');
   });
-  els.closeThemeModal?.addEventListener('click', closeThemeModal);
-  els.themeModal?.addEventListener('click', e => {
-    if (e.target === els.themeModal) closeThemeModal();
+  (els.closeSettingsModal || els.closeThemeModal)?.addEventListener('click', closeSettingsModal);
+  const curModal = els.settingsModal || els.themeModal;
+  curModal?.addEventListener('click', e => {
+    if (e.target === curModal) closeSettingsModal();
+  });
+
+  // Переключение вкладок внутри модалки настроек
+  document.querySelectorAll('#settingsTabsNav .settings-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      switchSettingsTab(btn.dataset.settingsTab);
+    });
+  });
+
+  // Клик по блоку недели на главном экране открывает выбор недель в настройках
+  const weekOpener = $('weekNavInfo') || $('weekTitleBlock');
+  weekOpener?.addEventListener('click', () => {
+    openSettingsModal('weeks');
   });
 }
 
-function openThemeModal() {
+function openSettingsModal(initialTab = 'themes') {
   renderThemesGrid();
   updateFontFamilyUI();
   updateFontSizeUI();
@@ -629,13 +651,97 @@ function openThemeModal() {
     if (el) el.checked = getStoredDisplayOption(c.key, true);
   });
 
-  els.themeModal?.classList.add('open');
+  switchSettingsTab(initialTab);
+
+  const modal = els.settingsModal || els.themeModal;
+  modal?.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
-function closeThemeModal() {
-  els.themeModal?.classList.remove('open');
+function closeSettingsModal() {
+  const modal = els.settingsModal || els.themeModal;
+  modal?.classList.remove('open');
   document.body.style.overflow = '';
+}
+
+// Алиасы для обратной совместимости
+const openThemeModal = (tab = 'themes') => openSettingsModal(tab);
+const closeThemeModal = () => closeSettingsModal();
+
+function switchSettingsTab(tabName) {
+  const validTabs = ['themes', 'fonts', 'constructor', 'weeks'];
+  const targetTab = validTabs.includes(tabName) ? tabName : 'themes';
+
+  const paneMap = {
+    themes: $('paneThemes'),
+    fonts: $('paneFonts'),
+    constructor: $('paneConstructor'),
+    weeks: $('paneWeeks')
+  };
+
+  document.querySelectorAll('#settingsTabsNav .settings-tab-btn').forEach(btn => {
+    const isAct = (btn.dataset.settingsTab === targetTab);
+    btn.classList.toggle('active', isAct);
+  });
+
+  validTabs.forEach(t => {
+    const p = paneMap[t];
+    if (p) {
+      p.style.display = (t === targetTab) ? 'flex' : 'none';
+    }
+  });
+
+  if (targetTab === 'weeks') {
+    renderSettingsWeeksList();
+  }
+}
+
+function renderSettingsWeeksList() {
+  const container = $('settingsWeeksList');
+  if (!container) return;
+  container.innerHTML = '';
+  const cleanTabs = (S.tabs || []).filter(tab => !isTestTab(tab.name));
+  if (cleanTabs.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Расписание недель загружается...</div>';
+    return;
+  }
+
+  cleanTabs.forEach(tab => {
+    const isActive = (tab.gid === S.activeGid) || (!S.activeGid && tab.is_active);
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'settings-week-card' + (isActive ? ' active' : '');
+
+    let datesText = '';
+    if (tab.start_dm && tab.end_dm) {
+      datesText = `${tab.start_dm} – ${tab.end_dm}`;
+    } else if (tab.is_main) {
+      datesText = 'Резервная неделя';
+    } else {
+      datesText = 'Учебная неделя';
+    }
+
+    card.innerHTML = `
+      <div class="settings-week-card-head">
+        <span class="settings-week-name">${esc(tab.name)}</span>
+        ${isActive ? `<span class="settings-week-badge">Активная</span>` : ''}
+      </div>
+      <span class="settings-week-dates">${datesText}</span>
+    `;
+
+    card.addEventListener('click', () => {
+      S.manualTabMode = true;
+      S.isNotPublished = false;
+      S.parityOverride = null;
+      S.activeGid = tab.gid;
+      closeSettingsModal();
+      loadSchedule(true);
+      if (S.view === 'teacher') initTeachersView(true);
+      if (S.view === 'classroom') initClassroomsView(true);
+    });
+
+    container.appendChild(card);
+  });
 }
 
 function renderThemesGrid() {
@@ -824,6 +930,7 @@ window.resetToCurrentWeek = function() {
 };
 
 function buildSidebarTabs() {
+  try { renderSettingsWeeksList(); } catch (_) {}
   if (!els.sidebarTabList) return;
   els.sidebarTabList.innerHTML = '';
   const cleanTabs = (S.tabs || []).filter(tab => !isTestTab(tab.name));
@@ -1915,7 +2022,7 @@ function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelle
     ? `<button class="pair-room-btn" data-room="${esc(classroom)}" onclick="openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(classroom)}</span></button>`
     : '';
 
-  const isCustom = isCardTemplateCustom();
+  const isCustom = isCardTemplateCustom() || (isLayoutEditingMode && currentLayoutTab === 'card');
 
   if (!isCustom) {
     // Дефолтная 3-колоночная вёрстка
@@ -2023,7 +2130,7 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0)
   const replacement = p.is_replacement || (p.subject && /замена/i.test(p.subject));
   const classroom = p.classroom || p.room || '';
   const distant = p.is_distant || /дист/i.test(classroom);
-  const isCustom = isCardTemplateCustom();
+  const isCustom = isCardTemplateCustom() || (isLayoutEditingMode && currentLayoutTab === 'card');
 
   const cardClass = [
     'pair-card',
@@ -2041,7 +2148,7 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0)
 }
 
 function renderSplitCard(num, den, pn, bell, isGoing, cardIndex = 0) {
-  const isCustom = isCardTemplateCustom();
+  const isCustom = isCardTemplateCustom() || (isLayoutEditingMode && currentLayoutTab === 'card');
   const mkRow = (p, type, label) => {
     if (!p || !p.subject) return '';
     const cancelled = p.is_cancelled || (p.subject && /отмена/i.test(p.subject));
@@ -2973,22 +3080,26 @@ const PRESETS_LAYOUT = {
 
 // ── LEVEL 2: SIDEBAR MENU (Пункты меню) ──
 const STORAGE_MENU_CONFIG = 'schedule_menu_config_v1';
-const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-layout-editor'];
+const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-settings', 'menu-layout-editor'];
 
 const DEFAULT_MENU_SECTION_MAP = {
-  'menu-schedule': 'study',
-  'menu-teacher': 'study',
-  'menu-classroom': 'study',
-  'menu-diary': 'study',
-  'menu-english': 'tools',
-  'menu-stats': 'tools',
-  'menu-change-group': 'tools',
-  'menu-theme': 'system',
-  'menu-refresh': 'system',
-  'menu-layout-editor': 'system'
+  'menu-group-badge':   'study',
+  'menu-schedule':      'study',
+  'menu-teacher':       'study',
+  'menu-classroom':     'study',
+  'menu-diary':         'study',
+  'menu-english':       'tools',
+  'menu-stats':         'tools',
+  'menu-change-group':  'tools',
+  'menu-settings':      'system',
+  'menu-theme':         'system',
+  'menu-refresh':       'system',
+  'menu-layout-editor': 'system',
+  'menu-sync-footer':   'system'
 };
 
 const DEFAULT_MENU_CONFIG = [
+  { id: 'menu-group-badge',   visible: true,  section: 'study',   color: 'default' },
   { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
   { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
   { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
@@ -2996,13 +3107,15 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' }, // По умолчанию СКРЫТ
   { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
   { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-  { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
+  { id: 'menu-settings',      visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
+  { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
 ];
 
 const PRESETS_MENU = {
   standard: [
+    { id: 'menu-group-badge',   visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
@@ -3010,23 +3123,27 @@ const PRESETS_MENU = {
     { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
     { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
     { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-settings',      visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
   ],
   studyOnly: [
+    { id: 'menu-group-badge',   visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-settings',      visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'tools',   color: 'default' },
     { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
   ],
   minimal: [
+    { id: 'menu-group-badge',   visible: false, section: 'study',   color: 'default' },
     { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
     { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
     { id: 'menu-teacher',       visible: false, section: 'study',   color: 'default' },
@@ -3034,9 +3151,10 @@ const PRESETS_MENU = {
     { id: 'menu-stats',         visible: false, section: 'tools',   color: 'default' },
     { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
-    { id: 'menu-theme',         visible: false, section: 'system',  color: 'default' },
+    { id: 'menu-settings',      visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-sync-footer',   visible: false, section: 'system',  color: 'default' },
   ]
 };
 
@@ -3188,8 +3306,11 @@ function validateMenuConfig(cfg) {
   const clean = [];
   const seen = new Set();
 
-  cfg.forEach(item => {
-    if (item && validIds.has(item.id) && !seen.has(item.id)) {
+  cfg.forEach(rawItem => {
+    if (!rawItem) return;
+    const item = { ...rawItem };
+    if (item.id === 'menu-theme') item.id = 'menu-settings';
+    if (validIds.has(item.id) && !seen.has(item.id)) {
       seen.add(item.id);
       const isMandatory = MANDATORY_MENU_IDS.includes(item.id);
       clean.push({
@@ -3337,16 +3458,20 @@ function applyMenuConfig(cfg, persist = false) {
   if (!container) return;
 
   validated.forEach(item => {
-    const el = container.querySelector(`.sidebar-nav-item[data-menu-id="${item.id}"]`);
+    let el = container.querySelector(`.sidebar-nav-item[data-menu-id="${item.id}"]`);
+    if (!el) {
+      el = document.querySelector(`[data-menu-id="${item.id}"]`);
+    }
     if (el) {
-      const secName = item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'study';
-      const secContainer = container.querySelector(`.sidebar-section-container[data-section="${secName}"]`);
-      if (secContainer) {
-        secContainer.appendChild(el);
+      if (item.id !== 'menu-group-badge' && item.id !== 'menu-sync-footer') {
+        const secName = item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'study';
+        const secContainer = container.querySelector(`.sidebar-section-container[data-section="${secName}"]`);
+        if (secContainer) {
+          secContainer.appendChild(el);
+        }
+        el.dataset.section = secName;
       }
-      el.dataset.section = secName;
 
-      el.style.display = '';
       el.classList.toggle('menu-item-hidden', !item.visible);
 
       // Снимаем старые акцентные классы и вешаем актуальный
@@ -3429,8 +3554,15 @@ function renderCardTemplateDropzone() {
     itemEl.className = `card-template-field-item${item.visible ? '' : ' field-hidden'}`;
     itemEl.dataset.fieldId = item.id;
     itemEl.innerHTML = `
-      <span class="field-drag-grip" title="Перетащить в любую зону">⠿</span>
+      <span class="field-drag-grip" title="Хватайте и перетаскивайте в любую зону">⠿</span>
       <span class="field-title">${iconSvg} ${esc(label)}</span>
+      <select class="field-zone-select" data-zone-field="${item.id}" title="Переместить в зону (1 клик)">
+        <option value="top-left"${zoneName === 'top-left' ? ' selected' : ''}>↖ Верх-Л</option>
+        <option value="top-right"${zoneName === 'top-right' ? ' selected' : ''}>↗ Верх-П</option>
+        <option value="main"${zoneName === 'main' ? ' selected' : ''}>⬛ Центр</option>
+        <option value="bottom-left"${zoneName === 'bottom-left' ? ' selected' : ''}>↙ Низ-Л</option>
+        <option value="bottom-right"${zoneName === 'bottom-right' ? ' selected' : ''}>↘ Низ-П</option>
+      </select>
       <div class="field-controls-group">
         <button class="field-size-btn" type="button" data-size-field="${item.id}" title="Размер: ${curSize.toUpperCase()}">${curSize.toUpperCase()}</button>
         <button class="field-color-btn" type="button" data-color-field="${item.id}" style="--field-color-val: ${COLOR_VALUES[curColor]}" title="Цвет: ${COLOR_NAMES[curColor]}"></button>
@@ -3440,6 +3572,18 @@ function renderCardTemplateDropzone() {
         }
       </div>
     `;
+
+    // 0. Выбор зоны через селектор (мгновенное перемещение в 1 клик)
+    const zoneSelect = itemEl.querySelector('.field-zone-select');
+    if (zoneSelect) {
+      zoneSelect.onchange = (e) => {
+        e.stopPropagation();
+        item.zone = e.target.value;
+        renderCardTemplateDropzone();
+        applyCardConfig(activeCardConfig, false);
+        updatePresetsUI();
+      };
+    }
 
     // 1. Клик по кнопке размера (S -> M -> L -> XL -> S)
     const sizeBtn = itemEl.querySelector('.field-size-btn');
@@ -3501,7 +3645,9 @@ function initCardZonesSortable() {
       const inst = Sortable.create(zEl, {
         group: 'card-template-zones',
         animation: 160,
-        handle: '.field-drag-grip',
+        handle: null, // Перетаскивание за любое место плашки поля!
+        filter: 'button, select, input, .field-controls-group',
+        preventOnFilter: false,
         ghostClass: 'field-sortable-ghost',
         touchStartThreshold: 3,
         disabled: currentLayoutTab !== 'card',
@@ -3537,11 +3683,26 @@ function syncActiveCardConfigFromDOM() {
 
 function syncActiveMenuConfigFromDOM() {
   const newCfg = [];
+
+  // 1. Плашка группы
+  const badgeEl = document.querySelector('[data-menu-id="menu-group-badge"]');
+  if (badgeEl) {
+    const existing = activeMenuConfig.find(m => m.id === 'menu-group-badge');
+    newCfg.push({
+      id: 'menu-group-badge',
+      visible: !badgeEl.classList.contains('menu-item-hidden'),
+      section: 'study',
+      color: existing ? existing.color : 'default'
+    });
+  }
+
+  // 2. Пункты навигации по секциям
   const sectionContainers = document.querySelectorAll('#sidebarNav .sidebar-section-container');
   sectionContainers.forEach(secEl => {
     const secName = secEl.dataset.section || 'study';
     secEl.querySelectorAll('.sidebar-nav-item[data-menu-id]').forEach(item => {
       const mid = item.dataset.menuId;
+      if (mid === 'menu-group-badge' || mid === 'menu-sync-footer') return;
       const existing = activeMenuConfig.find(m => m.id === mid);
       const isVis = !item.classList.contains('menu-item-hidden');
       newCfg.push({
@@ -3552,6 +3713,18 @@ function syncActiveMenuConfigFromDOM() {
       });
     });
   });
+
+  // 3. Футер синхронизации
+  const footerEl = document.querySelector('[data-menu-id="menu-sync-footer"]');
+  if (footerEl) {
+    const existing = activeMenuConfig.find(m => m.id === 'menu-sync-footer');
+    newCfg.push({
+      id: 'menu-sync-footer',
+      visible: !footerEl.classList.contains('menu-item-hidden'),
+      section: 'system',
+      color: existing ? existing.color : 'default'
+    });
+  }
 
   activeMenuConfig = validateMenuConfig(newCfg);
   updatePresetsUI();
@@ -3844,13 +4017,12 @@ function initLayoutManager() {
     closeSidebar();
   });
 
-  // Переключение видимости пунктов меню по клику на глаз
-  const navContainer = els.sidebarNav || $('sidebarNav');
-  navContainer?.querySelectorAll('.menu-vis-toggle-btn').forEach(btn => {
+  // Переключение видимости пунктов меню по клику на глаз (включая шапку группы и футер)
+  document.querySelectorAll('#sidebar .menu-vis-toggle-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
-      const itemEl = btn.closest('.sidebar-nav-item');
+      const itemEl = btn.closest('.sidebar-nav-item') || btn.closest('[data-menu-id]');
       if (!itemEl) return;
       const mid = itemEl.dataset.menuId;
       if (MANDATORY_MENU_IDS.includes(mid)) return;
@@ -3859,27 +4031,36 @@ function initLayoutManager() {
       if (target) {
         target.visible = !target.visible;
         itemEl.classList.toggle('menu-item-hidden', !target.visible);
-        btn.textContent = target.visible ? '👁️' : '🙈';
         btn.title = target.visible ? 'Скрыть пункт' : 'Показать пункт';
         updatePresetsUI();
       }
     });
   });
 
-  // 3. Обработчики модалки тем
-  els.modalOpenLayoutEditorBtn?.addEventListener('click', () => {
-    closeThemeModal();
+  // 3. Обработчики запуска конструктора из модалки настроек
+  const openScreenAction = () => {
+    closeSettingsModal();
     enterLayoutEditor('screen');
-  });
-  els.modalOpenLayoutMenuBtn?.addEventListener('click', () => {
-    closeThemeModal();
+  };
+  const openMenuAction = () => {
+    closeSettingsModal();
     enterLayoutEditor('menu');
-  });
-  els.modalOpenLayoutCardBtn?.addEventListener('click', () => {
-    closeThemeModal();
+  };
+  const openCardAction = () => {
+    closeSettingsModal();
     enterLayoutEditor('card');
-  });
-  els.modalResetLayoutBtn?.addEventListener('click', () => {
+  };
+
+  $('modalOpenLayoutEditorBtn')?.addEventListener('click', openScreenAction);
+  $('btnLaunchScreenEditor')?.addEventListener('click', openScreenAction);
+
+  $('modalOpenLayoutMenuBtn')?.addEventListener('click', openMenuAction);
+  $('btnLaunchMenuEditor')?.addEventListener('click', openMenuAction);
+
+  $('modalOpenLayoutCardBtn')?.addEventListener('click', openCardAction);
+  $('btnLaunchCardEditor')?.addEventListener('click', openCardAction);
+
+  $('modalResetLayoutBtn')?.addEventListener('click', () => {
     resetLayoutOrder();
   });
 
