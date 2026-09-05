@@ -30,16 +30,17 @@ _bot_app = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _bot_app
-    try:
-        from bot import create_bot_app
-        _bot_app = create_bot_app()
-        if _bot_app:
-            await _bot_app.initialize()
-            await _bot_app.start()
-            await _bot_app.updater.start_polling()
-            logger.info("Telegram-бот успешно запущен и опрашивает обновления (long polling)!")
-    except Exception as e:
-        logger.warning(f"Не удалось запустить Telegram-бот в фоне: {e}")
+    if os.getenv("RUN_BOT_IN_APP", "false").lower() == "true":
+        try:
+            from bot import create_bot_app
+            _bot_app = create_bot_app()
+            if _bot_app:
+                await _bot_app.initialize()
+                await _bot_app.start()
+                await _bot_app.updater.start_polling()
+                logger.info("Telegram-бот успешно запущен в приложении FastAPI!")
+        except Exception as e:
+            logger.warning(f"Не удалось запустить Telegram-бот в фоне: {e}")
 
     yield
 

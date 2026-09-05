@@ -210,7 +210,8 @@ def build_schedule_keyboard(offset_days: int = 0, group: str = DEFAULT_GROUP) ->
 
 async def send_or_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, reply_markup=None) -> None:
     """
-    Редактирует текущее сообщение в чате, чтобы бот не слал новые сообщения.
+    Редактирует текущее сообщение в чате при нажатии инлайн-кнопок,
+    или отправляет новое сообщение при вводе команды / нажатии кнопок меню.
     Использует HTML разметку с автоматическим fallback на plain text при ошибках парсинга.
     """
     query = update.callback_query
@@ -231,44 +232,9 @@ async def send_or_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
                 if "Message is not modified" not in str(e2):
                     logger.error(f"Повторная ошибка edit_message_text: {e2}")
 
-    # Если пользователь написал команду или нажал reply-кнопку — удаляем его входящее сообщение
-    if update.message:
-        try:
-            await update.message.delete()
-        except Exception:
-            pass
-
     chat_id = update.effective_chat.id
-    last_msg_id = context.user_data.get("last_bot_msg_id")
 
-    if last_msg_id:
-        try:
-            await context.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=last_msg_id,
-                text=text,
-                parse_mode="HTML",
-                reply_markup=reply_markup,
-            )
-            return
-        except Exception as e:
-            if "Message is not modified" in str(e):
-                return
-            logger.warning(f"Ошибка edit_message_text (HTML): {e}, retry plain text")
-            try:
-                plain_text = re.sub(r'<[^>]+>', '', text)
-                await context.bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=last_msg_id,
-                    text=plain_text,
-                    parse_mode=None,
-                    reply_markup=reply_markup,
-                )
-                return
-            except Exception:
-                pass
-
-    # Отправляем одно новое сообщение и сохраняем его ID
+    # При получении команды или текстового сообщения ВСЕГДА отправляем свежее сообщение пользователю
     try:
         msg = await context.bot.send_message(
             chat_id=chat_id,
@@ -311,15 +277,30 @@ async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Минималистичное интерактивное меню /start в одном сообщении."""
+    """Приветственное меню /start: открывает клавиатуру и расписание на сегодня."""
     user = update.effective_user
     user_id = user.id
     current_group = get_user_group(user_id)
+    context.user_data["last_bot_msg_id"] = None
 
     if not current_group:
         await show_courses_menu(update, context)
-    else:
-        await send_schedule_for_day(update, context, offset_days=0)
+        return
+
+    welcome_text = (
+        f"👋 Привет, <b>{html_esc(user.first_name or 'студент')}</b>!\n"
+        f"Я бот с актуальным расписанием Колледжа телекоммуникаций МТУСИ.\n\n"
+        f"👥 Твоя группа: <b>{html_esc(current_group)}</b>"
+    )
+
+    if update.message:
+        await update.message.reply_text(
+            welcome_text,
+            parse_mode="HTML",
+            reply_markup=build_main_keyboard(current_group),
+            disable_notification=True,
+        )
+    await send_schedule_for_day(update, context, offset_days=0)
 
 
 async def show_courses_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
