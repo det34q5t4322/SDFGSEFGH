@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260905_8">
+  <link rel="stylesheet" href="/static/style.css?v=20260905_9">
   <script>
     (function() {
       try {
@@ -676,20 +676,46 @@
 
 <!-- ═══ FLOATING LAYOUT CONSTRUCTOR BAR ═══ -->
 <div class="layout-editor-bar" id="layoutEditorBar" style="display:none;" role="region" aria-label="Панель конструктора интерфейса">
-  <div class="layout-editor-inner">
-    <!-- Сегментированный переключатель уровней редактирования -->
-    <div class="layout-tabs-nav" id="layoutTabsNav">
-      <button class="layout-tab-btn active" data-tab="screen" id="tabBtnScreen" type="button">
-        <span class="tab-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg></span>
-        <span class="tab-text">Экран</span>
+  <!-- Свернутый компактный док (не закрывает меню и экран) -->
+  <div class="layout-editor-collapsed-bar" id="layoutEditorCollapsedBar" style="display:none;">
+    <button class="layout-collapsed-pill" id="layoutExpandBtn" type="button" title="Развернуть настройки конструктора (пресеты, вкладки)">
+      <span class="collapsed-tab-badge" id="layoutCollapsedBadge">
+        <svg class="lucide-icon" style="width:13px;height:13px;display:inline-block;vertical-align:-2px;" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        <span id="layoutCollapsedBadgeText">Меню</span>
+      </span>
+      <span class="collapsed-toggle-label">Настройки</span>
+      <span class="collapsed-arrow">▲</span>
+    </button>
+    <div class="layout-collapsed-actions">
+      <button class="layout-btn layout-btn-cancel layout-btn-sm" id="layoutCancelBtnCollapsed" type="button">Отмена</button>
+      <button class="layout-btn layout-btn-save layout-btn-sm" id="layoutSaveBtnCollapsed" type="button">
+        <svg class="lucide-icon" style="width:14px;height:14px" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Сохранить</span>
       </button>
-      <button class="layout-tab-btn" data-tab="menu" id="tabBtnMenu" type="button">
-        <span class="tab-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></span>
-        <span class="tab-text">Меню</span>
-      </button>
-      <button class="layout-tab-btn" data-tab="card" id="tabBtnCard" type="button">
-        <span class="tab-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></span>
-        <span class="tab-text">Карточка</span>
+    </div>
+  </div>
+
+  <!-- Развернутый полный вид -->
+  <div class="layout-editor-inner" id="layoutEditorInner">
+    <!-- Сегментированный переключатель уровней редактирования + кнопка Свернуть -->
+    <div class="layout-tabs-nav-wrap">
+      <div class="layout-tabs-nav" id="layoutTabsNav">
+        <button class="layout-tab-btn active" data-tab="screen" id="tabBtnScreen" type="button">
+          <span class="tab-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg></span>
+          <span class="tab-text">Экран</span>
+        </button>
+        <button class="layout-tab-btn" data-tab="menu" id="tabBtnMenu" type="button">
+          <span class="tab-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></span>
+          <span class="tab-text">Меню</span>
+        </button>
+        <button class="layout-tab-btn" data-tab="card" id="tabBtnCard" type="button">
+          <span class="tab-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></span>
+          <span class="tab-text">Карточка</span>
+        </button>
+      </div>
+      <button class="layout-collapse-btn" id="layoutCollapseBtn" type="button" title="Свернуть панель вниз, чтобы не закрывать меню">
+        <span class="collapse-icon">▾</span>
+        <span class="collapse-text">Свернуть</span>
       </button>
     </div>
 
@@ -1008,6 +1034,6 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/app.js?v=20260905_8"></script>
+  <script src="/static/app.js?v=20260905_9"></script>
 </body>
 </html>

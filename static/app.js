@@ -3302,6 +3302,26 @@ const PRESETS_CARD = {
 // Состояние конструктора
 let isLayoutEditingMode = false;
 let currentLayoutTab = 'screen'; // 'screen' | 'menu' | 'card'
+let isLayoutBarCollapsed = false;
+
+function setLayoutBarCollapsed(collapsed) {
+  isLayoutBarCollapsed = !!collapsed;
+  const bar = $('layoutEditorBar');
+  const inner = $('layoutEditorInner');
+  const collBar = $('layoutEditorCollapsedBar');
+  const badgeText = $('layoutCollapsedBadgeText');
+
+  if (bar) bar.classList.toggle('is-collapsed', isLayoutBarCollapsed);
+  document.body.classList.toggle('layout-bar-collapsed', isLayoutBarCollapsed);
+
+  if (inner) inner.style.display = isLayoutBarCollapsed ? 'none' : 'flex';
+  if (collBar) collBar.style.display = isLayoutBarCollapsed ? 'flex' : 'none';
+
+  if (badgeText) {
+    const names = { screen: 'Экран', menu: 'Меню', card: 'Карточка' };
+    badgeText.textContent = names[currentLayoutTab] || 'Меню';
+  }
+}
 
 let sortableScreenInstance = null;
 let sortableMenuInstances = [];
@@ -4154,6 +4174,7 @@ function switchLayoutTab(tabName) {
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
     sortableMenuInstances.forEach(inst => inst.option('disabled', true));
     sortableCardInstances.forEach(inst => inst.option('disabled', true));
+    setLayoutBarCollapsed(false);
   } else if (tabName === 'menu') {
     openSidebar();
     document.body.classList.add('menu-editing-active');
@@ -4163,6 +4184,13 @@ function switchLayoutTab(tabName) {
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
     sortableMenuInstances.forEach(inst => inst.option('disabled', false));
     sortableCardInstances.forEach(inst => inst.option('disabled', true));
+
+    // На телефонах сразу сворачиваем панель, чтобы окно НЕ закрывало меню
+    if (window.innerWidth <= 768) {
+      setLayoutBarCollapsed(true);
+    } else {
+      setLayoutBarCollapsed(false);
+    }
   } else if (tabName === 'card') {
     closeSidebar();
     document.body.classList.remove('menu-editing-active');
@@ -4174,6 +4202,13 @@ function switchLayoutTab(tabName) {
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
     sortableMenuInstances.forEach(inst => inst.option('disabled', true));
     sortableCardInstances.forEach(inst => inst.option('disabled', false));
+    setLayoutBarCollapsed(false);
+  }
+
+  const badgeText = $('layoutCollapsedBadgeText');
+  if (badgeText) {
+    const names = { screen: 'Экран', menu: 'Меню', card: 'Карточка' };
+    badgeText.textContent = names[tabName] || 'Меню';
   }
 
   updatePresetsUI();
@@ -4297,8 +4332,10 @@ function exitLayoutEditor(save = false) {
   }
 
   isLayoutEditingMode = false;
+  setLayoutBarCollapsed(false);
   document.body.classList.remove('layout-editing-active');
   document.body.classList.remove('menu-editing-active');
+  document.body.classList.remove('layout-bar-collapsed');
   if (els.layoutEditorBar) els.layoutEditorBar.style.display = 'none';
   if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'none';
   const blueprintEl = els.screenBlueprintBuilder || $('screenBlueprintBuilder');
@@ -4547,6 +4584,21 @@ function initLayoutManager() {
   els.layoutSaveBtn?.addEventListener('click', () => exitLayoutEditor(true));
   els.layoutCancelBtn?.addEventListener('click', () => exitLayoutEditor(false));
   els.layoutResetBtn?.addEventListener('click', () => resetLayoutOrder());
+
+  // 5.1. Кнопки компактного режима (док)
+  $('layoutCollapseBtn')?.addEventListener('click', () => setLayoutBarCollapsed(true));
+  $('layoutExpandBtn')?.addEventListener('click', () => setLayoutBarCollapsed(false));
+  $('layoutSaveBtnCollapsed')?.addEventListener('click', () => exitLayoutEditor(true));
+  $('layoutCancelBtnCollapsed')?.addEventListener('click', () => exitLayoutEditor(false));
+
+  // Автоматическое сворачивание панели на телефонах при клике в пустое место меню
+  $('sidebarNav')?.addEventListener('click', (e) => {
+    if (isLayoutEditingMode && currentLayoutTab === 'menu' && !isLayoutBarCollapsed && window.innerWidth <= 768) {
+      if (!e.target.closest('button, a, input, select, .menu-action-col, .menu-drag-handle')) {
+        setLayoutBarCollapsed(true);
+      }
+    }
+  });
 
   // 6. Клавиша Escape
   document.addEventListener('keydown', e => {
