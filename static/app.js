@@ -846,6 +846,7 @@ function setupSidebar() {
 }
 
 function openSidebar() {
+  buildSidebarTabs();
   els.sidebar?.classList.add('open');
   els.sidebarOverlay?.classList.add('active');
   document.body.style.overflow = 'hidden';
@@ -1137,7 +1138,7 @@ async function changeWeek(delta) {
       S.isNotPublished = false;
       const needFetch = (!S.data || S.data.gid !== targetTab.gid);
       S.activeGid = targetTab.gid;
-      buildSidebarTabs();
+      if (els.sidebar?.classList.contains('open')) buildSidebarTabs();
       buildDayStrip();
       updateTopbarParity();
       if (needFetch) {
@@ -1149,7 +1150,7 @@ async function changeWeek(delta) {
       }
     } else {
       S.isNotPublished = true;
-      buildSidebarTabs();
+      if (els.sidebar?.classList.contains('open')) buildSidebarTabs();
       buildDayStrip();
       updateTopbarParity();
       renderScheduleNotPublished();
@@ -1263,7 +1264,16 @@ function buildDayStrip() {
 function selectDay(dow) {
   if (S.selectedDay === dow) return;
   S.selectedDay = dow;
-  buildDayStrip();
+  if (els.dayStrip) {
+    const chips = els.dayStrip.querySelectorAll('.day-chip');
+    chips.forEach(chip => {
+      const isActive = (String(chip.dataset.dow) === String(dow));
+      chip.classList.toggle('active', isActive);
+      if (isActive) {
+        chip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    });
+  }
   renderSchedule();
   updateLiveCard();
 }
@@ -1395,25 +1405,34 @@ function checkMidnightRollover() {
 
 let _liveCardInterval = null;
 
+function _runLiveCardTick() {
+  checkMidnightRollover();
+  updateLiveCard();
+  if (S.view === 'today') {
+    updateActiveBreakDividers();
+  }
+}
+
 function startLiveCardClock() {
   setupLiveCardToggle();
   updateLiveCard();
   if (_liveCardInterval) clearInterval(_liveCardInterval);
-  _liveCardInterval = setInterval(() => {
-    checkMidnightRollover();
-    updateLiveCard();
-    if (S.view === 'today') {
-      updateActiveBreakDividers();
-    }
-  }, 1000);
+  _liveCardInterval = setInterval(_runLiveCardTick, 1000);
 
-  // Когда пользователь разблокирует экран утром / возвращается на вкладку
+  // Оптимизация батареи: засыпание таймера при сворачивании вкладки / блокировке экрана
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      checkMidnightRollover();
-      updateLiveCard();
+      _runLiveCardTick();
+      if (!_liveCardInterval) {
+        _liveCardInterval = setInterval(_runLiveCardTick, 1000);
+      }
       if (S.group) {
         loadSchedule(false);
+      }
+    } else {
+      if (_liveCardInterval) {
+        clearInterval(_liveCardInterval);
+        _liveCardInterval = null;
       }
     }
   });
@@ -2666,16 +2685,26 @@ function getPairWord(n) {
   return 'пар';
 }
 
-function calculateUnifiedSeptStats(currentScheduleData, septFirstScheduleData) {
+function calculateUnifiedSeptStats(arg1, arg2) {
+  let datasets = [];
+  if (Array.isArray(arg1)) {
+    datasets = arg1;
+  } else {
+    if (arg2) datasets.push({ tab: { name: 'Расписание 1 сентября' }, data: arg2, parity: null });
+    if (arg1) datasets.push({ tab: { name: 'Текущая неделя' }, data: arg1, parity: arg1.parity || null });
+  }
+
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
   let totalPassed = 0;
+  let totalCancelled = 0;
   const passedSubjectsMap = {};
+  const cancelledPairsList = [];
   const uniqueDatesSet = new Set();
 
-  function recordPassedPair(p, pairInfo, subj, dateStr, dayName) {
+  function recordPassedPair(slot, pairInfo, subj, dateStr, dayName) {
     totalPassed++;
     uniqueDatesSet.add(dateStr);
 
@@ -2684,8 +2713,8 @@ function calculateUnifiedSeptStats(currentScheduleData, septFirstScheduleData) {
         name: subj,
         count: 0,
         sessions: [],
-        teacher: pairInfo.teacher || p.teacher || '',
-        room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || ''
+        teacher: pairInfo.teacher || slot.teacher || '',
+        room: pairInfo.classroom || pairInfo.room || slot.classroom || slot.room || ''
       };
     }
     const entry = passedSubjectsMap[subj];
@@ -2693,36 +2722,29 @@ function calculateUnifiedSeptStats(currentScheduleData, septFirstScheduleData) {
     entry.sessions.push({
       date: dateStr,
       dayName,
-      num: p.pair_num || p.num || 1,
-      time: p.time || `${p.start || ''} - ${p.end || ''}`.trim()
+      num: slot.pair_num || slot.num || 1,
+      time: slot.time || `${slot.start || ''} - ${slot.end || ''}`.trim()
     });
-    if (!entry.teacher && (pairInfo.teacher || p.teacher)) {
-      entry.teacher = pairInfo.teacher || p.teacher;
+    if (!entry.teacher && (pairInfo.teacher || slot.teacher)) {
+      entry.teacher = pairInfo.teacher || slot.teacher;
     }
-    if (!entry.room && (pairInfo.classroom || p.room)) {
-      entry.room = pairInfo.classroom || p.room;
+    if (!entry.room && (pairInfo.classroom || slot.room)) {
+      entry.room = pairInfo.classroom || slot.room;
     }
   }
 
-  // 1. Вкладка «Расписание 1 сентября» (01.09.2026, Вторник)
-  if (septFirstScheduleData && septFirstScheduleData.days) {
-    for (const [dayName, pairs] of Object.entries(septFirstScheduleData.days)) {
-      for (const p of pairs) {
-        if (p.is_empty) continue;
-        const pairInfo = p.both || p.numerator || p.denominator || {};
-        const subj = (pairInfo.subject || p.subject || '').trim();
-        if (!subj || /самостоятельн/i.test(subj)) continue;
-        recordPassedPair(p, pairInfo, subj, '01.09', 'Вторник');
+  datasets.forEach(ds => {
+    if (!ds || !ds.data || !ds.data.days) return;
+    const data = ds.data;
+    const tabName = ds.tab ? (ds.tab.name || '') : '';
+    const tabParity = ds.parity || (ds.tab ? ds.tab.parity : null) || null;
+    const dayDates = data.day_dates || {};
+
+    for (const [dayName, pairs] of Object.entries(data.days)) {
+      let dm = dayDates[dayName];
+      if (!dm && /1\s*сентябр/i.test(tabName)) {
+        dm = '01.09';
       }
-    }
-  }
-
-  // 2. Вкладка текущей недели (02.09 - 05.09)
-  if (currentScheduleData && currentScheduleData.days) {
-    const dayDates = currentScheduleData.day_dates || {};
-
-    for (const [dayName, pairs] of Object.entries(currentScheduleData.days)) {
-      const dm = dayDates[dayName];
       if (!dm) continue;
       const parts = dm.split('.');
       if (parts.length < 2) continue;
@@ -2730,56 +2752,95 @@ function calculateUnifiedSeptStats(currentScheduleData, septFirstScheduleData) {
       const m = parseInt(parts[1], 10);
       const dayDate = new Date(now.getFullYear(), m - 1, d, 0, 0, 0, 0);
 
-      // Учитываем только дни до сегодня включительно
+      // Учитываем только прошедшие дни и сегодня
       if (dayDate.getTime() > todayStart.getTime()) {
         continue;
       }
 
-      for (const p of pairs) {
-        if (p.is_empty) continue;
-        const pairInfo = p.both || p.numerator || p.denominator || {};
-        const subj = (pairInfo.subject || p.subject || '').trim();
+      for (const slot of pairs) {
+        if (!slot || slot.is_empty) continue;
+
+        // Строгое соблюдение чередования недель (числитель/знаменатель)
+        let pairCandidate = null;
+        if (slot.is_split) {
+          if (tabParity === 'num') pairCandidate = slot.numerator;
+          else if (tabParity === 'den') pairCandidate = slot.denominator;
+          else pairCandidate = slot.both || slot.numerator || slot.denominator;
+        } else {
+          if (tabParity === 'num') pairCandidate = slot.both || slot.numerator;
+          else if (tabParity === 'den') pairCandidate = slot.both || slot.denominator;
+          else pairCandidate = slot.both || slot.numerator || slot.denominator;
+        }
+
+        // Поддержка пар с делением на подгруппы (английский, лаборатории)
+        if (!pairCandidate) {
+          pairCandidate = slot.sub1 || slot.sub2;
+        }
+
+        if (!pairCandidate) continue;
+
+        const subj = (pairCandidate.subject || slot.subject || '').trim();
         if (!subj || /самостоятельн/i.test(subj)) continue;
+
+        // Точная проверка статуса отмены пары
+        const isCancelled = Boolean(
+          pairCandidate.is_cancelled ||
+          pairCandidate.type === 'cancelled' ||
+          slot.is_cancelled ||
+          /^(отмена|\d\d\.\d\d\s+отмена)/i.test(subj) ||
+          /отмена/i.test(pairCandidate.status_text || '')
+        );
+
+        if (isCancelled) {
+          totalCancelled++;
+          cancelledPairsList.push({
+            date: dm,
+            dayName,
+            num: slot.pair_num || slot.num || 1,
+            subject: subj.replace(/^(отмена|\d\d\.\d\d\s+отмена)\s*/i, '').trim() || subj,
+            teacher: pairCandidate.teacher || slot.teacher || ''
+          });
+          continue;
+        }
 
         let isPassed = false;
         if (dayDate.getTime() < todayStart.getTime()) {
           isPassed = true;
         } else {
           // Сегодня: проверяем время окончания пары
-          const endStr = (p.end || (p.time ? p.time.split('-')[1] : '')).trim();
+          const endStr = (slot.end || (slot.time ? slot.time.split('-')[1] : '')).trim();
           const endParts = endStr.split(':').map(Number);
           const endMin = (endParts[0] || 0) * 60 + (endParts[1] || 0);
           isPassed = (nowMinutes >= endMin);
         }
 
         if (isPassed) {
-          recordPassedPair(p, pairInfo, subj, dm, dayName);
+          recordPassedPair(slot, pairCandidate, subj, dm, dayName);
         }
       }
     }
-  }
+  });
 
   const subjectList = Object.values(passedSubjectsMap);
   subjectList.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 
   return {
     totalPassed,
+    totalCancelled,
     uniqueDaysCount: uniqueDatesSet.size,
-    subjectList
+    subjectList,
+    cancelledPairsList
   };
 }
 
 async function renderStatsView() {
   if (!els.statsContainer) return;
 
-  if (!S.data || S.isNotPublished) {
+  if (!S.group) {
     els.statsContainer.innerHTML = `
       <div class="stats-header-wrap">
-        <h2 class="stats-view-title">Статистика пар: ${esc(S.group || 'Группа не выбрана')}</h2>
-        <span class="stats-view-subtitle">Расписание на этот период ещё не опубликовано</span>
-      </div>
-      <div class="schedule-error-card">
-        <p>Расписание для группы ${esc(S.group || '')} пока недоступно для расчёта статистики.</p>
+        <h2 class="stats-view-title">Статистика пар: Группа не выбрана</h2>
+        <span class="stats-view-subtitle">Выберите группу в меню или шапке</span>
       </div>
     `;
     return;
@@ -2788,31 +2849,84 @@ async function renderStatsView() {
   els.statsContainer.innerHTML = `
     <div class="loading-placeholder">
       <div class="loading-spinner"></div>
-      <div>Сбор статистики с 1 сентября по сегодняшний день...</div>
+      <div>Сбор актуальной статистики с 1 сентября по сегодняшний день...</div>
     </div>
   `;
 
-  // Подгружаем вкладку 1 сентября (gid 731591268) при её наличии
-  let septFirstData = null;
-  const septCacheKey = `schedule_${S.group}_731591268`;
-  const cachedSept = localStorage.getItem(septCacheKey);
-  if (cachedSept) {
-    try { septFirstData = JSON.parse(cachedSept); } catch (_) {}
-  }
-  if (!septFirstData) {
+  // Убеждаемся, что список вкладок загружен
+  if (!S.tabs || S.tabs.length === 0) {
     try {
-      const res = await fetchWithTimeout(`${API}/schedule?group=${encodeURIComponent(S.group)}&tab=731591268`, {}, 4000);
-      if (res.ok) {
-        septFirstData = await res.json();
-        try { localStorage.setItem(septCacheKey, JSON.stringify(septFirstData)); } catch (_) {}
+      const tabsRes = await fetchWithTimeout(`${API}/tabs`, {}, 4000);
+      if (tabsRes.ok) {
+        const tabsData = await tabsRes.json();
+        S.tabs = (tabsData.tabs || []).filter(tab => !isTestTab(tab.name));
       }
-    } catch (e) {
-      console.warn('Tab 1 Sept not found or error:', e);
+    } catch (_) {}
+  }
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+  // Находим все актуальные вкладки с 1 сентября по сегодня
+  const targetTabs = [];
+  const septFirstTab = (S.tabs || []).find(t => /1\s*сентябр/i.test(t.name) || t.gid === '731591268');
+  if (septFirstTab) {
+    targetTabs.push(septFirstTab);
+  } else {
+    targetTabs.push({ name: 'Расписание 1 сентября', gid: '731591268', parity: null });
+  }
+
+  (S.tabs || []).forEach(t => {
+    if (t.gid === '731591268' || /1\s*сентябр/i.test(t.name)) return;
+    if (t.has_date_range && t.date_start) {
+      const tStart = new Date(t.date_start);
+      if (tStart.getTime() <= todayStart.getTime()) {
+        targetTabs.push(t);
+      }
+    }
+  });
+
+  // Если целевых вкладок нет кроме 1 сентября, но есть S.data, добавляем текущую
+  if (targetTabs.length <= 1 && S.data && S.data.gid && S.data.group === S.group) {
+    const existing = targetTabs.find(t => t.gid === S.data.gid);
+    if (!existing) {
+      targetTabs.push({ name: S.data.name || 'Текущая неделя', gid: S.data.gid, parity: S.data.parity });
     }
   }
 
-  const stats = calculateUnifiedSeptStats(S.data, septFirstData);
-  const now = new Date();
+  // Загружаем данные по всем вкладкам
+  const datasets = [];
+  await Promise.all(targetTabs.map(async (tab) => {
+    if (S.data && S.data.gid === tab.gid && S.data.group === S.group) {
+      datasets.push({ tab, data: S.data, parity: tab.parity || S.data.parity });
+      return;
+    }
+
+    const cacheKey = `${STORAGE_CACHE_PREFIX}${S.group}_${tab.gid}`;
+    let tabData = null;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) tabData = JSON.parse(cached);
+    } catch (_) {}
+
+    if (!tabData) {
+      try {
+        const res = await fetchWithTimeout(`${API}/schedule?group=${encodeURIComponent(S.group)}&tab=${encodeURIComponent(tab.gid)}`, {}, 5000);
+        if (res.ok) {
+          tabData = await res.json();
+          try { localStorage.setItem(cacheKey, JSON.stringify(tabData)); } catch (_) {}
+        }
+      } catch (err) {
+        logApp('warn', `Не удалось загрузить данные для вкладки ${tab.name}:`, err);
+      }
+    }
+
+    if (tabData && tabData.days) {
+      datasets.push({ tab, data: tabData, parity: tab.parity || tabData.parity });
+    }
+  }));
+
+  const stats = calculateUnifiedSeptStats(datasets);
   const dayStr = String(now.getDate()).padStart(2, '0');
   const monthStr = MONTH_NAMES[now.getMonth()];
   const todayFormatted = `${now.getDate()} ${monthStr} ${now.getFullYear()} г.`;
@@ -2835,6 +2949,13 @@ async function renderStatsView() {
         </div>
         <div class="stats-kpi-value">${stats.totalPassed}</div>
       </div>
+      <div class="stats-kpi-card ${stats.totalCancelled > 0 ? 'cancelled-kpi' : ''}">
+        <div class="stats-kpi-top">
+          <span class="stats-kpi-label">Отменено пар</span>
+          <span class="stats-kpi-icon">${stats.totalCancelled > 0 ? '⚠️' : '✅'}</span>
+        </div>
+        <div class="stats-kpi-value">${stats.totalCancelled}</div>
+      </div>
       <div class="stats-kpi-card">
         <div class="stats-kpi-top">
           <span class="stats-kpi-label">Предметов проведено</span>
@@ -2850,6 +2971,26 @@ async function renderStatsView() {
         <div class="stats-kpi-value">${stats.uniqueDaysCount}</div>
       </div>
     </div>
+
+    ${stats.cancelledPairsList.length > 0 ? `
+      <!-- Отмененные пары колледжа -->
+      <div class="stats-cancelled-block">
+        <div class="stats-block-header">
+          <span class="stats-block-title" style="color:#ef4444">⚠️ Отменённые пары колледжа (${stats.cancelledPairsList.length})</span>
+        </div>
+        <div class="stats-cancelled-list">
+          ${stats.cancelledPairsList.map(c => `
+            <div class="stats-cancelled-card">
+              <div class="stats-cancelled-info">
+                <span class="stats-cancelled-name">${esc(c.subject)}</span>
+                <span class="stats-cancelled-meta">📅 ${esc(c.dayName)} ${esc(c.date)} • ${c.num} пара ${c.teacher ? `• 👨‍🏫 ${esc(c.teacher)}` : ''}</span>
+              </div>
+              <span class="stats-cancelled-badge">Отменена</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
 
     <!-- Passed Subjects List -->
     <div class="stats-subjects-block">
