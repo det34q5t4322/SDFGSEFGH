@@ -15,6 +15,7 @@ const STORAGE_SHOW_TEACHER = 'schedule_show_teacher';
 const STORAGE_SHOW_ROOM    = 'schedule_show_room';
 const STORAGE_SHOW_BADGES  = 'schedule_show_badges';
 const STORAGE_SHOW_BREAKS  = 'schedule_show_breaks';
+const STORAGE_NAV_POSITION = 'schedule_nav_position';
 
 (function() {
   try {
@@ -24,6 +25,9 @@ const STORAGE_SHOW_BREAKS  = 'schedule_show_breaks';
     document.documentElement.setAttribute('data-font', savedFont);
     const savedSize = localStorage.getItem(STORAGE_FONT_SIZE) || 'normal';
     document.documentElement.setAttribute('data-font-size', savedSize);
+    const savedNavPos = localStorage.getItem(STORAGE_NAV_POSITION) || 'left';
+    document.documentElement.setAttribute('data-nav-position', savedNavPos);
+
     if (localStorage.getItem(STORAGE_SHOW_TEACHER) === 'false') {
       document.documentElement.setAttribute('data-hide-teacher', 'true');
     }
@@ -324,6 +328,7 @@ async function init() {
   try { setupWeekNav(); } catch (e) { console.error('setupWeekNav error:', e); }
   try { setupSearchInputs(); } catch (e) { console.error('setupSearchInputs error:', e); }
   try { initLayoutManager(); } catch (e) { console.error('initLayoutManager error:', e); }
+  try { setupNavPosition(); } catch (e) { console.error('setupNavPosition error:', e); }
 
   // Привязка повтора в оффлайн-баннере
   els.offlineBannerRetryBtn?.addEventListener('click', async () => {
@@ -995,6 +1000,7 @@ function setView(view) {
   document.querySelectorAll('.sidebar-nav-item[data-view]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === view);
   });
+  updateBottomNavActive(view);
   const isSched = (view === 'today' || view === 'week' || view === 'schedule');
   if (els.scheduleView) els.scheduleView.style.display = isSched ? 'block' : 'none';
   if (els.teacherView) els.teacherView.style.display = view === 'teacher' ? 'block' : 'none';
@@ -2039,28 +2045,7 @@ function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelle
     ? `<button class="pair-room-btn" data-room="${esc(classroom)}" onclick="openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(classroom)}</span></button>`
     : '';
 
-  const isCustom = isCardTemplateCustom() || (isLayoutEditingMode && currentLayoutTab === 'card');
-
-  if (!isCustom) {
-    // Дефолтная 3-колоночная вёрстка
-    return `
-      <div class="pair-num-col">
-        ${pn ? `<div class="pair-num">${pn}</div>` : ''}
-        <div class="pair-time-small">${timeStr ? timeStr.split('–')[0] : ''}</div>
-      </div>
-      <div class="pair-body">
-        <div class="pair-subject${cancelled ? ' cancelled-text' : ''}">${esc(p.subject || '')}</div>
-        <div class="pair-meta">
-          ${teacherHtml}${roomHtml}${badges}
-        </div>
-      </div>
-      <div class="pair-time-right">
-        <div class="pair-time-display">${timeStr.includes('–') ? (timeStr.split('–')[1] || '') : (timeStr.split('-')[1] || '')}</div>
-      </div>
-    `;
-  }
-
-  // Кастомный зональный рендеринг полей с поддержкой сеток, размеров и цветов
+  // Зональный рендеринг полей с поддержкой сеток, размеров и цветов
   const FIELD_MAP = {
     'field-time': (item) => {
       if (!pn && !timeStr) return '';
@@ -3561,52 +3546,40 @@ function renderCardTemplateDropzone() {
 
     const curSize = item.size || 'md';
     const curColor = item.color || 'default';
+    const isVis = item.visible !== false;
 
     const itemEl = document.createElement('div');
-    itemEl.className = `card-template-field-item${item.visible ? '' : ' field-hidden'}`;
+    itemEl.className = `card-template-field-item${isVis ? '' : ' field-hidden'}`;
     itemEl.dataset.fieldId = item.id;
     itemEl.innerHTML = `
       <span class="field-drag-grip" title="Хватайте и перетаскивайте в любую зону">⠿</span>
-      <span class="field-title">${iconSvg} ${esc(label)}</span>
-      <select class="field-zone-select" data-zone-field="${item.id}" title="Переместить в зону (1 клик)">
-        <option value="top-left"${zoneName === 'top-left' ? ' selected' : ''}>↖ Верх-Л</option>
-        <option value="top-right"${zoneName === 'top-right' ? ' selected' : ''}>↗ Верх-П</option>
-        <option value="main"${zoneName === 'main' ? ' selected' : ''}>⬛ Центр</option>
-        <option value="bottom-left"${zoneName === 'bottom-left' ? ' selected' : ''}>↙ Низ-Л</option>
-        <option value="bottom-right"${zoneName === 'bottom-right' ? ' selected' : ''}>↘ Низ-П</option>
-      </select>
+      <span class="field-title">${iconSvg} <span class="field-title-text">${esc(label)}</span></span>
       <div class="field-controls-group">
-        <button class="field-size-btn" type="button" data-size-field="${item.id}" title="Размер: ${curSize.toUpperCase()}">${curSize.toUpperCase()}</button>
-        <button class="field-color-btn" type="button" data-color-field="${item.id}" style="--field-color-val: ${COLOR_VALUES[curColor]}" title="Цвет: ${COLOR_NAMES[curColor]}"></button>
+        <button class="field-size-btn" type="button" data-size-field="${item.id}" title="Размер: ${curSize.toUpperCase()} (нажмите для смены)">
+          <span class="size-btn-text">${curSize.toUpperCase()}</span>
+        </button>
+        <button class="field-color-btn" type="button" data-color-field="${item.id}" title="Цвет: ${COLOR_NAMES[curColor]} (нажмите для смены)">
+          <span class="color-btn-dot" style="background: ${COLOR_VALUES[curColor]}"></span>
+        </button>
         ${isMandatory
           ? `<span class="menu-lock-icon" title="Обязательное поле">${ICONS.lock}</span>`
-          : `<button class="field-vis-btn" type="button" data-toggle-field="${item.id}" title="${item.visible ? 'Скрыть поле' : 'Показать поле'}">${item.visible ? ICONS.eye : ICONS.eyeOff}</button>`
+          : `<button class="field-vis-btn${isVis ? ' is-visible' : ' is-hidden'}" type="button" data-toggle-field="${item.id}" title="${isVis ? 'Скрыть поле' : 'Показать поле'}">${isVis ? ICONS.eye : ICONS.eyeOff}</button>`
         }
       </div>
     `;
 
-    // 0. Выбор зоны через селектор (мгновенное перемещение в 1 клик)
-    const zoneSelect = itemEl.querySelector('.field-zone-select');
-    if (zoneSelect) {
-      zoneSelect.onchange = (e) => {
-        e.stopPropagation();
-        item.zone = e.target.value;
-        renderCardTemplateDropzone();
-        applyCardConfig(activeCardConfig, false);
-        updatePresetsUI();
-      };
-    }
-
-    // 1. Клик по кнопке размера (S -> M -> L -> XL -> S)
+    // 1. Клик по кнопке размера (SM -> MD -> LG -> XL -> SM)
     const sizeBtn = itemEl.querySelector('.field-size-btn');
     if (sizeBtn) {
       sizeBtn.onclick = (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        const curIdx = SIZE_CYCLE.indexOf(item.size || 'md');
+        const target = activeCardConfig.find(x => x.id === item.id) || item;
+        const curIdx = SIZE_CYCLE.indexOf(target.size || 'md');
         const nextIdx = (curIdx + 1) % SIZE_CYCLE.length;
-        item.size = SIZE_CYCLE[nextIdx];
-        renderCardTemplateDropzone();
+        target.size = SIZE_CYCLE[nextIdx];
         applyCardConfig(activeCardConfig, false);
+        renderCardTemplateDropzone();
         updatePresetsUI();
       };
     }
@@ -3615,12 +3588,14 @@ function renderCardTemplateDropzone() {
     const colorBtn = itemEl.querySelector('.field-color-btn');
     if (colorBtn) {
       colorBtn.onclick = (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        const curIdx = COLOR_CYCLE.indexOf(item.color || 'default');
+        const target = activeCardConfig.find(x => x.id === item.id) || item;
+        const curIdx = COLOR_CYCLE.indexOf(target.color || 'default');
         const nextIdx = (curIdx + 1) % COLOR_CYCLE.length;
-        item.color = COLOR_CYCLE[nextIdx];
-        renderCardTemplateDropzone();
+        target.color = COLOR_CYCLE[nextIdx];
         applyCardConfig(activeCardConfig, false);
+        renderCardTemplateDropzone();
         updatePresetsUI();
       };
     }
@@ -3629,10 +3604,12 @@ function renderCardTemplateDropzone() {
     const visBtn = itemEl.querySelector('.field-vis-btn');
     if (visBtn) {
       visBtn.onclick = (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        item.visible = !item.visible;
-        renderCardTemplateDropzone();
+        const target = activeCardConfig.find(x => x.id === item.id) || item;
+        target.visible = !target.visible;
         applyCardConfig(activeCardConfig, false);
+        renderCardTemplateDropzone();
         updatePresetsUI();
       };
     }
@@ -3642,6 +3619,9 @@ function renderCardTemplateDropzone() {
 
   // Инициализация / переподключение Sortable для всех 5 зон
   initCardZonesSortable();
+
+  // Обновление живого предпросмотра
+  updateCardLivePreview();
 }
 
 function initCardZonesSortable() {
@@ -3657,13 +3637,16 @@ function initCardZonesSortable() {
       const inst = Sortable.create(zEl, {
         group: 'card-template-zones',
         animation: 160,
-        handle: null, // Перетаскивание за любое место плашки поля!
-        filter: 'button, select, input, .field-controls-group',
+        handle: '.field-drag-grip', // ТОЛЬКО за значок ⠿ — кнопки больше никогда не блокируются!
+        filter: 'button, .field-controls-group',
         preventOnFilter: false,
         ghostClass: 'field-sortable-ghost',
-        touchStartThreshold: 3,
+        touchStartThreshold: 2,
         disabled: currentLayoutTab !== 'card',
-        onEnd: () => syncActiveCardConfigFromDOM()
+        onEnd: () => {
+          syncActiveCardConfigFromDOM();
+          updateCardLivePreview();
+        }
       });
       sortableCardInstances.push(inst);
     }
@@ -3690,7 +3673,29 @@ function syncActiveCardConfigFromDOM() {
 
   activeCardConfig = validateCardConfig(newConfig);
   applyCardConfig(activeCardConfig, false);
+  updateCardLivePreview();
   updatePresetsUI();
+}
+
+function updateCardLivePreview() {
+  const stage = $('cardTemplateLivePreviewStage');
+  if (!stage) return;
+
+  const mockLesson = {
+    subject: 'Разработка программных модулей',
+    teacher: 'Смирнов А. В.',
+    classroom: 'каб. 402',
+    is_replacement: true
+  };
+  const mockBell = { s: 510, e: 600 }; // 08:30 – 10:00
+
+  const content = renderCardContentByTemplate(mockLesson, '1', mockBell, true, 'I Числ.', false, true, false);
+
+  stage.innerHTML = `
+    <div class="pair-card custom-template going replacement preview-live-card" style="margin: 0; width: 100%;">
+      ${content}
+    </div>
+  `;
 }
 
 function syncActiveMenuConfigFromDOM() {
@@ -3740,6 +3745,87 @@ function syncActiveMenuConfigFromDOM() {
 
   activeMenuConfig = validateMenuConfig(newCfg);
   updatePresetsUI();
+}
+
+// ── НАВИГАЦИОННОЕ РАСПОЛОЖЕНИЕ (Left / Bottom / Top / Right) ──
+function getStoredNavPosition() {
+  try {
+    return localStorage.getItem(STORAGE_NAV_POSITION) || 'left';
+  } catch (_) {
+    return 'left';
+  }
+}
+
+function applyNavPosition(pos, persist = false) {
+  const valid = ['left', 'bottom', 'top', 'right'];
+  if (!valid.includes(pos)) pos = 'left';
+
+  document.documentElement.setAttribute('data-nav-position', pos);
+
+  // Обновляем кнопки в панели конструктора
+  document.querySelectorAll('#layoutNavPosChips .nav-pos-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.navPos === pos);
+  });
+
+  // Обновляем карточки в модальном окне настроек
+  document.querySelectorAll('#modalNavPosSelectorGrid .nav-pos-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.navPos === pos);
+  });
+
+  if (persist) {
+    try {
+      localStorage.setItem(STORAGE_NAV_POSITION, pos);
+    } catch (_) {}
+    const labels = {
+      left: 'Слева (боковой сайдбар)',
+      bottom: 'Снизу (мобильный Tab Bar)',
+      top: 'Сверху (шапка)',
+      right: 'Справа (боковой сайдбар)'
+    };
+    showToast(`Меню: ${labels[pos] || pos}`);
+  }
+}
+
+function setupNavPosition() {
+  const currentPos = getStoredNavPosition();
+  applyNavPosition(currentPos, false);
+
+  // Кнопки в панели конструктора
+  document.querySelectorAll('#layoutNavPosChips .nav-pos-btn').forEach(btn => {
+    btn.onclick = () => {
+      const pos = btn.dataset.navPos;
+      if (pos) applyNavPosition(pos, true);
+    };
+  });
+
+  // Карточки в окне настроек
+  document.querySelectorAll('#modalNavPosSelectorGrid .nav-pos-card').forEach(card => {
+    card.onclick = () => {
+      const pos = card.dataset.navPos;
+      if (pos) applyNavPosition(pos, true);
+    };
+  });
+
+  // Кнопки нижнего Tab Bar
+  const bSchedule = $('bottomNavSchedule');
+  const bTeacher = $('bottomNavTeacher');
+  const bClassroom = $('bottomNavClassroom');
+  const bSettings = $('bottomNavSettings');
+  const bMore = $('bottomNavMore');
+
+  if (bSchedule) bSchedule.onclick = () => { setView('schedule'); updateBottomNavActive('schedule'); };
+  if (bTeacher) bTeacher.onclick = () => { setView('teacher'); updateBottomNavActive('teacher'); };
+  if (bClassroom) bClassroom.onclick = () => { setView('classroom'); updateBottomNavActive('classroom'); };
+  if (bSettings) bSettings.onclick = () => { openThemeModal(); };
+  if (bMore) bMore.onclick = () => { openSidebar(); };
+}
+
+function updateBottomNavActive(viewName) {
+  document.querySelectorAll('#bottomNavBar .bottom-nav-item').forEach(item => {
+    if (item.dataset.view) {
+      item.classList.toggle('active', item.dataset.view === viewName);
+    }
+  });
 }
 
 // ── ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК И ПРЕСЕТЫ ──
@@ -3806,6 +3892,7 @@ function updatePresetsUI() {
         if (PRESETS_CARD[p]) {
           applyCardConfig(PRESETS_CARD[p], false);
           renderCardTemplateDropzone();
+          updateCardLivePreview();
           updatePresetsUI();
         }
       };
@@ -3819,6 +3906,12 @@ function switchLayoutTab(tabName) {
   document.querySelectorAll('.layout-tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === tabName);
   });
+
+  // Показываем/скрываем селектор позиции меню в панели конструктора
+  const navPosContainer = $('layoutNavPosContainer');
+  if (navPosContainer) {
+    navPosContainer.style.display = (tabName === 'menu') ? 'flex' : 'none';
+  }
 
   if (tabName === 'screen') {
     closeSidebar();
@@ -3841,6 +3934,7 @@ function switchLayoutTab(tabName) {
     document.body.classList.remove('menu-editing-active');
     if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'block';
     renderCardTemplateDropzone();
+    updateCardLivePreview();
 
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
     sortableMenuInstances.forEach(inst => inst.option('disabled', true));

@@ -801,9 +801,9 @@ button.is-loading,
   margin-right: 6px;
 }
 
-/* ── DISTINCT THEME VISUAL IDENTITIES ──── */
+/* ── DISTINCT THEME VISUAL IDENTITIES (16 THEMES) ──── */
 
-/* 1. Amber CRT (Retro Hardware / Scanlines / 0px Sharp / Phosphor) */
+/* ── 1. Amber CRT (terminal) ── */
 [data-theme="terminal"]::before {
   content: '';
   position: fixed;
@@ -812,20 +812,22 @@ button.is-loading,
   z-index: 9999;
   background: repeating-linear-gradient(
     0deg,
-    rgba(0, 0, 0, 0.24) 0px,
-    rgba(0, 0, 0, 0.24) 1px,
+    rgba(0, 0, 0, 0.22) 0px,
+    rgba(0, 0, 0, 0.22) 1px,
     transparent 1px,
     transparent 3px
   );
   opacity: 0.55;
 }
 [data-theme="terminal"] body {
-  background-color: #050505;
+  background-color: #050401;
+  background-image: radial-gradient(ellipse at 50% 40%, rgba(255, 176, 0, 0.14), transparent 75%);
 }
 [data-theme="terminal"] .pair-card {
+  background: #090702 !important;
   border: 2px solid #5a3800 !important;
   border-radius: 0px !important;
-  box-shadow: 0 0 8px rgba(255, 176, 0, 0.25), inset 0 0 8px rgba(255, 176, 0, 0.15) !important;
+  box-shadow: 0 0 12px rgba(255, 176, 0, 0.22), inset 0 0 10px rgba(255, 176, 0, 0.12) !important;
 }
 [data-theme="terminal"] .pair-card::before {
   width: 4px;
@@ -844,28 +846,22 @@ button.is-loading,
   text-shadow: 0 0 6px rgba(255, 176, 0, 0.6);
 }
 [data-theme="terminal"] .day-chip.active {
-  box-shadow: 0 0 12px rgba(255, 176, 0, 0.4);
-}
-[data-theme="terminal"] .topbar-title {
-  letter-spacing: 0.04em;
-  font-family: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  box-shadow: 0 0 12px rgba(255, 176, 0, 0.45);
 }
 
-/* 2. Midnight Carbon (Engineering / Sharp 4px / FLAT / Dot Grid) */
+/* ── 2. Midnight Carbon (carbon) ── */
 [data-theme="carbon"] body {
-  background-color: #09090b;
-  background-image: radial-gradient(#27272a 1px, transparent 1px);
-  background-size: 16px 16px;
+  background-color: #060709;
+  background-image:
+    radial-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, #09090e 0%, #050508 100%);
+  background-size: 20px 20px, 100% 100%;
 }
 [data-theme="carbon"] .pair-card {
-  border: 1.5px solid #27272a !important;
-  border-radius: 4px !important;
-  box-shadow: none !important;
-}
-[data-theme="carbon"] .pair-card::before {
-  width: 2px;
-  border-radius: 1px !important;
-  box-shadow: none !important;
+  background: #0d0e13 !important;
+  border: 1px solid rgba(56, 189, 248, 0.22) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45) !important;
 }
 [data-theme="carbon"] .day-chip,
 [data-theme="carbon"] .pair-badge,
@@ -873,65 +869,193 @@ button.is-loading,
 [data-theme="carbon"] .pair-room-btn,
 [data-theme="carbon"] .week-nav-bar,
 [data-theme="carbon"] .week-nav-btn {
-  border-radius: 3px !important;
-}
-[data-theme="carbon"] .topbar {
-  border-bottom: 1px solid #27272a;
-}
-[data-theme="carbon"] .sidebar {
-  border-right: 1px solid #27272a;
-}
-[data-theme="carbon"] .day-chip.active {
-  box-shadow: none !important;
-  font-weight: 600;
+  border-radius: 6px !important;
 }
 
-/* 3. Cyber Tokyo (Synthwave / 16px Dynamic / Neon Glow / Matrix Grid) */
+/* ── 3. Cyber Tokyo (tokyo) ── */
 [data-theme="tokyo"] body {
-  background-color: #090a16;
+  background-color: #080718;
   background-image:
+    radial-gradient(circle at 80% 10%, rgba(244, 63, 94, 0.22), transparent 45%),
+    radial-gradient(circle at 15% 75%, rgba(139, 92, 246, 0.20), transparent 50%),
     linear-gradient(rgba(244, 63, 94, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(244, 63, 94, 0.04) 1px, transparent 1px);
-  background-size: 28px 28px;
+    linear-gradient(90deg, rgba(139, 92, 246, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px;
 }
 [data-theme="tokyo"] .pair-card {
+  background: rgba(17, 13, 36, 0.88) !important;
   border-radius: 16px !important;
-  border: 1px solid rgba(244, 63, 94, 0.35) !important;
+  border: 1px solid rgba(244, 63, 94, 0.45) !important;
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
-  box-shadow: 0 0 16px rgba(244, 63, 94, 0.22), inset 0 0 10px rgba(139, 92, 246, 0.12) !important;
-}
-[data-theme="tokyo"] .topbar-title {
-  letter-spacing: 0.03em;
-  font-weight: 800;
+  box-shadow: 0 0 20px rgba(244, 63, 94, 0.24), inset 0 0 12px rgba(139, 92, 246, 0.16) !important;
 }
 [data-theme="tokyo"] .day-chip.active {
   box-shadow: 0 0 14px rgba(244, 63, 94, 0.45);
 }
 
-/* 4. Nord Forest (Scandinavia / 14px Organic / BORDERLESS / Soft Elevation) */
+/* ── 4. Crimson Dusk (crimson) ── */
+[data-theme="crimson"] body {
+  background-color: #0c0205;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(244, 63, 94, 0.25), transparent 70%),
+    radial-gradient(circle at 90% 80%, rgba(225, 29, 72, 0.14), transparent 50%),
+    linear-gradient(180deg, #110307 0%, #080103 100%);
+}
+[data-theme="crimson"] .pair-card {
+  background: rgba(24, 6, 12, 0.88) !important;
+  border: 1px solid rgba(244, 63, 94, 0.35) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(244, 63, 94, 0.16) !important;
+}
+[data-theme="crimson"] .day-chip.active {
+  box-shadow: 0 0 14px rgba(244, 63, 94, 0.5);
+}
+
+/* ── 5. Ocean Abyss (abyss) ── */
+[data-theme="abyss"] body {
+  background-color: #020712;
+  background-image:
+    radial-gradient(circle at 20% 10%, rgba(6, 182, 212, 0.22), transparent 50%),
+    radial-gradient(circle at 80% 85%, rgba(14, 165, 233, 0.16), transparent 55%),
+    linear-gradient(180deg, #030b1e 0%, #01040a 100%);
+}
+[data-theme="abyss"] .pair-card {
+  background: rgba(6, 18, 36, 0.88) !important;
+  border: 1px solid rgba(6, 182, 212, 0.35) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(6, 182, 212, 0.18) !important;
+}
+[data-theme="abyss"] .day-chip.active {
+  box-shadow: 0 0 14px rgba(6, 182, 212, 0.45);
+}
+
+/* ── 6. Sunset 80s (synthwave) ── */
+[data-theme="synthwave"] body {
+  background-color: #10051e;
+  background-image:
+    radial-gradient(ellipse 90% 50% at 50% 0%, rgba(255, 107, 43, 0.28), transparent 65%),
+    radial-gradient(circle at 85% 70%, rgba(217, 70, 239, 0.22), transparent 55%),
+    linear-gradient(180deg, #130626 0%, #080212 100%);
+}
+[data-theme="synthwave"] .pair-card {
+  background: rgba(28, 10, 48, 0.90) !important;
+  border: 1.5px solid rgba(255, 107, 43, 0.45) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55), 0 0 18px rgba(217, 70, 239, 0.22) !important;
+}
+[data-theme="synthwave"] .day-chip.active {
+  background: linear-gradient(135deg, #ff6b2b, #d946ef) !important;
+  border: none !important;
+  box-shadow: 0 0 16px rgba(255, 107, 43, 0.5);
+}
+
+/* ── 7. Matrix Neon (matrix) ── */
+[data-theme="matrix"] body {
+  background-color: #010803;
+  background-image:
+    radial-gradient(ellipse 85% 45% at 50% 0%, rgba(0, 255, 102, 0.18), transparent 60%),
+    linear-gradient(rgba(0, 255, 102, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 102, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 22px 22px, 22px 22px;
+}
+[data-theme="matrix"] .pair-card {
+  background: rgba(3, 20, 7, 0.92) !important;
+  border: 1.5px solid rgba(0, 255, 102, 0.45) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 16px rgba(0, 255, 102, 0.22), inset 0 0 10px rgba(0, 255, 102, 0.08) !important;
+}
+[data-theme="matrix"] .day-chip.active {
+  box-shadow: 0 0 14px rgba(0, 255, 102, 0.5);
+}
+
+/* ── 8. Solar Gold (solar) ── */
+[data-theme="solar"] body {
+  background-color: #0e0b04;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(234, 179, 8, 0.25), transparent 65%),
+    radial-gradient(circle at 85% 85%, rgba(245, 158, 11, 0.15), transparent 50%),
+    linear-gradient(180deg, #140f06 0%, #090702 100%);
+}
+[data-theme="solar"] .pair-card {
+  background: rgba(24, 19, 8, 0.92) !important;
+  border: 1.5px solid rgba(234, 179, 8, 0.4) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(234, 179, 8, 0.2) !important;
+}
+[data-theme="solar"] .day-chip.active {
+  box-shadow: 0 0 14px rgba(234, 179, 8, 0.5);
+}
+
+/* ── 9. Nord Forest (forest) ── */
 [data-theme="forest"] body {
-  background-color: #070e0d;
-  background-image: radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.08), transparent 65%);
+  background-color: #040d09;
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.20), transparent 65%),
+    radial-gradient(circle at 20% 80%, rgba(5, 150, 105, 0.12), transparent 50%),
+    linear-gradient(180deg, #061510 0%, #020705 100%);
 }
 [data-theme="forest"] .pair-card {
-  border: none !important;
+  background: rgba(9, 27, 20, 0.9) !important;
+  border: 1px solid rgba(16, 185, 129, 0.28) !important;
   border-radius: 14px !important;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45) !important;
 }
-[data-theme="forest"] .pair-card::before {
-  border-radius: 14px 0 0 14px !important;
+[data-theme="forest"] .day-chip.active {
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
 }
 
-/* 5. Warm Mocha (Cozy Kraft / 22px Pill / Warm Shadows) */
+/* ── 10. Cyber Emerald (emerald) ── */
+[data-theme="emerald"] body {
+  background-color: #020e0a;
+  background-image:
+    radial-gradient(circle at 75% 15%, rgba(20, 184, 166, 0.22), transparent 50%),
+    radial-gradient(circle at 25% 85%, rgba(45, 212, 191, 0.14), transparent 55%),
+    linear-gradient(180deg, #041712 0%, #010806 100%);
+}
+[data-theme="emerald"] .pair-card {
+  background: rgba(7, 33, 26, 0.9) !important;
+  border: 1px solid rgba(20, 184, 166, 0.4) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(20, 184, 166, 0.22) !important;
+}
+[data-theme="emerald"] .day-chip.active {
+  box-shadow: 0 0 14px rgba(20, 184, 166, 0.5);
+}
+
+/* ── 11. Amethyst Dusk (amethyst) ── */
+[data-theme="amethyst"] body {
+  background-color: #080514;
+  background-image:
+    radial-gradient(circle at 80% 10%, rgba(192, 132, 252, 0.24), transparent 50%),
+    radial-gradient(circle at 15% 80%, rgba(168, 85, 247, 0.18), transparent 55%),
+    linear-gradient(180deg, #0e0922 0%, #05030d 100%);
+}
+[data-theme="amethyst"] .pair-card {
+  background: rgba(20, 13, 40, 0.88) !important;
+  border: 1px solid rgba(192, 132, 252, 0.4) !important;
+  border-radius: 14px !important;
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 18px rgba(168, 85, 247, 0.25) !important;
+}
+[data-theme="amethyst"] .day-chip.active {
+  box-shadow: 0 0 14px rgba(192, 132, 252, 0.5);
+}
+
+/* ── 12. Warm Mocha (mocha) ── */
 [data-theme="mocha"] body {
-  background-color: #120f0d;
-  background-image: radial-gradient(circle at 80% 20%, rgba(245, 158, 11, 0.06), transparent 50%);
+  background-color: #0f0a06;
+  background-image:
+    radial-gradient(circle at 75% 15%, rgba(245, 158, 11, 0.18), transparent 50%),
+    radial-gradient(circle at 25% 80%, rgba(180, 83, 9, 0.14), transparent 55%),
+    linear-gradient(180deg, #150f09 0%, #0a0604 100%);
 }
 [data-theme="mocha"] .pair-card {
-  border: 1.5px solid rgba(245, 158, 11, 0.2) !important;
-  border-radius: 22px !important;
-  box-shadow: 0 8px 24px rgba(18, 12, 8, 0.45) !important;
+  background: rgba(25, 17, 10, 0.9) !important;
+  border: 1.5px solid rgba(245, 158, 11, 0.3) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 24px rgba(18, 12, 8, 0.5) !important;
 }
 [data-theme="mocha"] .day-chip,
 [data-theme="mocha"] .pair-badge,
@@ -940,14 +1064,52 @@ button.is-loading,
   border-radius: 999px !important;
 }
 
-/* 6. Nordic Light (Swiss Paper Minimalist / 8px / Fine Line) */
+/* ── 13. Arctic Ice (ice) ── */
+[data-theme="ice"] body {
+  background-color: #030a16;
+  background-image:
+    radial-gradient(ellipse 90% 55% at 50% 0%, rgba(56, 189, 248, 0.24), transparent 65%),
+    radial-gradient(circle at 85% 80%, rgba(103, 232, 249, 0.16), transparent 50%),
+    linear-gradient(180deg, #051224 0%, #01050c 100%);
+}
+[data-theme="ice"] .pair-card {
+  background: rgba(6, 21, 40, 0.9) !important;
+  border: 1.5px solid rgba(56, 189, 248, 0.38) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(56, 189, 248, 0.22) !important;
+}
+[data-theme="ice"] .day-chip.active {
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.5);
+}
+
+/* ── 14. Sakura Pastel (sakura) ── */
+[data-theme="sakura"] body {
+  background-color: #fdf2f7;
+  background-image:
+    radial-gradient(ellipse 85% 55% at 50% 0%, rgba(244, 114, 182, 0.3), transparent 70%),
+    radial-gradient(circle at 90% 85%, rgba(251, 113, 133, 0.2), transparent 50%),
+    linear-gradient(180deg, #fff5f9 0%, #f9e2ed 100%);
+}
+[data-theme="sakura"] .pair-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(236, 72, 153, 0.32) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 16px rgba(236, 72, 153, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+[data-theme="sakura"] .day-chip.active {
+  box-shadow: 0 0 14px rgba(236, 72, 153, 0.45);
+}
+
+/* ── 15. Nordic Light (light) ── */
 [data-theme="light"] body {
-  background-color: #f4f5f8;
+  background-color: #f4f6fa;
+  background-image: radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.06), transparent 60%);
 }
 [data-theme="light"] .pair-card {
+  background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
-  border-radius: 8px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
 }
 [data-theme="light"] .pair-card::before {
   width: 3px;
@@ -960,32 +1122,19 @@ button.is-loading,
   border-right: 1px solid #e2e8f0;
 }
 
-/* 7. Obsidian Night (Balanced Modern Classic / 12px / Dark Graphite) */
+/* ── 16. Obsidian Night (obsidian) ── */
 [data-theme="obsidian"] body {
-  background-color: #0b0c16;
+  background-color: #090a15;
+  background-image:
+    radial-gradient(circle at 50% -10%, rgba(79, 142, 247, 0.18), transparent 60%),
+    radial-gradient(circle at 10% 80%, rgba(99, 102, 241, 0.10), transparent 50%),
+    linear-gradient(180deg, #0b0c1c 0%, #06070e 100%);
 }
 [data-theme="obsidian"] .pair-card {
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
-}
-
-/* 8. Amethyst Dusk (Deep Eggplant / 14px Glass / Lilac Aura / Cosmic Gradient) */
-[data-theme="amethyst"] body {
-  background-color: #0d0b18;
-  background-image:
-    radial-gradient(circle at 85% 15%, rgba(192, 132, 252, 0.12), transparent 45%),
-    radial-gradient(circle at 15% 85%, rgba(126, 34, 206, 0.10), transparent 45%);
-}
-[data-theme="amethyst"] .pair-card {
-  border: 1px solid rgba(192, 132, 252, 0.22) !important;
+  background: rgba(19, 20, 36, 0.9) !important;
+  border: 1px solid rgba(79, 142, 247, 0.22) !important;
   border-radius: 14px !important;
-  backdrop-filter: blur(18px) saturate(170%);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  box-shadow: 0 4px 24px rgba(13, 11, 24, 0.7), 0 0 16px rgba(168, 85, 247, 0.18) !important;
-}
-[data-theme="amethyst"] .day-chip.active {
-  box-shadow: 0 0 14px rgba(192, 132, 252, 0.45);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
 }
 
 button { cursor: pointer; border: none; background: none; color: inherit; font: inherit; }
@@ -4726,92 +4875,134 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 6px 10px;
-  cursor: grab;
   user-select: none;
-  touch-action: none;
-  -webkit-touch-callout: none;
   transition: all 0.15s ease;
-}
-
-.card-template-field-item:active {
-  cursor: grabbing;
 }
 
 .card-template-field-item.field-hidden {
   opacity: 0.42;
+  border-style: dashed;
   filter: grayscale(0.85);
+}
+
+.card-template-field-item.field-hidden .field-title-text {
+  text-decoration: line-through;
+  opacity: 0.75;
 }
 
 .field-drag-grip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.06);
+  width: 26px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.07);
   color: var(--accent, #6366f1);
-  font-size: 14px;
+  font-size: 16px;
+  cursor: grab;
   user-select: none;
+  touch-action: none;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+.field-drag-grip:hover {
+  background: rgba(99, 102, 241, 0.22);
+}
+.field-drag-grip:active {
+  cursor: grabbing;
 }
 
 .field-title {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text, #fff);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.field-title svg {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
 .field-controls-group {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
-/* Кнопка размера поля (S/M/L/XL) */
+/* Кнопка размера поля (SM / MD / LG / XL) */
 .field-size-btn {
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 2px 6px;
-  font-size: 10.5px;
-  font-weight: 700;
+  border-radius: 7px;
+  height: 28px;
+  min-width: 36px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 800;
   color: var(--text);
   cursor: pointer;
   touch-action: manipulation;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.15s ease;
 }
 .field-size-btn:hover {
   border-color: var(--accent, #6366f1);
   color: var(--accent, #6366f1);
+  background: rgba(99, 102, 241, 0.15);
 }
 
 /* Кнопка цвета поля (кругляшок с цветом) */
 .field-color-btn {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.4);
-  background: var(--field-color-val, var(--accent, #6366f1));
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   touch-action: manipulation;
-  transition: transform 0.15s ease;
+  transition: all 0.15s ease;
+}
+.field-color-btn .color-btn-dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+  display: block;
+  pointer-events: none;
 }
 .field-color-btn:hover {
-  transform: scale(1.15);
+  border-color: var(--accent, #6366f1);
+  transform: scale(1.08);
 }
 
+/* Кнопка видимости (глазик) */
 .field-vis-btn {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
+  border-radius: 7px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4819,14 +5010,271 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
   color: var(--text, #fff);
   transition: all 0.15s ease;
 }
-
 .field-vis-btn svg {
   width: 14px;
   height: 14px;
 }
-
 .field-vis-btn:hover {
   border-color: var(--accent, #6366f1);
+}
+.field-vis-btn.is-hidden {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* ─── ЖИВОЙ ПРЕДПРОСМОТР КАРТОЧКИ В КОНСТРУКТОРЕ ─── */
+.card-live-preview-wrap {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.card-live-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.preview-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent, #6366f1);
+}
+.preview-badge svg {
+  width: 14px;
+  height: 14px;
+}
+.preview-hint {
+  font-size: 11px;
+  color: var(--text-muted, #8e8e93);
+}
+.card-live-preview-stage {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 8px;
+}
+
+/* ════════════════════════════════════════════
+   NAVIGATION POSITIONING (Left / Bottom / Top / Right)
+════════════════════════════════════════════ */
+
+/* ── 1. Справа (Right Sidebar) ── */
+[data-nav-position="right"] .sidebar {
+  left: auto !important;
+  right: 0 !important;
+  border-right: none !important;
+  border-left: 1px solid var(--border) !important;
+  box-shadow: -10px 0 40px rgba(0,0,0,.5) !important;
+  transform: translateX(100%) !important;
+}
+[data-nav-position="right"] .sidebar.open {
+  transform: translateX(0) !important;
+}
+
+/* ── 2. Снизу (Bottom Navigation Bar) ── */
+.bottom-nav-bar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 62px;
+  background: var(--sidebar-glass, rgba(15, 16, 28, 0.94));
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 4px;
+}
+
+[data-nav-position="bottom"] .bottom-nav-bar {
+  display: flex !important;
+}
+
+[data-nav-position="bottom"] .app-wrapper {
+  padding-bottom: 74px !important;
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  height: 100%;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 6px 2px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.bottom-nav-item:hover {
+  color: var(--text);
+}
+
+.bottom-nav-item.active {
+  color: var(--accent);
+}
+
+.bottom-nav-item .bottom-nav-icon svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.bottom-nav-item.active .bottom-nav-icon svg {
+  transform: scale(1.12);
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+.bottom-nav-item .bottom-nav-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* ── 3. Сверху (Top Navigation) ── */
+[data-nav-position="top"] .topbar {
+  border-bottom: 2px solid var(--accent);
+}
+
+/* ── Селектор расположения в конструкторе (вкладка Меню) ── */
+.layout-nav-pos-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+.nav-pos-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.nav-pos-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+}
+
+.nav-pos-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.nav-pos-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-pos-btn.active {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* ── Карточки выбора расположения в окне настроек ── */
+.nav-position-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+
+@media (max-width: 580px) {
+  .nav-position-selector-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.nav-pos-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 14px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.18s ease;
+}
+
+.nav-pos-card:hover {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-2px);
+}
+
+.nav-pos-card.active {
+  border-color: var(--accent) !important;
+  background: rgba(99, 102, 241, 0.12) !important;
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.nav-pos-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.nav-pos-card-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.nav-pos-card-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.nav-pos-card-desc {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.2;
 }
 
 .card-template-field-item.field-sortable-ghost,

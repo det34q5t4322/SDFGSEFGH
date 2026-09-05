@@ -547,6 +547,30 @@
 
 </div><!-- /mainFlowContainer -->
 
+<!-- ═══ BOTTOM NAVIGATION BAR (активируется при data-nav-position="bottom") ═══ -->
+<nav class="bottom-nav-bar" id="bottomNavBar" role="navigation" aria-label="Нижняя навигация">
+  <button class="bottom-nav-item active" data-view="schedule" id="bottomNavSchedule" type="button">
+    <span class="bottom-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg></span>
+    <span class="bottom-nav-label">Расписание</span>
+  </button>
+  <button class="bottom-nav-item" data-view="teacher" id="bottomNavTeacher" type="button">
+    <span class="bottom-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span>
+    <span class="bottom-nav-label">Преподаватели</span>
+  </button>
+  <button class="bottom-nav-item" data-view="classroom" id="bottomNavClassroom" type="button">
+    <span class="bottom-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h20"/><path d="M13 20V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"/><path d="M9 12v.01"/></svg></span>
+    <span class="bottom-nav-label">Аудитории</span>
+  </button>
+  <button class="bottom-nav-item" data-action="settings" id="bottomNavSettings" type="button">
+    <span class="bottom-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
+    <span class="bottom-nav-label">Настройки</span>
+  </button>
+  <button class="bottom-nav-item" data-action="sidebar" id="bottomNavMore" type="button">
+    <span class="bottom-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></span>
+    <span class="bottom-nav-label">Ещё</span>
+  </button>
+</nav>
+
 </div><!-- /app-wrapper -->
 
 <!-- ═══ CARD TEMPLATE BUILDER OVERLAY (MULTI-ZONE) ═══ -->
@@ -555,9 +579,9 @@
     <div class="card-template-header">
       <div class="card-template-badge">
         <span class="card-template-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg></span>
-        <span class="card-template-title">Шаблон карточки пары (Сетка зон)</span>
+        <span class="card-template-title">Шаблон карточки пары</span>
       </div>
-      <div class="card-template-subtitle">Перетаскивайте поля между зонами карточки, настраивайте размер (S/M/L) и цвет</div>
+      <div class="card-template-subtitle">Хватайте за <b>⠿</b> для переноса между зонами. Кликайте на размер (S/M/L/XL), цвет или глаз для скрытия.</div>
     </div>
 
     <!-- Интерактивная зональная сетка карточки -->
@@ -594,6 +618,20 @@
         </div>
       </div>
     </div>
+
+    <!-- ═══ ЖИВОЙ ПРЕДПРОСМОТР КАРТОЧКИ В КОНСТРУКТОРЕ ═══ -->
+    <div class="card-live-preview-wrap">
+      <div class="card-live-preview-header">
+        <span class="preview-badge">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Живой предпросмотр карточки</span>
+        </span>
+        <span class="preview-hint">Мгновенное отражение ваших настроек</span>
+      </div>
+      <div class="card-live-preview-stage" id="cardTemplateLivePreviewStage">
+        <!-- Сюда в реальном времени рендерится тестовая карточка -->
+      </div>
+    </div>
   </div>
 </div>
 
@@ -619,9 +657,32 @@
     <!-- Пресеты для активной вкладки -->
     <div class="layout-editor-top">
       <div class="layout-editor-presets" id="layoutPresetsContainer">
-        <span class="preset-label">Пресеты:</span>
+        <span class="preset-label" id="layoutPresetsLabel">Пресеты:</span>
         <div class="presets-chips-row" id="presetsChipsRow">
           <!-- Пресеты переключаются динамически под активную вкладку -->
+        </div>
+      </div>
+
+      <!-- Переключатель расположения панели меню (для вкладки меню) -->
+      <div class="layout-nav-pos-container" id="layoutNavPosContainer" style="display:none;">
+        <span class="preset-label">Расположение меню:</span>
+        <div class="nav-pos-chips" id="layoutNavPosChips">
+          <button class="nav-pos-btn active" data-nav-pos="left" type="button" title="Слева (боковой сайдбар)">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+            <span>Слева</span>
+          </button>
+          <button class="nav-pos-btn" data-nav-pos="bottom" type="button" title="Снизу (мобильный Tab Bar)">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 15h18"/></svg>
+            <span>Снизу</span>
+          </button>
+          <button class="nav-pos-btn" data-nav-pos="top" type="button" title="Сверху (шапка)">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/></svg>
+            <span>Сверху</span>
+          </button>
+          <button class="nav-pos-btn" data-nav-pos="right" type="button" title="Справа (боковой сайдбар справа)">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg>
+            <span>Справа</span>
+          </button>
         </div>
       </div>
     </div>
@@ -880,6 +941,37 @@
                   <span class="launch-card-desc">Сетка 5 зон, размеры полей (S/M/L) и акцентные цвета</span>
                 </div>
                 <div class="launch-card-arrow"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></div>
+              </button>
+            </div>
+          </div>
+
+          <div class="theme-section">
+            <div class="theme-section-header">
+              <span class="theme-section-title">Расположение навигации</span>
+            </div>
+            <p style="font-size:0.84rem;color:var(--text-muted);margin-bottom:12px;">
+              Выберите, где разместить меню приложения: классический сайдбар слева или справа, мобильный Tab Bar снизу, или верхняя панель.
+            </p>
+            <div class="nav-position-selector-grid" id="modalNavPosSelectorGrid">
+              <button class="nav-pos-card active" data-nav-pos="left" type="button">
+                <div class="nav-pos-card-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg></div>
+                <div class="nav-pos-card-name">Слева</div>
+                <div class="nav-pos-card-desc">Классический сайдбар</div>
+              </button>
+              <button class="nav-pos-card" data-nav-pos="bottom" type="button">
+                <div class="nav-pos-card-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 15h18"/></svg></div>
+                <div class="nav-pos-card-name">Снизу</div>
+                <div class="nav-pos-card-desc">Мобильный Tab Bar</div>
+              </button>
+              <button class="nav-pos-card" data-nav-pos="top" type="button">
+                <div class="nav-pos-card-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/></svg></div>
+                <div class="nav-pos-card-name">Сверху</div>
+                <div class="nav-pos-card-desc">Верхняя полоса</div>
+              </button>
+              <button class="nav-pos-card" data-nav-pos="right" type="button">
+                <div class="nav-pos-card-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg></div>
+                <div class="nav-pos-card-name">Справа</div>
+                <div class="nav-pos-card-desc">Сайдбар справа</div>
               </button>
             </div>
           </div>
