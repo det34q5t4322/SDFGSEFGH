@@ -145,6 +145,8 @@ const S = {
   manualTabMode:      false,        // true = пользователь явно выбрал вкладку в сайдбаре
   isNotPublished:     false,        // true = расписание на выбранную дату ещё не опубликовано
   refreshTimer:       null,
+  isLoading:          false,        // true = запрос расписания в процессе
+  isNavigatingWeek:   false,        // true = переключение недели выполняется
 };
 
 // ── FAULT TOLERANCE & NETWORK HELPERS ───
@@ -285,8 +287,17 @@ async function init() {
   try { setupSearchInputs(); } catch (e) { console.error('setupSearchInputs error:', e); }
 
   // Привязка повтора в оффлайн-баннере
-  els.offlineBannerRetryBtn?.addEventListener('click', () => {
-    loadSchedule(true);
+  els.offlineBannerRetryBtn?.addEventListener('click', async () => {
+    if (els.offlineBannerRetryBtn.classList.contains('is-loading')) return;
+    const svg = els.offlineBannerRetryBtn.querySelector('svg');
+    if (svg) svg.classList.add('is-spinning');
+    els.offlineBannerRetryBtn.classList.add('is-loading');
+    try {
+      await loadSchedule(true);
+    } finally {
+      if (svg) svg.classList.remove('is-spinning');
+      els.offlineBannerRetryBtn?.classList.remove('is-loading');
+    }
   });
 
   // 1. Извлекаем группу с приоритетом на сохранённый выбор пользователя
@@ -640,7 +651,19 @@ function setupSidebar() {
   els.menuBtn?.addEventListener('click', openSidebar);
   els.sidebarOverlay?.addEventListener('click', closeSidebar);
   els.sidebarChangeGroup?.addEventListener('click', () => { closeSidebar(); openGroupModal(); });
-  els.sidebarRefresh?.addEventListener('click', () => { closeSidebar(); loadSchedule(true); });
+  els.sidebarRefresh?.addEventListener('click', async () => {
+    if (els.sidebarRefresh.classList.contains('is-loading')) return;
+    const svg = els.sidebarRefresh.querySelector('svg');
+    if (svg) svg.classList.add('is-spinning');
+    els.sidebarRefresh.classList.add('is-loading');
+    closeSidebar();
+    try {
+      await loadSchedule(true);
+    } finally {
+      if (svg) svg.classList.remove('is-spinning');
+      els.sidebarRefresh?.classList.remove('is-loading');
+    }
+  });
 
   const diaryBtn = document.getElementById('sidebarDiaryBtn');
   diaryBtn?.addEventListener('click', () => {
@@ -925,32 +948,59 @@ function updateWeekNav(monday, saturday) {
   }
 }
 
-function changeWeek(delta) {
-  S.weekOffset += delta;
-  S.manualTabMode = false;
-  S.parityOverride = null;
+async function changeWeek(delta) {
+  if (S.isNavigatingWeek) return;
+  S.isNavigatingWeek = true;
 
-  const targetTab = findTabForWeek(S.weekOffset);
-  if (targetTab) {
-    S.isNotPublished = false;
-    const needFetch = (!S.data || S.data.gid !== targetTab.gid);
-    S.activeGid = targetTab.gid;
-    buildSidebarTabs();
-    buildDayStrip();
-    updateTopbarParity();
-    if (needFetch) {
-      loadSchedule(false);
+  if (els.prevWeekBtn) {
+    els.prevWeekBtn.disabled = true;
+    els.prevWeekBtn.classList.add('is-loading');
+  }
+  if (els.nextWeekBtn) {
+    els.nextWeekBtn.disabled = true;
+    els.nextWeekBtn.classList.add('is-loading');
+  }
+
+  try {
+    S.weekOffset += delta;
+    S.manualTabMode = false;
+    S.parityOverride = null;
+
+    const targetTab = findTabForWeek(S.weekOffset);
+    if (targetTab) {
+      S.isNotPublished = false;
+      const needFetch = (!S.data || S.data.gid !== targetTab.gid);
+      S.activeGid = targetTab.gid;
+      buildSidebarTabs();
+      buildDayStrip();
+      updateTopbarParity();
+      if (needFetch) {
+        renderSkeleton();
+        await loadSchedule(false);
+      } else {
+        renderSchedule();
+        updateLiveCard();
+      }
     } else {
-      renderSchedule();
+      S.isNotPublished = true;
+      buildSidebarTabs();
+      buildDayStrip();
+      updateTopbarParity();
+      renderScheduleNotPublished();
       updateLiveCard();
     }
-  } else {
-    S.isNotPublished = true;
-    buildSidebarTabs();
-    buildDayStrip();
-    updateTopbarParity();
-    renderScheduleNotPublished();
-    updateLiveCard();
+  } catch (err) {
+    logApp('error', 'Ошибка при смене недели:', err);
+  } finally {
+    S.isNavigatingWeek = false;
+    if (els.prevWeekBtn) {
+      els.prevWeekBtn.disabled = false;
+      els.prevWeekBtn.classList.remove('is-loading');
+    }
+    if (els.nextWeekBtn) {
+      els.nextWeekBtn.disabled = false;
+      els.nextWeekBtn.classList.remove('is-loading');
+    }
   }
 }
 
@@ -1045,6 +1095,7 @@ function buildDayStrip() {
 }
 
 function selectDay(dow) {
+  if (S.selectedDay === dow) return;
   S.selectedDay = dow;
   buildDayStrip();
   renderSchedule();
@@ -1400,6 +1451,12 @@ function fmtTime(min) {
 //  LOAD DATA (FAULT TOLERANT & CACHED)
 // ════════════════════════════════════════
 async function loadSchedule(force = false) {
+  if (S.isLoading && !force) {
+    logApp('info', 'loadSchedule пропущен: предыдущий запрос ещё выполняется');
+    return;
+  }
+  S.isLoading = true;
+
   if (!S.group) S.group = DEFAULT_GROUP;
   updateSidebarGroupInfo();
 
@@ -1424,6 +1481,11 @@ async function loadSchedule(force = false) {
     }
   }
 
+  // Если данных в памяти нет — показываем элегантные skeleton-карточки
+  if (!S.data && (S.view === 'today' || S.view === 'week' || S.view === 'schedule')) {
+    renderSkeleton();
+  }
+
   // 2. ИНДИКАТОР ПРОБУЖДЕНИЯ СЕРВЕРА RENDER (если ответ длится > 2.5с)
   const wakeupTimer = setTimeout(() => {
     showOfflineBanner('⏳ Сервер просыпается, подгружаем свежее расписание...', true);
@@ -1431,25 +1493,32 @@ async function loadSchedule(force = false) {
 
   // 3. СЕТЕВОЙ ЗАПРОС С ТАЙМАУТОМ (8.5 сек)
   try {
-    const tabsRes = await fetchWithTimeout(`${API}/tabs`, {}, 8500);
-    if (tabsRes.ok) {
-      const tabsData = await tabsRes.json();
-      S.tabs = (tabsData.tabs || []).filter(tab => !isTestTab(tab.name));
-
-      // Автоматическое определение вкладки по датам недели, если не включен ручной выбор
-      if (!S.manualTabMode) {
-        const autoTab = findTabForWeek(S.weekOffset || 0);
-        if (autoTab) {
-          S.activeGid = autoTab.gid;
-        } else if (!S.activeGid || S.activeGid === 'active') {
-          const foundActive = S.tabs.find(t => t.is_active);
-          S.activeGid = foundActive ? foundActive.gid : (S.tabs[0]?.gid || tabsData.active_gid || '');
+    // Вкладки загружаем только если они ещё не загружены или принудительно (экономия 1-3с на Render)
+    if (!S.tabs || S.tabs.length === 0 || force) {
+      try {
+        const tabsRes = await fetchWithTimeout(`${API}/tabs`, {}, 8500);
+        if (tabsRes.ok) {
+          const tabsData = await tabsRes.json();
+          S.tabs = (tabsData.tabs || []).filter(tab => !isTestTab(tab.name));
         }
+      } catch (tabsErr) {
+        logApp('warn', 'Не удалось обновить список вкладок:', tabsErr);
+      }
+    }
+
+    // Автоматическое определение вкладки по датам недели, если не включен ручной выбор
+    if (!S.manualTabMode && S.tabs && S.tabs.length > 0) {
+      const autoTab = findTabForWeek(S.weekOffset || 0);
+      if (autoTab) {
+        S.activeGid = autoTab.gid;
+      } else if (!S.activeGid || S.activeGid === 'active') {
+        const foundActive = S.tabs.find(t => t.is_active);
+        S.activeGid = foundActive ? foundActive.gid : (S.tabs[0]?.gid || '');
       }
     }
 
     // Если в автоматическом режиме целевая неделя не покрыта ни одной вкладкой
-    if (!S.manualTabMode) {
+    if (!S.manualTabMode && S.tabs && S.tabs.length > 0) {
       const targetTab = findTabForWeek(S.weekOffset || 0);
       if (!targetTab && S.weekOffset !== 0) {
         clearTimeout(wakeupTimer);
@@ -1488,6 +1557,11 @@ async function loadSchedule(force = false) {
 
     S.isNotPublished = false;
     S.data = freshData;
+
+    // Если список вкладок ещё не был заполнен — обновляем из ответа расписания
+    if ((!S.tabs || S.tabs.length === 0) && freshData.available_tabs) {
+      S.tabs = freshData.available_tabs.filter(tab => !isTestTab(tab.name));
+    }
 
     try {
       localStorage.setItem(cacheKey, JSON.stringify(freshData));
@@ -1536,10 +1610,11 @@ async function loadSchedule(force = false) {
       showOfflineBanner(`Показано сохранённое расписание, обновлено ${updTime}`);
     } else if (els.scheduleView) {
       hideOfflineBanner();
+      els.scheduleView.removeAttribute('aria-busy');
       els.scheduleView.innerHTML = `
         <div class="schedule-error-card">
           <div class="schedule-error-icon">${ICONS.alert}</div>
-          <div class="schedule-error-title">Не удалось обновить расписание</div>
+          <div class="schedule-error-title">Не удалось загрузить расписание</div>
           <div class="schedule-error-desc">Сервер временно недоступен или отсутствует подключение к интернету.</div>
           <button class="retry-btn" onclick="loadSchedule(true)">
             ${ICONS.refresh}
@@ -1548,6 +1623,10 @@ async function loadSchedule(force = false) {
         </div>
       `;
     }
+  } finally {
+    clearTimeout(wakeupTimer);
+    S.isLoading = false;
+    if (els.scheduleView && S.data) els.scheduleView.removeAttribute('aria-busy');
   }
 }
 
@@ -1574,10 +1653,65 @@ function startAutoRefresh() {
 }
 
 // ════════════════════════════════════════
+//  RENDER SKELETON (INSTANT GHOST CARDS)
+// ════════════════════════════════════════
+function renderSkeleton() {
+  if (!els.scheduleView) return;
+  els.scheduleView.setAttribute('aria-busy', 'true');
+  els.scheduleView.innerHTML = `
+    <div class="skeleton-schedule" id="skeletonLoader">
+      <div class="skeleton-card">
+        <div class="skeleton-col-num">
+          <div class="skeleton-bar skeleton-num"></div>
+          <div class="skeleton-bar skeleton-time"></div>
+        </div>
+        <div class="skeleton-col-body">
+          <div class="skeleton-bar skeleton-title"></div>
+          <div class="skeleton-bar skeleton-title-sub"></div>
+          <div class="skeleton-meta-row">
+            <div class="skeleton-bar skeleton-pill"></div>
+            <div class="skeleton-bar skeleton-pill small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-col-num">
+          <div class="skeleton-bar skeleton-num"></div>
+          <div class="skeleton-bar skeleton-time"></div>
+        </div>
+        <div class="skeleton-col-body">
+          <div class="skeleton-bar skeleton-title" style="width:65%"></div>
+          <div class="skeleton-bar skeleton-title-sub" style="width:40%"></div>
+          <div class="skeleton-meta-row">
+            <div class="skeleton-bar skeleton-pill" style="width:110px"></div>
+            <div class="skeleton-bar skeleton-pill small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-col-num">
+          <div class="skeleton-bar skeleton-num"></div>
+          <div class="skeleton-bar skeleton-time"></div>
+        </div>
+        <div class="skeleton-col-body">
+          <div class="skeleton-bar skeleton-title" style="width:82%"></div>
+          <div class="skeleton-bar skeleton-title-sub" style="width:52%"></div>
+          <div class="skeleton-meta-row">
+            <div class="skeleton-bar skeleton-pill"></div>
+            <div class="skeleton-bar skeleton-pill small"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════
 //  RENDER SCHEDULE
 // ════════════════════════════════════════
 function renderSchedule() {
   if (!els.scheduleView) return;
+  els.scheduleView.removeAttribute('aria-busy');
   if (S.isNotPublished) {
     renderScheduleNotPublished();
     return;
@@ -1710,17 +1844,17 @@ function renderDayPairs(dayName) {
       const num = slot.numerator;
       const den = slot.denominator;
       if (activeParity === 'all') {
-        html += renderSplitCard(num, den, pn, bell, isGoing);
+        html += renderSplitCard(num, den, pn, bell, isGoing, idx);
       } else if (activeParity === 'num' && num && num.subject) {
-        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.');
+        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx);
       } else if (activeParity === 'den' && den && den.subject) {
-        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.');
+        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx);
       } else if (num && num.subject) {
-        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.');
+        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx);
       } else if (den && den.subject) {
-        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.');
+        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx);
       } else {
-        html += renderSplitCard(num, den, pn, bell, isGoing);
+        html += renderSplitCard(num, den, pn, bell, isGoing, idx);
       }
       return;
     }
@@ -1728,13 +1862,13 @@ function renderDayPairs(dayName) {
     const p = slot.both || slot.numerator || slot.denominator;
     if (!p || !p.subject) return;
 
-    html += renderSingleCard(p, pn, bell, isGoing);
+    html += renderSingleCard(p, pn, bell, isGoing, '', idx);
   });
 
   return html;
 }
 
-function renderSingleCard(p, pn, bell, isGoing, parityBadge = '') {
+function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0) {
   const cancelled = p.is_cancelled || (p.subject && /отмена/i.test(p.subject));
   const replacement = p.is_replacement || (p.subject && /замена/i.test(p.subject));
   const classroom = p.classroom || p.room || '';
@@ -1763,7 +1897,7 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '') {
     ? `<button class="pair-room-btn" data-room="${esc(classroom)}" onclick="openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(classroom)}</span></button>`
     : '';
 
-  return `<div class="${cardClass}">
+  return `<div class="${cardClass}" style="--card-index:${cardIndex}">
     <div class="pair-num-col">
       ${pn ? `<div class="pair-num">${pn}</div>` : ''}
       <div class="pair-time-small">${timeStr ? timeStr.split('–')[0] : ''}</div>
@@ -1780,7 +1914,7 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '') {
   </div>`;
 }
 
-function renderSplitCard(num, den, pn, bell, isGoing) {
+function renderSplitCard(num, den, pn, bell, isGoing, cardIndex = 0) {
   const timeStr = bell ? `${fmtTime(bell.s)}–${fmtTime(bell.e)}` : '';
 
   const mkRow = (p, type, label) => {
@@ -1810,7 +1944,7 @@ function renderSplitCard(num, den, pn, bell, isGoing) {
   const denRow = mkRow(den, 'den', 'II Знам.');
 
   if (!numRow && !denRow) return '';
-  return `<div class="split-pair-wrap${isGoing ? ' going' : ''}">${numRow}${denRow}</div>`;
+  return `<div class="split-pair-wrap${isGoing ? ' going' : ''}" style="--card-index:${cardIndex}">${numRow}${denRow}</div>`;
 }
 
 // ════════════════════════════════════════
@@ -2581,6 +2715,10 @@ function openGroupModal() {
   ensureGroupsLoaded();
   els.groupModal?.classList.add('open');
   buildGroupGrid(els.groupsGrid, els.groupSearchInput, els.courseChips, (grp) => {
+    if (S.group === grp && S.data) {
+      closeGroupModal();
+      return;
+    }
     S.group = grp;
     try {
       localStorage.setItem(STORAGE_GROUP, grp);
@@ -2610,6 +2748,7 @@ function openGroupModal() {
     } catch (_) {}
     closeGroupModal();
     updateSidebarGroupInfo();
+    renderSkeleton();
     loadSchedule(true);
     startAutoRefresh();
   });

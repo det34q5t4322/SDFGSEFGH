@@ -8,6 +8,7 @@ from collections import defaultdict
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -26,6 +27,9 @@ app = FastAPI(
     description="API расписания занятий Колледжа телекоммуникаций",
     version="1.0.0",
 )
+
+# Gzip-сжатие ответов (сжимает JS, CSS, JSON расписания до 70-80% меньше размера)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Разрешаем CORS для работы WebApp и сторонних клиентов
 app.add_middleware(
@@ -64,12 +68,18 @@ async def rate_limiting_middleware(request: Request, call_next):
     return await call_next(request)
 
 @app.middleware("http")
-async def add_no_cache_headers(request: Request, call_next):
+async def add_cache_headers(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path == "/" or request.url.path.startswith("/static"):
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+    path = request.url.path
+    if path.startswith("/static/fonts/"):
+        # Шрифты неизменны — кэшируем в браузере на 7 дней
+        response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+    elif path.startswith("/static/"):
+        # Статика (CSS, JS, иконки): разрешаем кэш с валидацией ETag и фоновым обновлением
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=86400"
+    elif path == "/":
+        # Главная HTML-страница — всегда проверяем актуальность, но разрешаем 304 Not Modified
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
 
 # Монтируем статические файлы
@@ -161,6 +171,11 @@ async def health_check():
     }
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return JSONResponse(status_code=204, content=None)
+
+
 @app.get("/")
 async def root():
     """Отдача главного интерфейса расписания."""
@@ -169,9 +184,7 @@ async def root():
         return FileResponse(
             index_path,
             headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
-                "Pragma": "no-cache",
-                "Expires": "0",
+                "Cache-Control": "no-cache, must-revalidate",
             },
         )
     return {"message": "Schedule Web Service is running. Open /static/index.html"}

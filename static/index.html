@@ -8,8 +8,8 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260904_13">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=20260905_1">
   <script>
     (function() {
       try {
@@ -207,10 +207,50 @@
 
     <!-- ─── SCHEDULE CONTENT ─── -->
     <main class="main-content" id="mainContent">
-      <div id="scheduleView">
-        <div class="loading-placeholder">
-          <div class="loading-spinner"></div>
-          <div>Загружаем расписание...</div>
+      <div id="scheduleView" aria-busy="true">
+        <div class="skeleton-schedule" id="skeletonLoader">
+          <div class="skeleton-card">
+            <div class="skeleton-col-num">
+              <div class="skeleton-bar skeleton-num"></div>
+              <div class="skeleton-bar skeleton-time"></div>
+            </div>
+            <div class="skeleton-col-body">
+              <div class="skeleton-bar skeleton-title"></div>
+              <div class="skeleton-bar skeleton-title-sub"></div>
+              <div class="skeleton-meta-row">
+                <div class="skeleton-bar skeleton-pill"></div>
+                <div class="skeleton-bar skeleton-pill small"></div>
+              </div>
+            </div>
+          </div>
+          <div class="skeleton-card">
+            <div class="skeleton-col-num">
+              <div class="skeleton-bar skeleton-num"></div>
+              <div class="skeleton-bar skeleton-time"></div>
+            </div>
+            <div class="skeleton-col-body">
+              <div class="skeleton-bar skeleton-title" style="width:65%"></div>
+              <div class="skeleton-bar skeleton-title-sub" style="width:40%"></div>
+              <div class="skeleton-meta-row">
+                <div class="skeleton-bar skeleton-pill" style="width:110px"></div>
+                <div class="skeleton-bar skeleton-pill small"></div>
+              </div>
+            </div>
+          </div>
+          <div class="skeleton-card">
+            <div class="skeleton-col-num">
+              <div class="skeleton-bar skeleton-num"></div>
+              <div class="skeleton-bar skeleton-time"></div>
+            </div>
+            <div class="skeleton-col-body">
+              <div class="skeleton-bar skeleton-title" style="width:82%"></div>
+              <div class="skeleton-bar skeleton-title-sub" style="width:52%"></div>
+              <div class="skeleton-meta-row">
+                <div class="skeleton-bar skeleton-pill"></div>
+                <div class="skeleton-bar skeleton-pill small"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -606,6 +646,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=20260904_13"></script>
+  <script src="/static/app.js?v=20260905_1"></script>
 </body>
 </html>

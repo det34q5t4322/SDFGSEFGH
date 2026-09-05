@@ -639,7 +639,97 @@ body {
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  transition: background-color .25s ease, color .25s ease;
+  transition: background-color .24s cubic-bezier(0.4, 0, 0.2, 1), color .24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Плавный переход цветов при переключении темы (150-240мс) */
+.topbar,
+.sidebar,
+.pair-card,
+.live-card,
+.week-nav-bar,
+.day-chip,
+.modal-sheet,
+.search-input,
+.sidebar-nav-item,
+.sidebar-group-badge,
+.sidebar-tab-btn,
+.parity-chip {
+  transition: background-color .22s cubic-bezier(0.4, 0, 0.2, 1),
+              color .22s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color .22s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow .22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Тактильная обратная связь для кнопок и интерактивных элементов (микро-анимация нажатия 0.96) */
+button,
+.day-chip,
+.week-nav-btn,
+.sidebar-tab-btn,
+.sidebar-nav-item,
+.search-btn,
+.retry-btn,
+.not-published-btn,
+.course-chip,
+.group-chip,
+.pair-teacher-btn,
+.pair-room-btn,
+.theme-card,
+.font-chip-btn,
+.font-size-btn,
+.topbar-menu-btn,
+.topbar-theme-btn,
+.topbar-parity {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.18s ease,
+              border-color 0.18s ease,
+              box-shadow 0.18s ease,
+              opacity 0.18s ease;
+}
+
+button:active,
+.day-chip:active,
+.week-nav-btn:active,
+.sidebar-tab-btn:active,
+.sidebar-nav-item:active,
+.search-btn:active,
+.retry-btn:active,
+.not-published-btn:active,
+.course-chip:active,
+.group-chip:active,
+.pair-teacher-btn:active,
+.pair-room-btn:active,
+.theme-card:active,
+.font-chip-btn:active,
+.font-size-btn:active,
+.topbar-menu-btn:active,
+.topbar-theme-btn:active,
+.topbar-parity:active {
+  transform: scale(0.96);
+}
+
+/* Состояние загрузки кнопки (блокировка + визуальный отклик) */
+button.is-loading,
+.week-nav-btn.is-loading,
+.sidebar-nav-item.is-loading,
+.retry-btn.is-loading,
+.search-btn.is-loading {
+  pointer-events: none !important;
+  opacity: 0.65;
+  cursor: wait !important;
+}
+
+.is-spinning {
+  display: inline-block;
+  animation: btnSpin 0.75s linear infinite !important;
+  transform-origin: center;
+}
+
+@keyframes btnSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* ── LUCIDE SVG ICONS SYSTEM ────────────── */
@@ -1546,6 +1636,17 @@ input {
   padding: 6px 0 8px;
 }
 
+@keyframes cardAppear {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .pair-card {
   display: flex; gap: 11px;
   background: var(--bg-card);
@@ -1558,6 +1659,8 @@ input {
   position: relative; overflow: hidden;
   content-visibility: auto;
   contain-intrinsic-size: 0 88px;
+  animation: cardAppear 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--card-index, 0) * 35ms);
 }
 .pair-card:hover {
   transform: translateY(-1px);
@@ -1738,6 +1841,142 @@ input {
   transition: opacity var(--transition);
 }
 .search-btn:hover { opacity: .85; }
+
+/* ─── SKELETON LOADERS (Призрачные карточки расписания) ─── */
+.skeleton-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+  animation: skeletonContainerFade 0.2s ease-in;
+}
+
+@keyframes skeletonContainerFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.skeleton-card {
+  display: flex;
+  gap: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  box-shadow: var(--card-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--border);
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.skeleton-col-num {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 32px;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.skeleton-col-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.skeleton-meta-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.skeleton-bar {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="sakura"] .skeleton-bar,
+[data-theme="nordic"] .skeleton-bar,
+[data-theme="lavender"] .skeleton-bar {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.skeleton-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    transparent 100%
+  );
+  animation: skeletonShimmer 1.5s infinite;
+  transform: translateX(-100%);
+}
+
+[data-theme="sakura"] .skeleton-bar::after,
+[data-theme="nordic"] .skeleton-bar::after,
+[data-theme="lavender"] .skeleton-bar::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.07) 50%,
+    transparent 100%
+  );
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.skeleton-time {
+  width: 32px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.skeleton-title {
+  width: 78%;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.skeleton-title-sub {
+  width: 48%;
+  height: 12px;
+  border-radius: 4px;
+}
+
+.skeleton-pill {
+  width: 90px;
+  height: 20px;
+  border-radius: var(--radius-xs);
+}
+
+.skeleton-pill.small {
+  width: 55px;
+}
 
 /* ─── LOADING ─── */
 .loading-placeholder {
@@ -3740,6 +3979,18 @@ input {
   flex-shrink: 0;
   color: var(--accent);
   font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton-bar::after {
+    animation: none !important;
+  }
 }
 
 
