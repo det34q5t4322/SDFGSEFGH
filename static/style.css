@@ -4853,6 +4853,215 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
   outline: 2px dashed var(--accent, #6366f1) !important;
 }
 
+/* ─── УРОВЕНЬ 1: СХЕМАТИЧНЫЙ РЕДАКТОР ЭКРАНА (BLUEPRINT MODE) ─── */
+.screen-blueprint-builder {
+  position: fixed;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 520px;
+  max-height: calc(100vh - 170px);
+  overflow-y: auto;
+  z-index: 1450;
+  background: var(--bg-card, #1c1c28);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: slideDownCardBuilder 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.blueprint-header {
+  margin-bottom: 14px;
+}
+
+.blueprint-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text, #fff);
+}
+
+.blueprint-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(79, 142, 247, 0.15);
+  color: var(--accent, #4f8ef7);
+}
+
+.blueprint-subtitle {
+  font-size: 12px;
+  color: var(--text-muted, #8b8b9e);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.blueprint-tiles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.blueprint-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  user-select: none;
+}
+
+.blueprint-tile:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.blueprint-tile.sortable-ghost {
+  opacity: 0.35 !important;
+  background: rgba(79, 142, 247, 0.2) !important;
+  border-color: var(--accent, #4f8ef7) !important;
+  outline: 2px dashed var(--accent, #4f8ef7) !important;
+}
+
+.blueprint-tile.sortable-chosen {
+  transform: scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.blueprint-tile.is-hidden {
+  opacity: 0.52;
+  background: rgba(255, 255, 255, 0.02);
+  border-style: dashed;
+}
+
+.blueprint-tile-grip {
+  cursor: grab;
+  color: var(--text-muted, #8b8b9e);
+  font-size: 18px;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  touch-action: none;
+  border-radius: 6px;
+}
+
+.blueprint-tile-grip:hover {
+  color: var(--text, #fff);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.blueprint-tile-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent, #4f8ef7);
+  flex-shrink: 0;
+}
+
+.blueprint-tile-icon .lucide-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.blueprint-tile-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.blueprint-tile-num {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted, #8b8b9e);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.blueprint-tile-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.blueprint-tile-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.blueprint-btn-move,
+.blueprint-btn-vis {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.blueprint-btn-move:hover:not(:disabled),
+.blueprint-btn-vis:hover:not(:disabled) {
+  background: var(--accent, #4f8ef7);
+  color: #ffffff;
+  border-color: var(--accent, #4f8ef7);
+}
+
+.blueprint-btn-move:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+
+.blueprint-btn-vis .lucide-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.blueprint-btn-vis.is-hidden {
+  color: var(--text-muted, #8b8b9e);
+  opacity: 0.7;
+}
+
+@media (max-width: 600px) {
+  .screen-blueprint-builder {
+    top: 8px !important;
+    bottom: 160px !important;
+    max-height: calc(100dvh - 170px) !important;
+    width: calc(100% - 16px) !important;
+    padding: 14px 12px 18px !important;
+    border-radius: 16px !important;
+  }
+}
+
 /* ─── УРОВЕНЬ 3: ШАБЛОН КАРТОЧКИ ПАРЫ (MULTI-ZONE) ─── */
 .card-template-builder {
   position: fixed;

@@ -594,6 +594,24 @@
 
 </div><!-- /app-wrapper -->
 
+<!-- ═══ SCREEN BLUEPRINT BUILDER (SCHEMATIC BLUEPRINT MODE) ═══ -->
+<div class="screen-blueprint-builder" id="screenBlueprintBuilder" style="display:none;" role="region" aria-label="Схематичный конструктор экрана">
+  <div class="screen-blueprint-inner">
+    <div class="blueprint-header">
+      <div class="blueprint-badge">
+        <span class="blueprint-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg></span>
+        <span class="blueprint-title">Схема блоков экрана</span>
+      </div>
+      <div class="blueprint-subtitle">Перетаскивайте блоки за <b>⠿</b> или двигайте кнопками <b>▲/▼</b>. Макет умещается на одном экране без лишнего скролла.</div>
+    </div>
+
+    <!-- Интерактивный список компактных плиток макета -->
+    <div class="blueprint-tiles-list" id="blueprintTilesList">
+      <!-- Рендерится динамически через renderBlueprintTiles() -->
+    </div>
+  </div>
+</div>
+
 <!-- ═══ CARD TEMPLATE BUILDER OVERLAY (MULTI-ZONE) ═══ -->
 <div class="card-template-builder" id="cardTemplateBuilder" style="display:none;" role="region" aria-label="Конструктор карточки пары">
   <div class="card-template-inner">

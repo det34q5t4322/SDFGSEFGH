@@ -304,6 +304,8 @@ const els = {
   tabBtnMenu:               $('tabBtnMenu'),
   tabBtnCard:               $('tabBtnCard'),
   presetsChipsRow:          $('presetsChipsRow'),
+  screenBlueprintBuilder:   $('screenBlueprintBuilder'),
+  blueprintTilesList:       $('blueprintTilesList'),
   cardTemplateBuilder:      $('cardTemplateBuilder'),
   cardTemplateDropzone:     $('cardTemplateDropzone'),
   sidebarNav:               $('sidebarNav'),
@@ -3104,6 +3106,29 @@ const PRESETS_LAYOUT = {
   ]
 };
 
+const SCREEN_WIDGET_META = {
+  'widget-live-status': {
+    name: 'Статус пары (Live-карточка)',
+    icon: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    desc: 'Текущая пара, время до конца или перемены'
+  },
+  'widget-week-nav': {
+    name: 'Переключатель недели',
+    icon: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>',
+    desc: 'Листание недель и чип текущей недели'
+  },
+  'widget-day-strip': {
+    name: 'Полоса дней (Пн – Сб)',
+    icon: '<svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>',
+    desc: 'Выбор дня недели с датами'
+  },
+  'widget-schedule-content': {
+    name: 'Основное расписание (пары)',
+    icon: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg>',
+    desc: 'Карточки учебных занятий'
+  }
+};
+
 // ── LEVEL 2: SIDEBAR MENU (Пункты меню) ──
 const STORAGE_MENU_CONFIG = 'schedule_menu_config_v1';
 const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-layout-editor'];
@@ -3474,6 +3499,127 @@ function areConfigsEqual(a, b) {
     if (a[i].color && b[i].color && a[i].color !== b[i].color) return false;
   }
   return true;
+}
+
+// ── СХЕМАТИЧНЫЙ РЕДАКТОР ЭКРАНА (BLUEPRINT MODE) ──
+let sortableBlueprintInstance = null;
+
+function renderBlueprintTiles() {
+  const container = els.blueprintTilesList || $('blueprintTilesList');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  activeScreenConfig.forEach((item, idx) => {
+    const meta = SCREEN_WIDGET_META[item.id] || { name: item.id, icon: '', desc: '' };
+    const isMandatory = (item.id === MANDATORY_LAYOUT_WIDGET);
+    const isVis = isMandatory ? true : (item.visible !== false);
+
+    const tile = document.createElement('div');
+    tile.className = `blueprint-tile${isVis ? '' : ' is-hidden'}`;
+    tile.dataset.widget = item.id;
+    tile.dataset.index = idx;
+
+    const isFirst = (idx === 0);
+    const isLast = (idx === activeScreenConfig.length - 1);
+
+    const eyeIconHtml = isMandatory
+      ? `<svg class="lucide-icon" viewBox="0 0 24 24" title="Обязательный блок"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`
+      : (isVis
+          ? `<svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`
+          : `<svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>`
+        );
+
+    tile.innerHTML = `
+      <div class="blueprint-tile-grip" title="Хватайте за ⠿ для перемещения"><span class="drag-grip-icon">⠿</span></div>
+      <div class="blueprint-tile-icon">${meta.icon}</div>
+      <div class="blueprint-tile-info">
+        <span class="blueprint-tile-num">Блок ${idx + 1}</span>
+        <span class="blueprint-tile-name">${esc(meta.name)}</span>
+      </div>
+      <div class="blueprint-tile-actions">
+        <button type="button" class="blueprint-btn-move" data-action="up" title="Поднять выше" ${isFirst ? 'disabled' : ''}>▲</button>
+        <button type="button" class="blueprint-btn-move" data-action="down" title="Опустить ниже" ${isLast ? 'disabled' : ''}>▼</button>
+        <button type="button" class="blueprint-btn-vis ${isVis ? '' : 'is-hidden'}" data-action="vis" title="${isMandatory ? 'Обязательный блок (нельзя скрыть)' : (isVis ? 'Скрыть блок' : 'Показать блок')}" ${isMandatory ? 'disabled' : ''}>
+          ${eyeIconHtml}
+        </button>
+      </div>
+    `;
+
+    // Кнопка Вверх ▲
+    tile.querySelector('[data-action="up"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (idx > 0) {
+        const temp = activeScreenConfig[idx];
+        activeScreenConfig[idx] = activeScreenConfig[idx - 1];
+        activeScreenConfig[idx - 1] = temp;
+        applyLayoutOrder(activeScreenConfig, false);
+        renderBlueprintTiles();
+        updatePresetsUI();
+      }
+    });
+
+    // Кнопка Вниз ▼
+    tile.querySelector('[data-action="down"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (idx < activeScreenConfig.length - 1) {
+        const temp = activeScreenConfig[idx];
+        activeScreenConfig[idx] = activeScreenConfig[idx + 1];
+        activeScreenConfig[idx + 1] = temp;
+        applyLayoutOrder(activeScreenConfig, false);
+        renderBlueprintTiles();
+        updatePresetsUI();
+      }
+    });
+
+    // Кнопка Глаз 👁 (видимость)
+    tile.querySelector('[data-action="vis"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (isMandatory) return;
+      item.visible = !isVis;
+      applyLayoutOrder(activeScreenConfig, false);
+      renderBlueprintTiles();
+      updatePresetsUI();
+    });
+
+    container.appendChild(tile);
+  });
+
+  // Инициализируем плавный SortableJS на мини-плитках схемы
+  if (sortableBlueprintInstance) {
+    try { sortableBlueprintInstance.destroy(); } catch (_) {}
+    sortableBlueprintInstance = null;
+  }
+
+  if (window.Sortable && container) {
+    sortableBlueprintInstance = Sortable.create(container, {
+      animation: 180,
+      handle: '.blueprint-tile-grip',
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      touchStartThreshold: 5,
+      delay: 50,
+      delayOnTouchOnly: true,
+      onEnd: () => {
+        const newConfig = [];
+        container.querySelectorAll('.blueprint-tile').forEach(t => {
+          const wid = t.dataset.widget;
+          const existing = activeScreenConfig.find(x => x.id === wid);
+          if (existing) {
+            newConfig.push(existing);
+          }
+        });
+        activeScreenConfig = validateLayoutConfig(newConfig);
+        activeScreenOrder = activeScreenConfig.map(x => x.id);
+        applyLayoutOrder(activeScreenConfig, false);
+        renderBlueprintTiles();
+        updatePresetsUI();
+      }
+    });
+  }
 }
 
 // ── ПРИМЕНЕНИЕ КОНФИГУРАЦИЙ ──
@@ -3911,6 +4057,7 @@ function updatePresetsUI() {
         const p = btn.dataset.preset;
         if (PRESETS_LAYOUT[p]) {
           applyLayoutOrder(PRESETS_LAYOUT[p], false);
+          renderBlueprintTiles();
           updatePresetsUI();
         }
       };
@@ -3975,18 +4122,24 @@ function switchLayoutTab(tabName) {
     navPosContainer.style.display = (tabName === 'menu') ? 'flex' : 'none';
   }
 
+  const blueprintEl = els.screenBlueprintBuilder || $('screenBlueprintBuilder');
+  const cardBuilderEl = els.cardTemplateBuilder || $('cardTemplateBuilder');
+
   if (tabName === 'screen') {
     closeSidebar();
     document.body.classList.remove('menu-editing-active');
-    if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'none';
+    if (cardBuilderEl) cardBuilderEl.style.display = 'none';
+    if (blueprintEl) blueprintEl.style.display = 'block';
+    renderBlueprintTiles();
 
-    if (sortableScreenInstance) sortableScreenInstance.option('disabled', false);
+    if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
     sortableMenuInstances.forEach(inst => inst.option('disabled', true));
     sortableCardInstances.forEach(inst => inst.option('disabled', true));
   } else if (tabName === 'menu') {
     openSidebar();
     document.body.classList.add('menu-editing-active');
-    if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'none';
+    if (cardBuilderEl) cardBuilderEl.style.display = 'none';
+    if (blueprintEl) blueprintEl.style.display = 'none';
 
     if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
     sortableMenuInstances.forEach(inst => inst.option('disabled', false));
@@ -3994,7 +4147,8 @@ function switchLayoutTab(tabName) {
   } else if (tabName === 'card') {
     closeSidebar();
     document.body.classList.remove('menu-editing-active');
-    if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'block';
+    if (blueprintEl) blueprintEl.style.display = 'none';
+    if (cardBuilderEl) cardBuilderEl.style.display = 'block';
     renderCardTemplateDropzone();
     updateCardLivePreview();
 
@@ -4017,7 +4171,6 @@ function enterLayoutEditor(initialTab = 'screen') {
   try { closeThemeModal(); } catch (_) {}
 
   // Сохраняем начальные снимки для отмены
-  // Сохраняем начальные снимки для отмены
   screenOrderBeforeEdit = JSON.parse(JSON.stringify(activeScreenConfig));
   menuConfigBeforeEdit = JSON.parse(JSON.stringify(activeMenuConfig));
   cardConfigBeforeEdit = JSON.parse(JSON.stringify(activeCardConfig));
@@ -4025,7 +4178,7 @@ function enterLayoutEditor(initialTab = 'screen') {
   document.body.classList.add('layout-editing-active');
   if (els.layoutEditorBar) els.layoutEditorBar.style.display = 'block';
 
-  // 1. Инициализация Sortable для экрана
+  // 1. Инициализация Sortable для экрана (отключен в пользу лёгкого Blueprint-режима)
   const flowContainer = els.mainFlowContainer || $('mainFlowContainer');
   if (flowContainer && window.Sortable && !sortableScreenInstance) {
     sortableScreenInstance = Sortable.create(flowContainer, {
@@ -4037,6 +4190,7 @@ function enterLayoutEditor(initialTab = 'screen') {
       touchStartThreshold: 8,
       delay: 60,
       delayOnTouchOnly: true,
+      disabled: true,
       onEnd: () => {
         const newConfig = [];
         flowContainer.querySelectorAll('.flow-widget').forEach(w => {
@@ -4051,11 +4205,11 @@ function enterLayoutEditor(initialTab = 'screen') {
         });
         activeScreenConfig = validateLayoutConfig(newConfig);
         activeScreenOrder = activeScreenConfig.map(x => x.id);
+        renderBlueprintTiles();
         updatePresetsUI();
       }
     });
   }
-
 
   // 2. Инициализация Sortable для меню по секциям
   sortableMenuInstances.forEach(inst => {
@@ -4107,7 +4261,13 @@ function exitLayoutEditor(save = false) {
   document.body.classList.remove('menu-editing-active');
   if (els.layoutEditorBar) els.layoutEditorBar.style.display = 'none';
   if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'none';
+  const blueprintEl = els.screenBlueprintBuilder || $('screenBlueprintBuilder');
+  if (blueprintEl) blueprintEl.style.display = 'none';
 
+  if (sortableBlueprintInstance) {
+    try { sortableBlueprintInstance.destroy(); } catch (_) {}
+    sortableBlueprintInstance = null;
+  }
   if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
   sortableMenuInstances.forEach(inst => inst.option('disabled', true));
   sortableCardInstances.forEach(inst => inst.option('disabled', true));
@@ -4143,6 +4303,7 @@ function resetLayoutOrder() {
   if (isLayoutEditingMode) {
     if (currentLayoutTab === 'screen') {
       applyLayoutOrder(DEFAULT_LAYOUT_CONFIG, false);
+      renderBlueprintTiles();
       showLayoutNotification('Расположение экрана сброшено');
     } else if (currentLayoutTab === 'menu') {
       applyMenuConfig(DEFAULT_MENU_CONFIG, false);
