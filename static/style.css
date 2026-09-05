@@ -4323,5 +4323,341 @@ body.layout-editing-active .flow-widget > *:not(.widget-drag-header) {
   }
 }
 
+/* ─── Вкладки в панели конструктора (Экран / Меню / Карточка) ─── */
+.layout-tabs-nav {
+  display: flex;
+  background: var(--bg-card2, #252538);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 4px;
+  width: 100%;
+}
+
+.layout-tab-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-sub, #a0a0b0);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.layout-tab-btn:hover {
+  color: var(--text, #fff);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.layout-tab-btn.active {
+  background: var(--accent, #6366f1);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--accent-glow, rgba(99, 102, 241, 0.4));
+}
+
+.presets-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  max-width: 100%;
+  padding-bottom: 2px;
+}
+
+/* ─── УРОВЕНЬ 2: РЕДАКТИРОВАНИЕ БОКОВОГО МЕНЮ ─── */
+.menu-drag-handle {
+  display: none;
+}
+
+.menu-action-col {
+  display: none;
+}
+
+/* Активный режим редактирования меню */
+body.menu-editing-active #sidebar {
+  transform: translateX(0) !important;
+  z-index: 1400 !important;
+}
+
+body.menu-editing-active #sidebarOverlay {
+  display: block !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+body.menu-editing-active .menu-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  font-size: 16px;
+  color: var(--accent, #6366f1);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  margin-right: 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+body.menu-editing-active .menu-drag-handle:active {
+  cursor: grabbing;
+}
+
+body.menu-editing-active .menu-action-col {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.menu-vis-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--text, #fff);
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+
+.menu-vis-toggle-btn:hover {
+  border-color: var(--accent, #6366f1);
+  transform: scale(1.05);
+}
+
+.menu-lock-icon {
+  font-size: 13px;
+  opacity: 0.65;
+  padding: 4px 6px;
+}
+
+body.menu-editing-active .sidebar-nav-item.menu-item-hidden {
+  display: flex !important;
+  opacity: 0.42 !important;
+  filter: grayscale(0.85);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
+  display: none !important;
+}
+
+.sidebar-nav-item.sortable-ghost {
+  opacity: 0.35 !important;
+  background: rgba(99, 102, 241, 0.2) !important;
+  outline: 2px dashed var(--accent, #6366f1) !important;
+}
+
+/* ─── УРОВЕНЬ 3: ШАБЛОН КАРТОЧКИ ПАРЫ ─── */
+.card-template-builder {
+  position: fixed;
+  top: 75px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 500px;
+  z-index: 1450;
+  background: var(--bg-card, #1c1c28);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: slideDownCardBuilder 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideDownCardBuilder {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.card-template-header {
+  margin-bottom: 12px;
+}
+
+.card-template-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text, #fff);
+}
+
+.card-template-icon {
+  font-size: 16px;
+}
+
+.card-template-subtitle {
+  font-size: 11.5px;
+  color: var(--text-muted, #8e8e93);
+  margin-top: 3px;
+}
+
+.card-template-dropzone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-template-field-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card2, #252538);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  transition: all 0.15s ease;
+}
+
+.card-template-field-item:active {
+  cursor: grabbing;
+}
+
+.card-template-field-item.field-hidden {
+  opacity: 0.42;
+  filter: grayscale(0.8);
+}
+
+.field-drag-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--accent, #6366f1);
+  font-size: 16px;
+}
+
+.field-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text, #fff);
+  flex: 1;
+}
+
+.field-action-col {
+  display: inline-flex;
+  align-items: center;
+}
+
+.field-vis-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text, #fff);
+  transition: all 0.15s ease;
+}
+
+.field-vis-btn:hover {
+  border-color: var(--accent, #6366f1);
+}
+
+.card-template-field-item.sortable-ghost {
+  opacity: 0.35 !important;
+  background: rgba(99, 102, 241, 0.2) !important;
+  outline: 2px dashed var(--accent, #6366f1) !important;
+}
+
+/* ─── СТИЛИ МОДУЛЬНЫХ КАРТОЧЕК С ШАБЛОНОМ ─── */
+.pair-card.custom-template {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: flex-start;
+  padding: 12px 14px;
+}
+
+.card-field {
+  width: 100%;
+}
+
+.card-field.field-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.card-field.field-time .pair-num-badge {
+  background: var(--accent, #6366f1);
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 11.5px;
+  line-height: 1.2;
+}
+
+.card-field.field-time .pair-time-span {
+  letter-spacing: 0.02em;
+}
+
+.card-field.field-subject {
+  font-size: calc(clamp(13.5px, 3.6vw, 15px) * var(--font-scale, 1));
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.card-field.field-teacher,
+.card-field.field-room {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.card-field.field-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
+
 
 
