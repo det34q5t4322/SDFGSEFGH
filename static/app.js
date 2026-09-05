@@ -274,6 +274,20 @@ const els = {
   offlineBanner:         $('offlineBanner'),
   offlineBannerText:     $('offlineBannerText'),
   offlineBannerRetryBtn: $('offlineBannerRetryBtn'),
+
+  // Конструктор интерфейса
+  mainFlowContainer:        $('mainFlowContainer'),
+  layoutEditorBar:          $('layoutEditorBar'),
+  sidebarLayoutEditorBtn:   $('sidebarLayoutEditorBtn'),
+  sidebarResetLayoutBtn:    $('sidebarResetLayoutBtn'),
+  modalOpenLayoutEditorBtn: $('modalOpenLayoutEditorBtn'),
+  modalResetLayoutBtn:      $('modalResetLayoutBtn'),
+  layoutSaveBtn:            $('layoutSaveBtn'),
+  layoutCancelBtn:          $('layoutCancelBtn'),
+  layoutResetBtn:           $('layoutResetBtn'),
+  presetStandardBtn:        $('presetStandardBtn'),
+  presetDaysFirstBtn:       $('presetDaysFirstBtn'),
+  presetScheduleFocusBtn:   $('presetScheduleFocusBtn'),
 };
 
 // ════════════════════════════════════════
@@ -285,6 +299,7 @@ async function init() {
   try { setupSidebarNav(); } catch (e) { console.error('setupSidebarNav error:', e); }
   try { setupWeekNav(); } catch (e) { console.error('setupWeekNav error:', e); }
   try { setupSearchInputs(); } catch (e) { console.error('setupSearchInputs error:', e); }
+  try { initLayoutManager(); } catch (e) { console.error('initLayoutManager error:', e); }
 
   // Привязка повтора в оффлайн-баннере
   els.offlineBannerRetryBtn?.addEventListener('click', async () => {
@@ -2811,6 +2826,300 @@ function buildGroupGrid(gridEl, searchEl, chipsEl, onSelect) {
   }
 
   render('all', '');
+}
+
+// ════════════════════════════════════════
+//  LAYOUT CONSTRUCTOR & REORDERING
+// ════════════════════════════════════════
+const STORAGE_LAYOUT_ORDER = 'schedule_layout_order_v1';
+const MANDATORY_LAYOUT_WIDGET = 'widget-schedule-content';
+const DEFAULT_LAYOUT_ORDER = [
+  'widget-live-status',
+  'widget-week-nav',
+  'widget-day-strip',
+  'widget-schedule-content'
+];
+
+const PRESETS_LAYOUT = {
+  standard: [
+    'widget-live-status',
+    'widget-week-nav',
+    'widget-day-strip',
+    'widget-schedule-content'
+  ],
+  daysFirst: [
+    'widget-day-strip',
+    'widget-live-status',
+    'widget-week-nav',
+    'widget-schedule-content'
+  ],
+  scheduleFocus: [
+    'widget-schedule-content',
+    'widget-live-status',
+    'widget-week-nav',
+    'widget-day-strip'
+  ]
+};
+
+let sortableLayoutInstance = null;
+let isLayoutEditingMode = false;
+let layoutOrderBeforeEdit = null;
+
+function validateLayoutOrder(order) {
+  if (!Array.isArray(order) || order.length === 0) {
+    return [...DEFAULT_LAYOUT_ORDER];
+  }
+  // Anti-brick rule: обязательно наличие основного расписания
+  if (!order.includes(MANDATORY_LAYOUT_WIDGET)) {
+    console.warn('[Layout] Missing mandatory widget, resetting to default.');
+    return [...DEFAULT_LAYOUT_ORDER];
+  }
+  const validWidgets = new Set(DEFAULT_LAYOUT_ORDER);
+  const cleanOrder = order.filter(id => validWidgets.has(id));
+  const uniqueOrder = Array.from(new Set(cleanOrder));
+  // Если какие-то виджеты отсутствуют — дополняем их в конец
+  DEFAULT_LAYOUT_ORDER.forEach(id => {
+    if (!uniqueOrder.includes(id)) uniqueOrder.push(id);
+  });
+  return uniqueOrder;
+}
+
+function getStoredLayoutOrder() {
+  try {
+    const raw = localStorage.getItem(STORAGE_LAYOUT_ORDER);
+    if (!raw) return [...DEFAULT_LAYOUT_ORDER];
+    const parsed = JSON.parse(raw);
+    return validateLayoutOrder(parsed);
+  } catch (err) {
+    console.error('[Layout] Failed to parse stored layout:', err);
+    return [...DEFAULT_LAYOUT_ORDER];
+  }
+}
+
+function getCurrentDOMOrder() {
+  const container = els.mainFlowContainer || $('mainFlowContainer');
+  if (!container) return [...DEFAULT_LAYOUT_ORDER];
+  const items = container.querySelectorAll('.flow-widget');
+  const order = [];
+  items.forEach(item => {
+    const id = item.dataset.widget;
+    if (id) order.push(id);
+  });
+  return validateLayoutOrder(order);
+}
+
+function applyLayoutOrder(order, persist = false) {
+  const validated = validateLayoutOrder(order);
+  const container = els.mainFlowContainer || $('mainFlowContainer');
+  if (!container) return;
+
+  // Безопасное перемещение существующих DOM-элементов без перерисовки и без потери слушателей событий
+  validated.forEach(widgetId => {
+    const el = container.querySelector(`.flow-widget[data-widget="${widgetId}"]`);
+    if (el) {
+      container.appendChild(el);
+    }
+  });
+
+  if (persist) {
+    try {
+      localStorage.setItem(STORAGE_LAYOUT_ORDER, JSON.stringify(validated));
+    } catch (e) {
+      console.warn('[Layout] Failed to save layout to localStorage:', e);
+    }
+  }
+
+  // Обновление отображения кнопок сброса
+  const isCustom = !areArraysEqual(validated, DEFAULT_LAYOUT_ORDER);
+  if (els.sidebarResetLayoutBtn) {
+    els.sidebarResetLayoutBtn.style.display = isCustom ? 'flex' : 'none';
+  }
+  if (els.modalResetLayoutBtn) {
+    els.modalResetLayoutBtn.style.display = isCustom ? 'inline-flex' : 'none';
+  }
+}
+
+function areArraysEqual(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function updatePresetChipsUI() {
+  const current = getCurrentDOMOrder();
+  const isStd = areArraysEqual(current, PRESETS_LAYOUT.standard);
+  const isDays = areArraysEqual(current, PRESETS_LAYOUT.daysFirst);
+  const isFocus = areArraysEqual(current, PRESETS_LAYOUT.scheduleFocus);
+
+  els.presetStandardBtn?.classList.toggle('active', isStd);
+  els.presetDaysFirstBtn?.classList.toggle('active', isDays);
+  els.presetScheduleFocusBtn?.classList.toggle('active', isFocus);
+}
+
+function enterLayoutEditor() {
+  if (isLayoutEditingMode) return;
+  isLayoutEditingMode = true;
+
+  try { closeSidebar(); } catch (_) {}
+  try { closeThemeModal(); } catch (_) {}
+
+  layoutOrderBeforeEdit = getCurrentDOMOrder();
+  document.body.classList.add('layout-editing-active');
+  if (els.layoutEditorBar) els.layoutEditorBar.style.display = 'block';
+
+  // Инициализация или включение Sortable.js
+  const container = els.mainFlowContainer || $('mainFlowContainer');
+  if (container && window.Sortable) {
+    if (!sortableLayoutInstance) {
+      sortableLayoutInstance = Sortable.create(container, {
+        animation: 220,
+        handle: '.widget-drag-handle',
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
+        touchStartThreshold: 4,
+        forceFallback: false,
+        onEnd: () => {
+          updatePresetChipsUI();
+        }
+      });
+    } else {
+      sortableLayoutInstance.option('disabled', false);
+    }
+  }
+
+  updatePresetChipsUI();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function exitLayoutEditor(save = false) {
+  if (!isLayoutEditingMode) return;
+  const current = getCurrentDOMOrder();
+
+  if (save) {
+    applyLayoutOrder(current, true);
+    showLayoutNotification('Расположение блоков сохранено!');
+  } else {
+    // Отмена: возвращаем исходный порядок
+    if (layoutOrderBeforeEdit) {
+      applyLayoutOrder(layoutOrderBeforeEdit, false);
+    }
+  }
+
+  isLayoutEditingMode = false;
+  document.body.classList.remove('layout-editing-active');
+  if (els.layoutEditorBar) els.layoutEditorBar.style.display = 'none';
+  if (sortableLayoutInstance) {
+    sortableLayoutInstance.option('disabled', true);
+  }
+}
+
+function resetLayoutOrder() {
+  try {
+    localStorage.removeItem(STORAGE_LAYOUT_ORDER);
+  } catch (_) {}
+  applyLayoutOrder(DEFAULT_LAYOUT_ORDER, false);
+  updatePresetChipsUI();
+  showLayoutNotification('Расположение блоков сброшено по умолчанию');
+  if (!isLayoutEditingMode) {
+    if (els.sidebarResetLayoutBtn) els.sidebarResetLayoutBtn.style.display = 'none';
+    if (els.modalResetLayoutBtn) els.modalResetLayoutBtn.style.display = 'none';
+  }
+}
+
+function showLayoutNotification(msg) {
+  let toast = $('layoutToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'layoutToast';
+    toast.style.cssText = `
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: var(--bg-card, #1c1c28);
+      color: var(--text, #fff);
+      border: 1px solid var(--accent, #6366f1);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 2500;
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    `;
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `<span>⚡</span> <span>${esc(msg)}</span>`;
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-20px)';
+  }, 2600);
+}
+
+function initLayoutManager() {
+  // 1. Восстанавливаем порядок блоков при старте
+  const saved = getStoredLayoutOrder();
+  applyLayoutOrder(saved, false);
+
+  // 2. Слушатели кнопок открытия и сброса
+  els.sidebarLayoutEditorBtn?.addEventListener('click', () => {
+    closeSidebar();
+    enterLayoutEditor();
+  });
+  els.sidebarResetLayoutBtn?.addEventListener('click', () => {
+    resetLayoutOrder();
+    closeSidebar();
+  });
+  els.modalOpenLayoutEditorBtn?.addEventListener('click', () => {
+    closeThemeModal();
+    enterLayoutEditor();
+  });
+  els.modalResetLayoutBtn?.addEventListener('click', () => {
+    resetLayoutOrder();
+  });
+
+  // Кнопки плавающей панели действий
+  els.layoutSaveBtn?.addEventListener('click', () => exitLayoutEditor(true));
+  els.layoutCancelBtn?.addEventListener('click', () => exitLayoutEditor(false));
+  els.layoutResetBtn?.addEventListener('click', () => {
+    applyLayoutOrder(DEFAULT_LAYOUT_ORDER, false);
+    updatePresetChipsUI();
+  });
+
+  // Пресеты
+  els.presetStandardBtn?.addEventListener('click', () => {
+    applyLayoutOrder(PRESETS_LAYOUT.standard, false);
+    updatePresetChipsUI();
+  });
+  els.presetDaysFirstBtn?.addEventListener('click', () => {
+    applyLayoutOrder(PRESETS_LAYOUT.daysFirst, false);
+    updatePresetChipsUI();
+  });
+  els.presetScheduleFocusBtn?.addEventListener('click', () => {
+    applyLayoutOrder(PRESETS_LAYOUT.scheduleFocus, false);
+    updatePresetChipsUI();
+  });
+
+  // Клавиша Escape для выхода без сохранения
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isLayoutEditingMode) {
+      exitLayoutEditor(false);
+    }
+  });
 }
 
 // ── UTILS ───────────────────────────────
