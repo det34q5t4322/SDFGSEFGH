@@ -255,6 +255,7 @@ const els = {
   sidebarFooter:        $('sidebarFooter'),
   sidebarChangeGroup:   $('sidebarChangeGroup'),
   sidebarRefresh:       $('sidebarRefresh'),
+  sidebarOnboardingBtn: $('sidebarOnboardingBtn'),
   sidebarSettingsBtn:   $('sidebarSettingsBtn') || $('sidebarThemeBtn'),
 
   topbarGroupName:      $('topbarGroupName'),
@@ -957,6 +958,22 @@ function setupSidebar() {
       els.sidebarRefresh?.classList.remove('is-loading');
     }
   });
+
+  els.sidebarOnboardingBtn?.addEventListener('click', () => {
+    closeSidebar();
+    if (window.Onboarding) {
+      window.Onboarding.start(true);
+    }
+  });
+
+  const topbarTitleWrap = els.topbarGroupName?.closest('.topbar-title');
+  if (topbarTitleWrap) {
+    topbarTitleWrap.style.cursor = 'pointer';
+    topbarTitleWrap.title = 'Нажмите для смены группы';
+    topbarTitleWrap.addEventListener('click', () => {
+      openGroupModal();
+    });
+  }
 
   const diaryBtn = document.getElementById('sidebarDiaryBtn');
   diaryBtn?.addEventListener('click', () => {
@@ -3480,7 +3497,7 @@ const SCREEN_WIDGET_META = {
 
 // ── LEVEL 2: SIDEBAR MENU (Пункты меню) ──
 const STORAGE_MENU_CONFIG = 'schedule_menu_config_v1';
-const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-layout-editor'];
+const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-onboarding', 'menu-layout-editor'];
 
 const DEFAULT_MENU_SECTION_MAP = {
   'menu-group-badge':   'study',
@@ -3493,6 +3510,7 @@ const DEFAULT_MENU_SECTION_MAP = {
   'menu-change-group':  'tools',
   'menu-theme':         'system',
   'menu-refresh':       'system',
+  'menu-onboarding':    'system',
   'menu-layout-editor': 'system',
   'menu-sync-footer':   'system'
 };
@@ -3507,6 +3525,7 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
   { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
   { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
+  { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
 ];
@@ -3522,6 +3541,7 @@ const PRESETS_MENU = {
     { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
     { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
   ],
@@ -3535,6 +3555,7 @@ const PRESETS_MENU = {
     { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
   ],
@@ -3548,6 +3569,7 @@ const PRESETS_MENU = {
     { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: false, section: 'system',  color: 'default' },
   ]
