@@ -327,6 +327,14 @@ const els = {
   supportVideo:         $('supportVideo'),
   sidebarSupportBtn:    $('sidebarSupportBtn'),
 
+  diaryModal:           $('diaryModal'),
+  closeDiaryModal:      $('closeDiaryModal'),
+  diaryIframe:          $('diaryIframe'),
+  diaryLoader:          $('diaryLoader'),
+  diaryReloadBtn:       $('diaryReloadBtn'),
+  diaryExternalBtn:     $('diaryExternalBtn'),
+  sidebarDiaryBtn:      $('sidebarDiaryBtn'),
+
   onboardModal:         $('onboardModal'),
   onboardSearchInput:   $('onboardSearchInput'),
   onboardGroupsGrid:    $('onboardGroupsGrid'),
@@ -372,7 +380,8 @@ function updateTelegramBackButton() {
     document.querySelector('.modal-backdrop.open, .modal.open') ||
     els.groupModal?.classList.contains('open') ||
     (els.settingsModal || els.themeModal)?.classList.contains('open') ||
-    els.onboardModal?.classList.contains('open')
+    els.onboardModal?.classList.contains('open') ||
+    els.diaryModal?.classList.contains('open')
   );
   const isSidebarOpen = Boolean(els.sidebar?.classList.contains('open'));
   let isEditing = false;
@@ -394,6 +403,8 @@ function handleTelegramBackButtonClick() {
 
   if (isEditing) {
     if (typeof exitLayoutEditor === 'function') exitLayoutEditor(false);
+  } else if (els.diaryModal?.classList.contains('open')) {
+    closeDiaryModal();
   } else if (els.sidebar?.classList.contains('open')) {
     closeSidebar();
   } else if ((els.settingsModal || els.themeModal)?.classList.contains('open')) {
@@ -1026,12 +1037,7 @@ function setupSidebar() {
   const diaryBtn = document.getElementById('sidebarDiaryBtn');
   diaryBtn?.addEventListener('click', () => {
     closeSidebar();
-    const diaryUrl = 'https://online-obr-college-dist-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi';
-    if (window.Telegram?.WebApp?.openLink) {
-      window.Telegram.WebApp.openLink(diaryUrl);
-    } else {
-      window.open(diaryUrl, '_blank', 'noopener,noreferrer');
-    }
+    openDiaryModal();
   });
 
   let startX = 0;
@@ -3535,6 +3541,64 @@ els.supportModal?.addEventListener('click', e => { if (e.target === els.supportM
 els.sidebarSupportBtn?.addEventListener('click', () => { closeSidebar(); openSupportModal(); });
 window.openSupportModal = openSupportModal;
 window.closeSupportModal = closeSupportModal;
+
+// ── ЭЛЕКТРОННЫЙ ДНЕВНИК 1С:КОЛЛЕДЖ ──
+const DIARY_1C_URL = 'https://online-obr-college-dist-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi';
+
+function openDiaryModal() {
+  if (els.diaryModal) {
+    els.diaryModal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    if (els.diaryIframe) {
+      if (!els.diaryIframe.src || els.diaryIframe.src === 'about:blank' || !els.diaryIframe.src.includes('1c.ru')) {
+        if (els.diaryLoader) els.diaryLoader.classList.remove('hidden');
+        els.diaryIframe.src = DIARY_1C_URL;
+        els.diaryIframe.onload = () => {
+          if (els.diaryLoader) els.diaryLoader.classList.add('hidden');
+        };
+      }
+    }
+    updateTelegramBackButton();
+  }
+}
+
+function closeDiaryModal() {
+  if (els.diaryModal) {
+    els.diaryModal.classList.remove('open');
+    document.body.style.overflow = '';
+    updateTelegramBackButton();
+  }
+}
+
+els.closeDiaryModal?.addEventListener('click', closeDiaryModal);
+els.diaryModal?.addEventListener('click', (e) => {
+  if (e.target === els.diaryModal) closeDiaryModal();
+});
+
+els.diaryReloadBtn?.addEventListener('click', () => {
+  if (els.diaryIframe) {
+    if (els.diaryLoader) els.diaryLoader.classList.remove('hidden');
+    els.diaryIframe.src = DIARY_1C_URL;
+  }
+});
+
+els.diaryExternalBtn?.addEventListener('click', () => {
+  if (window.Telegram?.WebApp?.openLink) {
+    window.Telegram.WebApp.openLink(DIARY_1C_URL, { try_instant_view: false });
+  } else {
+    window.open(DIARY_1C_URL, '_blank', 'noopener,noreferrer');
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && els.diaryModal?.classList.contains('open')) {
+    closeDiaryModal();
+  }
+});
+
+window.openDiaryModal = openDiaryModal;
+window.closeDiaryModal = closeDiaryModal;
 
 function showOnboarding() {
   ensureGroupsLoaded();

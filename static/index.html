@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260906_6">
+  <link rel="stylesheet" href="/static/style.css?v=20260906_9">
   <script>
     (function() {
       try {
@@ -809,6 +809,37 @@
     </div>
   </div>
 
+  <!-- ═══ MODAL: Электронный дневник 1С:Колледж ═══ -->
+  <div class="modal-backdrop diary-modal-backdrop" id="diaryModal">
+    <div class="diary-modal-window">
+      <div class="diary-modal-header">
+        <div class="diary-modal-brand">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v20"/><path d="M10 7h6"/><path d="M10 11h6"/></svg>
+          <span class="diary-brand-title">Дневник 1С:Колледж</span>
+        </div>
+        <div class="diary-modal-actions">
+          <button class="diary-action-btn" id="diaryReloadBtn" title="Перезагрузить страницу дневника" aria-label="Обновить">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+          </button>
+          <button class="diary-action-btn diary-ext-btn" id="diaryExternalBtn" title="Открыть в отдельной вкладке или браузере" aria-label="В браузере">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span class="diary-ext-label">В браузере</span>
+          </button>
+          <button class="diary-action-btn diary-close-btn" id="closeDiaryModal" title="Закрыть окно дневника" aria-label="Закрыть">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="diary-modal-body">
+        <div class="diary-loader" id="diaryLoader">
+          <div class="diary-spinner"></div>
+          <span class="diary-loader-text">Загрузка дневника 1С...</span>
+        </div>
+        <iframe id="diaryIframe" class="diary-iframe" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ MODAL: Служба поддержки ═══ -->
   <div class="modal-backdrop" id="supportModal">
     <div class="modal-sheet modal-sheet-support">
@@ -1062,7 +1093,7 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/onboarding.js?v=20260906_8"></script>
-  <script src="/static/app.js?v=20260906_8"></script>
+  <script src="/static/onboarding.js?v=20260906_9"></script>
+  <script src="/static/app.js?v=20260906_9"></script>
 </body>
 </html>

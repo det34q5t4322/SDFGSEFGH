@@ -2215,6 +2215,186 @@ input {
 }
 .modal-backdrop.open { opacity: 1; pointer-events: all; }
 
+/* ── Электронный дневник 1С:Колледж ── */
+.diary-modal-backdrop {
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  z-index: 1000 !important;
+}
+
+.diary-modal-window {
+  display: flex;
+  flex-direction: column;
+  width: 95vw;
+  max-width: 1280px;
+  height: 92vh;
+  max-height: 920px;
+  background: var(--bg-card, #14141e);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  transform: scale(0.96) translateY(12px);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+}
+
+.diary-modal-backdrop.open .diary-modal-window {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+.diary-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--bg-card, #14141e);
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  padding-top: max(12px, env(safe-area-inset-top));
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.diary-modal-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text, #fff);
+  user-select: none;
+}
+
+.diary-modal-brand svg {
+  width: 20px;
+  height: 20px;
+  color: var(--accent, #6366f1);
+  flex-shrink: 0;
+}
+
+.diary-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diary-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text, #fff);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.diary-action-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.diary-action-btn:active {
+  transform: scale(0.96);
+}
+
+.diary-action-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.diary-close-btn {
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+}
+
+.diary-close-btn:hover {
+  color: var(--text, #fff);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.diary-close-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.diary-modal-body {
+  flex: 1;
+  position: relative;
+  background: #fff;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.diary-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+  background: #fff;
+}
+
+.diary-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--bg-card, #14141e);
+  color: var(--text, #fff);
+  z-index: 10;
+  transition: opacity 0.25s ease, visibility 0.25s;
+}
+
+.diary-loader.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.diary-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent, #6366f1);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.diary-loader-text {
+  font-size: 0.9rem;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .diary-modal-window {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+  .diary-ext-label {
+    display: none;
+  }
+  .diary-action-btn {
+    padding: 8px 10px;
+  }
+}
+
 .modal-sheet {
   background: var(--sheet-glass);
   backdrop-filter: blur(28px) saturate(190%);
