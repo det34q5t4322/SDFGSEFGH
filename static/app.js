@@ -1056,13 +1056,7 @@ function setupSidebar() {
   const diaryBtn = document.getElementById('sidebarDiaryBtn');
   diaryBtn?.addEventListener('click', () => {
     closeSidebar();
-    const isTelegramMobile = Boolean(
-      window.Telegram?.WebApp?.initData &&
-      window.Telegram?.WebApp?.openLink &&
-      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-    );
-
-    if (isTelegramMobile) {
+    if (window.Telegram?.WebApp?.openLink) {
       window.Telegram.WebApp.openLink(DIARY_1C_URL, { try_instant_view: false });
     } else {
       openDiaryModal();
@@ -3608,7 +3602,7 @@ window.openSupportModal = openSupportModal;
 window.closeSupportModal = closeSupportModal;
 
 // ── ЭЛЕКТРОННЫЙ ДНЕВНИК 1С:КОЛЛЕДЖ ──
-const DIARY_1C_URL = 'https://online-obr-college-dist-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi';
+const DIARY_1C_URL = 'https://online-obr-e5cloud-02-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi';
 
 function openDiaryModal() {
   if (els.diaryModal) {

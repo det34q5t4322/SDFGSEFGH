@@ -119,7 +119,7 @@ def verify_telegram_init_data(init_data: str, bot_token: str) -> Optional[dict]:
 
 
 DEFAULT_GROUP = "ИСС9-25"
-DIARY_1C_URL = "https://online-obr-college-dist-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi"
+DIARY_1C_URL = "https://online-obr-e5cloud-02-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi"
 
 
 def get_user_group(user_id: int) -> str:
@@ -692,10 +692,14 @@ async def diary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     text = (
         "📚 <b>Электронный дневник 1С:Колледж</b>\n"
         "Московский колледж телекоммуникаций МТУСИ\n\n"
-        "Нажмите на кнопку ниже для безопасного перехода в официальный личный кабинет студента:"
+        "Нажмите на кнопку ниже или перейдите по прямой ссылке для входа в личный кабинет студента:\n\n"
+        f"🔗 <a href=\"{DIARY_1C_URL}\">Вход в Дневник 1С (прямой портал)</a>\n\n"
+        "💡 <b>Если в приложении Telegram белый экран:</b>\n"
+        "Портал 1С защищён DDoS-Guard и требует открытия в обычном браузере. "
+        "Нажмите на <b>три точки (⋮)</b> вверху справа экрана Telegram и выберите <b>«Открыть в браузере»</b> (Chrome / Safari / Яндекс)."
     )
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔗 Открыть дневник 1С", url=DIARY_1C_URL)]
+        [InlineKeyboardButton("📚 Открыть дневник 1С", url=DIARY_1C_URL)]
     ])
     if update.callback_query:
         await update.callback_query.answer()
