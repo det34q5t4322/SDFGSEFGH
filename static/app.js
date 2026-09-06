@@ -1056,6 +1056,51 @@ function updateSidebarGroupInfo() {
 }
 
 // ════════════════════════════════════════
+//  TOAST NOTIFICATIONS (GLOBAL)
+// ════════════════════════════════════════
+function showToast(msg) {
+  let toast = $('layoutToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'layoutToast';
+    toast.style.cssText = `
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: var(--bg-card, #1c1c28);
+      color: var(--text, #fff);
+      border: 1px solid var(--accent, #6366f1);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+      padding: 12px 20px;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 9999;
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 90vw;
+      text-align: center;
+    `;
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `<span style="display:inline-flex;color:var(--accent,#818cf8);"><svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> <span>${esc(msg)}</span>`;
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-20px)';
+  }, 3200);
+}
+
+// ════════════════════════════════════════
 //  PROGRESSIVE WEB APP (PWA)
 // ════════════════════════════════════════
 let deferredInstallPrompt = null;
@@ -1122,59 +1167,170 @@ function setupPWA() {
   });
 
   // 4. Клик по кнопке «Установить PWA» в сайдбаре
-  pwaBtn?.addEventListener('click', async () => {
+  pwaBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     closeSidebar();
 
-    const currentlyStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-                                window.navigator.standalone === true;
-    if (currentlyStandalone) {
-      showToast('Приложение уже установлено и работает как PWA');
-      return;
-    }
+    const isTelegram = Boolean(window.Telegram?.WebApp?.initData || window.TelegramWebviewProxy);
 
-    if (deferredInstallPrompt) {
-      deferredInstallPrompt.prompt();
-      const choiceResult = await deferredInstallPrompt.userChoice;
-      if (choiceResult.outcome === 'accepted') {
-        showToast('Установка приложения началась...');
-      } else {
-        showToast('Установка отменена');
+    // Если браузер поддерживает прямой системный диалог установки и мы не внутри Telegram:
+    if (deferredInstallPrompt && !isTelegram) {
+      try {
+        deferredInstallPrompt.prompt();
+        const choiceResult = await deferredInstallPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+          showToast('Установка приложения началась...');
+          deferredInstallPrompt = null;
+          return;
+        }
+      } catch (err) {
+        console.warn('Install prompt error:', err);
       }
       deferredInstallPrompt = null;
-    } else {
-      const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
-      if (isIOS) {
-        showPwaIosInstructions();
-      } else {
-        showToast('Для установки нажмите ⋮ меню браузера → «Установить приложение»');
-      }
     }
+
+    // Всегда открываем подробную, понятную модалку с инструкцией и кнопками!
+    openPwaInstallModal();
   });
 }
 
-function showPwaIosInstructions() {
-  const existing = $('pwaIosModal');
+function openPwaInstallModal() {
+  const existing = $('pwaInstallModal');
   if (existing) existing.remove();
 
+  const isTelegram = Boolean(window.Telegram?.WebApp?.initData || window.TelegramWebviewProxy);
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent || '');
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
   const modal = document.createElement('div');
-  modal.id = 'pwaIosModal';
+  modal.id = 'pwaInstallModal';
   modal.className = 'modal-backdrop open';
-  modal.style.zIndex = '3000';
-  modal.innerHTML = `
-    <div class="modal open" style="max-width:380px;text-align:center;padding:24px 20px;">
-      <div style="font-size:2.2rem;margin-bottom:12px;">📲</div>
-      <h3 style="font-size:1.15rem;font-weight:700;margin-bottom:12px;color:var(--text, #fff);">Установка на iPhone / iPad</h3>
-      <p style="font-size:0.88rem;color:var(--text-muted);line-height:1.5;margin-bottom:16px;text-align:left;">
-        1. Нажмите кнопку <strong>«Поделиться»</strong> <svg style="display:inline-block;vertical-align:middle;width:18px;height:18px;color:var(--accent,#6366f1);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> внизу Safari.<br>
-        2. Прокрутите список и выберите <strong>«На экран "Домой"»</strong>.<br>
-        3. В правом верхнем углу нажмите <strong>«Добавить»</strong>.
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;opacity:1;pointer-events:all;';
+
+  let bodyHtml = '';
+
+  if (isStandalone) {
+    bodyHtml = `
+      <div style="font-size:2.6rem;margin-bottom:12px;">🎉</div>
+      <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:10px;color:var(--text, #fff);">Приложение уже установлено!</h3>
+      <p style="font-size:0.92rem;color:var(--text-muted, #94a3b8);line-height:1.5;margin-bottom:20px;">
+        Вы уже открыли приложение в автономном режиме PWA. Иконка расписания находится на главном экране вашего телефона.
       </p>
-      <button class="settings-modal-btn" style="width:100%;" id="pwaIosModalClose">Понятно</button>
+      <button class="settings-modal-btn" style="width:100%;padding:14px;border-radius:12px;font-weight:700;background:var(--accent,#6366f1);color:#fff;border:none;cursor:pointer;" id="pwaModalCloseBtn">Отлично</button>
+    `;
+  } else if (isTelegram) {
+    bodyHtml = `
+      <div style="font-size:2.6rem;margin-bottom:12px;">📱</div>
+      <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:10px;color:var(--text, #fff);">Установка из Telegram</h3>
+      <p style="font-size:0.9rem;color:var(--text-muted, #94a3b8);line-height:1.5;margin-bottom:18px;text-align:left;">
+        Встроенный экран Telegram блокирует прямую установку на рабочий стол. Чтобы установить приложение:
+      </p>
+      <button style="width:100%;margin-bottom:12px;padding:14px 16px;border-radius:14px;font-weight:700;font-size:0.95rem;background:linear-gradient(135deg, #6366f1, #8b5cf6);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 24px rgba(99,102,241,0.4);" id="pwaOpenExternalBtn">
+        <svg style="width:20px;height:20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        1. Открыть в браузере телефона
+      </button>
+      <button style="width:100%;margin-bottom:16px;padding:12px 16px;border-radius:12px;font-weight:600;font-size:0.88rem;background:rgba(255,255,255,0.08);color:var(--text,#fff);border:1px solid rgba(255,255,255,0.15);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;" id="pwaCopyLinkBtn">
+        <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+        Скопировать ссылку на сайт
+      </button>
+      <div style="font-size:0.84rem;color:var(--text-muted, #94a3b8);text-align:left;line-height:1.5;background:rgba(255,255,255,0.04);padding:12px;border-radius:12px;border:1px solid var(--border, rgba(255,255,255,0.1));">
+        В открывшемся браузере (Chrome / Safari) появится кнопка «Установить» либо меню ⋮ → «На экран "Домой"».
+      </div>
+      <button style="width:100%;margin-top:16px;padding:12px;border-radius:12px;background:transparent;color:var(--text-muted,#94a3b8);border:none;cursor:pointer;font-weight:600;" id="pwaModalCloseBtn">Закрыть</button>
+    `;
+  } else if (isIOS) {
+    bodyHtml = `
+      <div style="font-size:2.6rem;margin-bottom:12px;">📲</div>
+      <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:12px;color:var(--text, #fff);">Установка на iPhone / iPad</h3>
+      <div style="font-size:0.9rem;color:var(--text-muted, #94a3b8);line-height:1.6;margin-bottom:20px;text-align:left;">
+        <div style="margin-bottom:12px;display:flex;align-items:flex-start;gap:12px;">
+          <span style="background:var(--accent,#6366f1);color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">1</span>
+          <span>Нажмите кнопку <strong>«Поделиться»</strong> <svg style="display:inline-block;vertical-align:middle;width:20px;height:20px;color:var(--accent,#818cf8);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> на нижней панели Safari.</span>
+        </div>
+        <div style="margin-bottom:12px;display:flex;align-items:flex-start;gap:12px;">
+          <span style="background:var(--accent,#6366f1);color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">2</span>
+          <span>Прокрутите список действий вниз и выберите <strong>«На экран "Домой"»</strong> (Add to Home Screen).</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;">
+          <span style="background:var(--accent,#6366f1);color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">3</span>
+          <span>В верхнем правом углу нажмите <strong>«Добавить»</strong>.</span>
+        </div>
+      </div>
+      <button class="settings-modal-btn" style="width:100%;padding:14px;border-radius:12px;font-weight:700;background:var(--accent,#6366f1);color:#fff;border:none;cursor:pointer;" id="pwaModalCloseBtn">Понятно</button>
+    `;
+  } else {
+    // Android / Desktop Chrome / Edge
+    const hasPrompt = Boolean(deferredInstallPrompt);
+    bodyHtml = `
+      <div style="font-size:2.6rem;margin-bottom:12px;">⚡</div>
+      <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:12px;color:var(--text, #fff);">Установка приложения</h3>
+      ${hasPrompt ? `
+        <p style="font-size:0.9rem;color:var(--text-muted, #94a3b8);line-height:1.5;margin-bottom:16px;">
+          Нажмите кнопку ниже для быстрой установки в 1 клик:
+        </p>
+        <button style="width:100%;margin-bottom:16px;padding:14px 16px;border-radius:14px;font-weight:700;font-size:0.95rem;background:linear-gradient(135deg, #6366f1, #8b5cf6);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 8px 24px rgba(99,102,241,0.4);" id="pwaTriggerPromptBtn">
+          <svg style="width:20px;height:20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          Установить на рабочий стол
+        </button>
+      ` : ''}
+      <div style="font-size:0.86rem;color:var(--text-muted, #94a3b8);line-height:1.6;text-align:left;background:rgba(255,255,255,0.04);padding:14px;border-radius:12px;border:1px solid var(--border, rgba(255,255,255,0.1));">
+        <div style="margin-bottom:8px;font-weight:600;color:var(--text,#fff);">Как установить вручную:</div>
+        <div>1. Нажмите меню браузера <strong>три точки ⋮</strong> в правом верхнем углу.</div>
+        <div>2. Выберите пункт <strong>«Установить приложение»</strong> или <strong>«Добавить на гл. экран»</strong>.</div>
+        <div>3. Подтвердите установку.</div>
+      </div>
+      <button style="width:100%;margin-top:16px;padding:12px;border-radius:12px;background:transparent;color:var(--text-muted,#94a3b8);border:none;cursor:pointer;font-weight:600;" id="pwaModalCloseBtn">Закрыть</button>
+    `;
+  }
+
+  modal.innerHTML = `
+    <div style="width:100%;max-width:390px;background:var(--bg-card, #14141e);border:1px solid var(--border, rgba(255,255,255,0.12));box-shadow:0 24px 48px rgba(0,0,0,0.7);border-radius:24px;padding:24px 20px;text-align:center;box-sizing:border-box;">
+      ${bodyHtml}
     </div>
   `;
+
   document.body.appendChild(modal);
-  $('pwaIosModalClose').onclick = () => modal.remove();
-  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  $('pwaModalCloseBtn')?.addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+  $('pwaOpenExternalBtn')?.addEventListener('click', () => {
+    modal.remove();
+    const siteUrl = 'https://schedule.dadrik.ru/';
+    if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(siteUrl);
+    } else {
+      window.open(siteUrl, '_blank', 'noopener,noreferrer');
+    }
+  });
+
+  $('pwaCopyLinkBtn')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText('https://schedule.dadrik.ru/');
+      showToast('Ссылка на расписание скопирована!');
+    } catch (_) {
+      showToast('https://schedule.dadrik.ru/');
+    }
+  });
+
+  $('pwaTriggerPromptBtn')?.addEventListener('click', async () => {
+    if (deferredInstallPrompt) {
+      try {
+        deferredInstallPrompt.prompt();
+        const choiceResult = await deferredInstallPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+          showToast('Установка приложения началась...');
+          modal.remove();
+        } else {
+          showToast('Установка отменена');
+        }
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+      }
+      deferredInstallPrompt = null;
+    }
+  });
 }
 
 function isTestTab(tabName) {
@@ -5135,43 +5291,7 @@ function resetLayoutOrder() {
 }
 
 function showLayoutNotification(msg) {
-  let toast = $('layoutToast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'layoutToast';
-    toast.style.cssText = `
-      position: fixed;
-      top: 18px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-20px);
-      background: var(--bg-card, #1c1c28);
-      color: var(--text, #fff);
-      border: 1px solid var(--accent, #6366f1);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-      padding: 10px 18px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      z-index: 2500;
-      opacity: 0;
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: none;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    `;
-    document.body.appendChild(toast);
-  }
-  toast.innerHTML = `<span>${ICONS.zap}</span> <span>${esc(msg)}</span>`;
-  requestAnimationFrame(() => {
-    toast.style.opacity = '1';
-    toast.style.transform = 'translateX(-50%) translateY(0)';
-  });
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(-50%) translateY(-20px)';
-  }, 2600);
+  showToast(msg);
 }
 
 function initLayoutManager() {
