@@ -3987,91 +3987,61 @@ const SCREEN_WIDGET_META = {
 };
 
 // ── LEVEL 2: SIDEBAR MENU (Пункты меню) ──
-const STORAGE_MENU_CONFIG = 'schedule_menu_config_v1';
-const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-onboarding', 'menu-theme', 'menu-layout-editor'];
+const STORAGE_MENU_CONFIG = 'schedule_menu_config_v2';
+const MANDATORY_MENU_IDS = ['menu-refresh', 'menu-onboarding', 'menu-theme'];
 
 const DEFAULT_MENU_SECTION_MAP = {
-  'menu-group-badge':   'study',
-  'menu-schedule':      'study',
-  'menu-teacher':       'study',
-  'menu-classroom':     'study',
-  'menu-diary':         'study',
-  'menu-english':       'tools',
-  'menu-stats':         'tools',
-  'menu-change-group':  'tools',
-  'menu-refresh':       'system',
-  'menu-onboarding':    'system',
-  'menu-theme':         'system',
-  'menu-support':       'system',
-  'menu-layout-editor': 'system',
+  'menu-refresh':       'frequent',
+  'menu-theme':         'frequent',
+  'menu-diary':         'services',
+  'menu-stats':         'services',
+  'menu-onboarding':    'services',
+  'menu-support':       'services',
+  'menu-reset-layout':  'system',
   'menu-sync-footer':   'system'
 };
 
 const DEFAULT_MENU_CONFIG = [
-  { id: 'menu-group-badge',   visible: true,  section: 'study',   color: 'default' },
-  { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
-  { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
-  { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
-  { id: 'menu-diary',         visible: true,  section: 'study',   color: 'default' },
-  { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' }, // По умолчанию СКРЫТ
-  { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
-  { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-  { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
-  { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
-  { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
-  { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
-  { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
-  { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
+  { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
+  { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+  { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
+  { id: 'menu-sync-footer',   visible: true,  section: 'system',   color: 'default' },
 ];
 
 const PRESETS_MENU = {
   standard: [
-    { id: 'menu-group-badge',   visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-diary',         visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
-    { id: 'menu-stats',         visible: true,  section: 'tools',   color: 'default' },
-    { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-    { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
+    { id: 'menu-sync-footer',   visible: true,  section: 'system',   color: 'default' },
   ],
-  studyOnly: [
-    { id: 'menu-group-badge',   visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-teacher',       visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-classroom',     visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-    { id: 'menu-stats',         visible: false, section: 'tools',   color: 'default' },
-    { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
-    { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
-    { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
+  servicesOnly: [
+    { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
+    { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
+    { id: 'menu-sync-footer',   visible: true,  section: 'system',   color: 'default' },
   ],
   minimal: [
-    { id: 'menu-group-badge',   visible: false, section: 'study',   color: 'default' },
-    { id: 'menu-schedule',      visible: true,  section: 'study',   color: 'default' },
-    { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
-    { id: 'menu-teacher',       visible: false, section: 'study',   color: 'default' },
-    { id: 'menu-classroom',     visible: false, section: 'study',   color: 'default' },
-    { id: 'menu-stats',         visible: false, section: 'tools',   color: 'default' },
-    { id: 'menu-english',       visible: false, section: 'tools',   color: 'danger' },
-    { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
-    { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
-    { id: 'menu-sync-footer',   visible: false, section: 'system',  color: 'default' },
+    { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-diary',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
+    { id: 'menu-support',       visible: false, section: 'services', color: 'default' },
+    { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
+    { id: 'menu-sync-footer',   visible: false, section: 'system',   color: 'default' },
   ]
 };
 
@@ -4357,6 +4327,14 @@ function validateMenuConfig(cfg) {
   const clean = [];
   const seen = new Set();
 
+  const secMap = {
+    frequent: 'frequent',
+    services: 'services',
+    system: 'system',
+    study: 'services',
+    tools: 'services'
+  };
+
   cfg.forEach(rawItem => {
     if (!rawItem) return;
     const item = { ...rawItem };
@@ -4367,8 +4345,8 @@ function validateMenuConfig(cfg) {
       clean.push({
         id: item.id,
         visible: isMandatory ? true : Boolean(item.visible),
-        section: item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'study',
-        color: item.color || (item.id === 'menu-english' ? 'danger' : 'default')
+        section: secMap[item.section] || DEFAULT_MENU_SECTION_MAP[item.id] || 'services',
+        color: item.color || 'default'
       });
     }
   });
@@ -4619,6 +4597,14 @@ function applyMenuConfig(cfg, persist = false) {
   const container = els.sidebarNav || $('sidebarNav');
   if (!container) return;
 
+  const secMap = {
+    frequent: 'frequent',
+    services: 'services',
+    system: 'system',
+    study: 'services',
+    tools: 'services'
+  };
+
   validated.forEach(item => {
     let el = container.querySelector(`.sidebar-nav-item[data-menu-id="${item.id}"]`);
     if (!el) {
@@ -4626,10 +4612,10 @@ function applyMenuConfig(cfg, persist = false) {
     }
     if (el) {
       if (item.id !== 'menu-group-badge' && item.id !== 'menu-sync-footer') {
-        const rawSec = item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'study';
-        const secName = ['study', 'tools', 'system'].includes(rawSec) ? rawSec : 'study';
+        const rawSec = item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'frequent';
+        const secName = secMap[rawSec] || 'services';
         const secContainer = container.querySelector(`.sidebar-section-container[data-section="${secName}"]`);
-        if (secContainer) {
+        if (secContainer && el.parentElement !== secContainer) {
           secContainer.appendChild(el);
         }
         el.dataset.section = secName;
@@ -4649,10 +4635,6 @@ function applyMenuConfig(cfg, persist = false) {
       }
     }
   });
-
-  if (els.sidebarResetLayoutBtn) {
-    container.appendChild(els.sidebarResetLayoutBtn);
-  }
 
   if (persist) {
     try { localStorage.setItem(STORAGE_MENU_CONFIG, JSON.stringify(validated)); } catch (_) {}
@@ -4676,13 +4658,8 @@ function applyCardConfig(cfg, persist = false, shouldRenderSchedule = true) {
 }
 
 function updateResetButtonsVisibility() {
-  const customScreen = !areConfigsEqual(activeScreenConfig, DEFAULT_LAYOUT_CONFIG);
-  const customMenu = !areConfigsEqual(activeMenuConfig, DEFAULT_MENU_CONFIG);
-  const customCard = isCardTemplateCustom();
-  const hasAnyCustom = customScreen || customMenu || customCard;
-
   if (els.sidebarResetLayoutBtn) {
-    els.sidebarResetLayoutBtn.style.display = hasAnyCustom ? 'flex' : 'none';
+    els.sidebarResetLayoutBtn.style.display = 'flex';
   }
   if (els.modalResetLayoutBtn) {
     els.modalResetLayoutBtn.style.display = 'flex';
@@ -4970,17 +4947,15 @@ function setupNavPosition() {
     };
   });
 
-  // Кнопки нижнего Tab Bar
+  // Кнопки нижнего Tab Bar (4 основных пункта)
   const bSchedule = $('bottomNavSchedule');
   const bTeacher = $('bottomNavTeacher');
   const bClassroom = $('bottomNavClassroom');
-  const bSettings = $('bottomNavSettings');
   const bMore = $('bottomNavMore');
 
   if (bSchedule) bSchedule.onclick = () => { setView('schedule'); updateBottomNavActive('schedule'); };
   if (bTeacher) bTeacher.onclick = () => { setView('teacher'); updateBottomNavActive('teacher'); };
   if (bClassroom) bClassroom.onclick = () => { setView('classroom'); updateBottomNavActive('classroom'); };
-  if (bSettings) bSettings.onclick = () => { openThemeModal(); };
   if (bMore) bMore.onclick = () => { openSidebar(); };
 }
 

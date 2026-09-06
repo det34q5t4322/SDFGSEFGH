@@ -1267,6 +1267,8 @@ input {
   flex-direction: column;
   gap: 4px;
   border-bottom: 1px solid var(--border);
+  cursor: default;
+  user-select: none;
 }
 
 .sidebar-group-label {
@@ -1288,9 +1290,7 @@ input {
 
 .sidebar-group-sub {
   font-size: 12px;
-  font-weight: 500;
-  color: var(--accent);
-  line-height: 1.2;
+  color: var(--text-muted);
 }
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; }
@@ -1306,6 +1306,30 @@ input {
 .sidebar-nav-item:hover { background: rgba(255,255,255,.05); color: var(--text); }
 .sidebar-nav-item.active { background: rgba(79,142,247,.15); color: var(--accent); }
 .sidebar-nav-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+
+.sidebar-reset-item {
+  color: var(--text-muted, #94a3b8) !important;
+  border: 1px dashed rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-radius: 10px;
+  margin-top: 4px;
+  opacity: 0.85;
+  transition: all var(--transition);
+}
+.sidebar-reset-item .sidebar-nav-icon {
+  color: var(--text-muted, #94a3b8) !important;
+}
+.sidebar-reset-item:hover,
+.sidebar-reset-item:active {
+  opacity: 1;
+  color: #fff !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+.sidebar-reset-item:hover .sidebar-nav-icon,
+.sidebar-reset-item:active .sidebar-nav-icon {
+  color: #ef4444 !important;
+}
 
 .sidebar-divider { height: 1px; background: var(--border); margin: 6px 16px; }
 .sidebar-section-label {
