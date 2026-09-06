@@ -417,6 +417,22 @@ function handleTelegramBackButtonClick() {
   updateTelegramBackButton();
 }
 
+function syncTelegramSafeArea() {
+  const tg = window.Telegram?.WebApp;
+  let topOffset = 0;
+  if (tg) {
+    if (typeof tg.contentSafeAreaInset?.top === 'number' && tg.contentSafeAreaInset.top > 0) {
+      topOffset = Math.max(topOffset, tg.contentSafeAreaInset.top);
+    }
+    if (typeof tg.safeAreaInset?.top === 'number' && tg.safeAreaInset.top > 0) {
+      topOffset = Math.max(topOffset, tg.safeAreaInset.top);
+    }
+  }
+  if (topOffset > 0) {
+    document.documentElement.style.setProperty('--tg-top-offset', `${topOffset}px`);
+  }
+}
+
 function setupTelegramWebApp() {
   const tg = window.Telegram?.WebApp;
   if (!tg) return;
@@ -426,6 +442,22 @@ function setupTelegramWebApp() {
     tg.expand();
     if (typeof tg.enableClosingConfirmation === 'function') {
       tg.enableClosingConfirmation();
+    }
+    if (typeof tg.disableVerticalSwipes === 'function') {
+      tg.disableVerticalSwipes();
+    }
+    syncTelegramSafeArea();
+    tg.onEvent?.('safeAreaChanged', syncTelegramSafeArea);
+    tg.onEvent?.('contentSafeAreaChanged', syncTelegramSafeArea);
+    tg.onEvent?.('viewportChanged', syncTelegramSafeArea);
+
+    // Подстраиваем цвет шапки Telegram под тему приложения
+    const computedThemeBg = getComputedStyle(document.documentElement).getPropertyValue('--topbar-glass').trim() || '#0b0c16';
+    if (typeof tg.setHeaderColor === 'function') {
+      tg.setHeaderColor(computedThemeBg);
+    }
+    if (typeof tg.setBackgroundColor === 'function') {
+      tg.setBackgroundColor(computedThemeBg);
     }
   } catch (e) {
     console.warn('Telegram WebApp init warning:', e);
@@ -452,6 +484,7 @@ function setupTelegramWebApp() {
   } catch (_) {}
 }
 
+window.syncTelegramSafeArea = syncTelegramSafeArea;
 window.updateTelegramBackButton = updateTelegramBackButton;
 window.handleTelegramBackButtonClick = handleTelegramBackButtonClick;
 
@@ -1345,37 +1378,126 @@ function setupWeekNav() {
 function setupSwipeGestures() {
   let touchStartX = 0;
   let touchStartY = 0;
-  let touchEndX = 0;
-  let touchEndY = 0;
+  let touchStartTime = 0;
+  let isIgnoredTarget = false;
 
   const target = document.body;
+
+  function isInteractiveElement(targetEl) {
+    if (!targetEl) return false;
+    return Boolean(targetEl.closest(
+      'input, textarea, select, .blueprint-tile, .widget-drag-handle, .sortable-handle, .menu-drag-handle, .sortable-ghost, .sortable-fallback'
+    ));
+  }
+
+  function triggerHaptic() {
+    try {
+      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
+    } catch (_) {}
+  }
+
+  function animateScheduleSwipe(direction) {
+    const view = els.scheduleView;
+    if (!view) return;
+    const animClass = (direction === 'left') ? 'swipe-transition-left' : 'swipe-transition-right';
+    view.classList.remove('swipe-transition-left', 'swipe-transition-right');
+    // Force reflow
+    void view.offsetWidth;
+    view.classList.add(animClass);
+    setTimeout(() => {
+      view.classList.remove(animClass);
+    }, 220);
+  }
+
   target.addEventListener('touchstart', (e) => {
     if (!e.changedTouches || !e.changedTouches[0]) return;
-    touchStartX = e.changedTouches[0].screenX;
-    touchStartY = e.changedTouches[0].screenY;
+    const touch = e.changedTouches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchStartTime = Date.now();
+    isIgnoredTarget = isInteractiveElement(e.target);
   }, { passive: true });
 
   target.addEventListener('touchend', (e) => {
-    if (!e.changedTouches || !e.changedTouches[0]) return;
-    touchEndX = e.changedTouches[0].screenX;
-    touchEndY = e.changedTouches[0].screenY;
-    handleSwipe();
-  }, { passive: true });
+    if (!e.changedTouches || !e.changedTouches[0] || isIgnoredTarget) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+    const dt = Date.now() - touchStartTime;
 
-  function handleSwipe() {
-    const dx = touchEndX - touchStartX;
-    const dy = touchEndY - touchStartY;
-    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
-      if (isLayoutEditingMode || document.querySelector('.modal-backdrop.open') || document.querySelector('.sidebar.open') || document.querySelector('.modal.open')) {
-        return;
+    // Игнорируем долгое удержание (> 650мс)
+    if (dt > 650) return;
+
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Жест должен быть выраженно горизонтальным
+    if (absDx < 45 || absDx < absDy * 1.25) return;
+
+    // Не перехватываем, если открыты модальные окна
+    const isModalOpen = Boolean(
+      document.querySelector('.modal-backdrop.open, .modal.open') ||
+      els.groupModal?.classList.contains('open') ||
+      (els.settingsModal || els.themeModal)?.classList.contains('open') ||
+      els.onboardModal?.classList.contains('open')
+    );
+    if (isModalOpen) return;
+
+    // Не перехватываем в режиме редактирования конструктора
+    let isEditing = false;
+    try { isEditing = Boolean(isLayoutEditingMode); } catch (_) {}
+    if (isEditing || document.body.classList.contains('layout-editing-active')) return;
+
+    // 1. Если боковое меню открыто: свайп влево закрывает его
+    const isSidebarOpen = Boolean(els.sidebar?.classList.contains('open'));
+    if (isSidebarOpen) {
+      if (dx < -45) {
+        closeSidebar();
+        triggerHaptic();
       }
-      if (dx < 0) {
-        changeWeek(1); // свайп влево -> следующая неделя
+      return;
+    }
+
+    // 2. Свайп от самого левого края экрана (<= 38px) открывает боковое меню
+    if (touchStartX <= 38 && dx > 45) {
+      openSidebar();
+      triggerHaptic();
+      return;
+    }
+
+    // 3. Переключение дней в расписании (только в основном режиме расписания)
+    if (S.view && S.view !== 'today' && S.view !== 'week' && S.view !== 'schedule') {
+      return;
+    }
+
+    const currentDay = S.selectedDay || 1;
+
+    if (dx < 0) {
+      // Свайп влево -> следующий день (вперёд)
+      triggerHaptic();
+      if (currentDay < 6) {
+        animateScheduleSwipe('left');
+        selectDay(currentDay + 1);
       } else {
-        changeWeek(-1); // свайп вправо -> предыдущая неделя
+        // На субботе -> переход на понедельник следующей недели
+        animateScheduleSwipe('left');
+        changeWeek(1);
+        selectDay(1);
+      }
+    } else {
+      // Свайп вправо -> предыдущий день (назад)
+      triggerHaptic();
+      if (currentDay > 1) {
+        animateScheduleSwipe('right');
+        selectDay(currentDay - 1);
+      } else {
+        // На понедельнике -> переход на субботу предыдущей недели
+        animateScheduleSwipe('right');
+        changeWeek(-1);
+        selectDay(6);
       }
     }
-  }
+  }, { passive: true });
 }
 
 // ════════════════════════════════════════
@@ -3533,7 +3655,7 @@ const SCREEN_WIDGET_META = {
 
 // ── LEVEL 2: SIDEBAR MENU (Пункты меню) ──
 const STORAGE_MENU_CONFIG = 'schedule_menu_config_v1';
-const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-onboarding', 'menu-layout-editor'];
+const MANDATORY_MENU_IDS = ['menu-schedule', 'menu-refresh', 'menu-onboarding', 'menu-theme', 'menu-layout-editor'];
 
 const DEFAULT_MENU_SECTION_MAP = {
   'menu-group-badge':   'study',
@@ -3544,9 +3666,9 @@ const DEFAULT_MENU_SECTION_MAP = {
   'menu-english':       'tools',
   'menu-stats':         'tools',
   'menu-change-group':  'tools',
-  'menu-theme':         'system',
   'menu-refresh':       'system',
   'menu-onboarding':    'system',
+  'menu-theme':         'system',
   'menu-support':       'system',
   'menu-layout-editor': 'system',
   'menu-sync-footer':   'system'
@@ -3563,6 +3685,7 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
   { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
+  { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
@@ -3580,6 +3703,7 @@ const PRESETS_MENU = {
     { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
@@ -3595,6 +3719,7 @@ const PRESETS_MENU = {
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
@@ -3610,6 +3735,7 @@ const PRESETS_MENU = {
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: false, section: 'system',  color: 'default' },
@@ -3901,7 +4027,7 @@ function validateMenuConfig(cfg) {
   cfg.forEach(rawItem => {
     if (!rawItem) return;
     const item = { ...rawItem };
-    if (item.id === 'menu-theme') item.id = 'menu-settings';
+    if (item.id === 'menu-settings') item.id = 'menu-theme';
     if (validIds.has(item.id) && !seen.has(item.id)) {
       seen.add(item.id);
       const isMandatory = MANDATORY_MENU_IDS.includes(item.id);

@@ -35,6 +35,8 @@
   --shadow:           0 4px 20px rgba(0, 0, 0, 0.4);
   --sidebar-w:        280px;
   --topbar-h:         56px;
+  --safe-area-top:    env(safe-area-inset-top, 0px);
+  --tg-top-offset:    var(--safe-area-top, 0px);
   --transition:       .2s cubic-bezier(.4, 0, .2, 1);
   --mesh-pattern:     none;
 }
@@ -1180,7 +1182,7 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 16px 14px;
+  padding: calc(16px + var(--tg-top-offset, 0px)) 16px 14px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -1343,20 +1345,23 @@ input {
 .app-wrapper {
   min-height: 100dvh;
   display: flex; flex-direction: column;
-  padding-top: var(--topbar-h);
+  padding-top: calc(var(--topbar-h) + var(--tg-top-offset, 0px));
   position: relative;
   z-index: 1;
 }
 
 .topbar {
   position: fixed; top: 0; left: 0; right: 0;
-  height: var(--topbar-h);
+  height: calc(var(--topbar-h) + var(--tg-top-offset, 0px));
+  padding-top: var(--tg-top-offset, 0px);
+  box-sizing: border-box;
   background: var(--topbar-glass);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 12px;
-  padding: 0 16px;
+  padding-left: calc(16px + env(safe-area-inset-left, 0px));
+  padding-right: calc(16px + env(safe-area-inset-right, 0px));
   z-index: 100;
   transition: background var(--transition), border-color var(--transition);
 }
@@ -7435,4 +7440,22 @@ body.menu-editing-active .sidebar-footer.menu-item-hidden {
   color: var(--text-sub, rgba(255, 255, 255, 0.75));
   margin: 0;
   text-align: center;
+}
+
+/* ═══════════════════════════════════════════
+   GESTURE NAVIGATION ANIMATIONS
+   ═══════════════════════════════════════════ */
+.swipe-transition-left {
+  animation: swipeSlideLeft 0.18s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.swipe-transition-right {
+  animation: swipeSlideRight 0.18s cubic-bezier(0.25, 1, 0.5, 1);
+}
+@keyframes swipeSlideLeft {
+  0% { transform: translateX(20px); opacity: 0.65; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+@keyframes swipeSlideRight {
+  0% { transform: translateX(-20px); opacity: 0.65; }
+  100% { transform: translateX(0); opacity: 1; }
 }
