@@ -307,6 +307,8 @@ const els = {
   teacherCountBadge:    $('teacherCountBadge'),
   teachersGrid:         $('teachersGrid'),
   teacherResult:        $('teacherResult'),
+  teacherContextBar:    $('teacherContextBar'),
+  teacherContextName:   $('teacherContextName'),
 
   // Аудитории
   classroomView:        $('classroomView'),
@@ -316,6 +318,8 @@ const els = {
   classroomCountBadge:  $('classroomCountBadge'),
   classroomsGrid:       $('classroomsGrid'),
   classroomResult:      $('classroomResult'),
+  classroomContextBar:  $('classroomContextBar'),
+  classroomContextName: $('classroomContextName'),
 
   // Статистика
   statsView:            $('statsView'),
@@ -523,13 +527,10 @@ async function init() {
   try { initLayoutManager(); } catch (e) { console.error('initLayoutManager error:', e); }
   try { setupNavPosition(); } catch (e) { console.error('setupNavPosition error:', e); }
   try {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(r => r.unregister());
+    if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        logApp('warn', 'Ошибка регистрации ServiceWorker:', err);
       });
-    }
-    if (window.caches) {
-      caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
     }
   } catch (_) {}
 
@@ -1044,7 +1045,7 @@ function setupSidebar() {
     }
   });
 
-  const topbarTitleWrap = els.topbarGroupName?.closest('.topbar-title');
+  const topbarTitleWrap = $('topbarGroupBtn') || els.topbarGroupName?.closest('.topbar-title');
   if (topbarTitleWrap) {
     topbarTitleWrap.style.cursor = 'pointer';
     topbarTitleWrap.title = 'Нажмите для смены группы';
@@ -1132,6 +1133,66 @@ function showToast(msg) {
     toast.style.transform = 'translateX(-50%) translateY(-20px)';
   }, 3200);
 }
+
+function showToastWithAction(msg, actionText, onAction, duration = 4000) {
+  let toast = $('layoutToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'layoutToast';
+    document.body.appendChild(toast);
+  }
+  toast.style.cssText = `
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: var(--bg-card, #1c1c28);
+    color: var(--text, #fff);
+    border: 1px solid var(--accent, #6366f1);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+    padding: 10px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 9999;
+    opacity: 0;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 90vw;
+    text-align: left;
+    pointer-events: auto;
+  `;
+
+  toast.innerHTML = `
+    <span style="display:inline-flex;color:var(--accent,#818cf8);flex-shrink:0;">
+      <svg style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </span>
+    <span style="flex:1;">${esc(msg)}</span>
+    ${actionText ? `<button id="toastActionBtn" style="background:var(--accent,#6366f1);color:#fff;border:none;border-radius:12px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;transition:transform 0.15s;">${esc(actionText)}</button>` : ''}
+  `;
+
+  if (actionText && onAction) {
+    const btn = toast.querySelector('#toastActionBtn');
+    btn?.addEventListener('click', () => {
+      onAction();
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(-20px)';
+    });
+  }
+
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-20px)';
+  }, duration);
+}
+window.showToastWithAction = showToastWithAction;
 
 
 
@@ -1329,9 +1390,17 @@ function updateTopbarParity() {
   const p = getActiveParity();
   if (els.topbarParity) {
     const isOverridden = Boolean(S.parityOverride);
-    els.topbarParity.textContent = (p === 'num') ? 'I Числ.' : 'II Знам.';
+    const { mon, sat } = getWeekDateRange(S.weekOffset || 0);
+    const mStr = `${String(mon.getDate()).padStart(2, '0')}.${String(mon.getMonth() + 1).padStart(2, '0')}`;
+    const sStr = `${String(sat.getDate()).padStart(2, '0')}.${String(sat.getMonth() + 1).padStart(2, '0')}`;
+    const dateRange = `${mStr}–${sStr}`;
+    const isCurrent = (S.weekOffset === 0);
+
+    els.topbarParity.innerHTML = `
+      <span class="topbar-parity-text">${isCurrent ? 'Текущая нед.' : 'Неделя'} (${dateRange})</span>
+    `;
     els.topbarParity.classList.toggle('overridden', isOverridden);
-    els.topbarParity.title = 'Нажмите, чтобы переключить (I Числ. / II Знам.)';
+    els.topbarParity.title = `${isCurrent ? 'Текущая неделя' : 'Выбранная неделя'} (${dateRange}, ${p === 'num' ? 'Числитель' : 'Знаменатель'}). Нажмите для смены недели`;
   }
 }
 
@@ -1457,10 +1526,28 @@ function setupWeekNav() {
   els.nextWeekBtn?.addEventListener('click', () => changeWeek(1));
   els.topbarParity?.addEventListener('click', () => {
     const current = getActiveParity();
-    S.parityOverride = (current === 'num') ? 'den' : 'num';
+    const nextParity = (current === 'num') ? 'den' : 'num';
+    S.parityOverride = nextParity;
     updateTopbarParity();
     renderSchedule();
     updateLiveCard();
+
+    const { mon, sat } = getWeekDateRange(S.weekOffset || 0);
+    const mStr = `${String(mon.getDate()).padStart(2, '0')}.${String(mon.getMonth() + 1).padStart(2, '0')}`;
+    const sStr = `${String(sat.getDate()).padStart(2, '0')}.${String(sat.getMonth() + 1).padStart(2, '0')}`;
+    const parityTitle = (nextParity === 'num') ? '1-ю неделю (Числитель)' : '2-ю неделю (Знаменатель)';
+
+    showToastWithAction(
+      `Показано расписание на ${parityTitle} (${mStr}–${sStr})`,
+      'К текущей',
+      () => {
+        S.parityOverride = null;
+        S.weekOffset = 0;
+        updateTopbarParity();
+        renderSchedule();
+        updateLiveCard();
+      }
+    );
   });
   setupSwipeGestures();
 }
@@ -1476,7 +1563,7 @@ function setupSwipeGestures() {
   function isInteractiveElement(targetEl) {
     if (!targetEl) return false;
     return Boolean(targetEl.closest(
-      'input, textarea, select, .blueprint-tile, .widget-drag-handle, .sortable-handle, .menu-drag-handle, .sortable-ghost, .sortable-fallback'
+      'input, textarea, select, .day-strip, .day-strip-wrap, .week-nav-wrap, .teachers-grid, .classrooms-grid, .blueprint-tile, .widget-drag-handle, .sortable-handle, .menu-drag-handle, .sortable-ghost, .sortable-fallback'
     ));
   }
 
@@ -1521,8 +1608,8 @@ function setupSwipeGestures() {
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
 
-    // Жест должен быть выраженно горизонтальным
-    if (absDx < 45 || absDx < absDy * 1.25) return;
+    // Жест должен быть строго горизонтальным (горизонталь больше вертикали в 1.6 раза)
+    if (absDx < 50 || absDx < absDy * 1.6) return;
 
     // Не перехватываем, если открыты модальные окна
     const isModalOpen = Boolean(
@@ -1631,9 +1718,13 @@ function buildDayStrip() {
   if (activeChip) activeChip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 }
 
+let selectDayDebounceTimer = null;
+
 function selectDay(dow) {
   if (S.selectedDay === dow) return;
   S.selectedDay = dow;
+
+  // Немедленный визуальный отклик (0ms задержки для пользователя)
   if (els.dayStrip) {
     const chips = els.dayStrip.querySelectorAll('.day-chip');
     chips.forEach(chip => {
@@ -1644,8 +1735,13 @@ function selectDay(dow) {
       }
     });
   }
-  renderSchedule();
-  updateLiveCard();
+
+  // Debounce на рендеринг карточек и анимации для устранения наслоения (80мс)
+  if (selectDayDebounceTimer) clearTimeout(selectDayDebounceTimer);
+  selectDayDebounceTimer = setTimeout(() => {
+    renderSchedule();
+    updateLiveCard();
+  }, 80);
 }
 
 // ════════════════════════════════════════
@@ -1674,6 +1770,10 @@ const BREAKS = [
 
 function fmtSec(totalSeconds) {
   if (totalSeconds < 0) totalSeconds = 0;
+  if (totalSeconds > 300) {
+    const m = Math.round(totalSeconds / 60);
+    return `${m} мин`;
+  }
   const m = Math.floor(totalSeconds / 60);
   const s = Math.floor(totalSeconds % 60);
   if (m > 0) {
@@ -1684,12 +1784,16 @@ function fmtSec(totalSeconds) {
 
 function fmtHoursSec(totalSeconds) {
   if (totalSeconds < 0) totalSeconds = 0;
-  const h = Math.floor(totalSeconds / 3600);
+  if (totalSeconds > 300) {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    if (h > 0) {
+      return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
+    }
+    return `${Math.max(1, m)} мин`;
+  }
   const m = Math.floor((totalSeconds % 3600) / 60);
   const s = Math.floor(totalSeconds % 60);
-  if (h > 0) {
-    return `${h} ч ${m} мин ${String(s).padStart(2, '0')} сек`;
-  }
   if (m > 0) {
     return `${m} мин ${String(s).padStart(2, '0')} сек`;
   }
@@ -1697,7 +1801,7 @@ function fmtHoursSec(totalSeconds) {
 }
 
 function setupLiveCardToggle() {
-  const isHidden = localStorage.getItem(STORAGE_LIVE_HIDDEN) === '1';
+  const isHidden = safeGetItem(STORAGE_LIVE_HIDDEN) === '1';
   if (isHidden) {
     if (els.liveCard) els.liveCard.style.display = 'none';
     if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'flex';
@@ -1710,13 +1814,22 @@ function setupLiveCardToggle() {
     e.stopPropagation();
     if (els.liveCard) els.liveCard.style.display = 'none';
     if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'flex';
-    localStorage.setItem(STORAGE_LIVE_HIDDEN, '1');
+    safeSetItem(STORAGE_LIVE_HIDDEN, '1');
+    showToastWithAction(
+      'Виджет пары свернут в компактный вид',
+      'Развернуть',
+      () => {
+        if (els.liveCard) els.liveCard.style.display = 'flex';
+        if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'none';
+        safeSetItem(STORAGE_LIVE_HIDDEN, '0');
+      }
+    );
   });
 
   els.liveCardRestoreBtn?.addEventListener('click', () => {
     if (els.liveCard) els.liveCard.style.display = 'flex';
     if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'none';
-    localStorage.setItem(STORAGE_LIVE_HIDDEN, '0');
+    safeSetItem(STORAGE_LIVE_HIDDEN, '0');
   });
 }
 
@@ -2016,6 +2129,37 @@ function fmtTime(min) {
 // ════════════════════════════════════════
 //  LOAD DATA (FAULT TOLERANT & CACHED)
 // ════════════════════════════════════════
+function getAnyCachedScheduleForGroup(group, targetGid) {
+  if (!group) return null;
+  // 1. По точному GID
+  if (targetGid) {
+    const exact = safeGetItem(STORAGE_CACHE_PREFIX + group + '_' + targetGid);
+    if (exact) {
+      try { return JSON.parse(exact); } catch (_) {}
+    }
+  }
+  // 2. По active-метке
+  const active = safeGetItem(STORAGE_CACHE_PREFIX + group + '_active');
+  if (active) {
+    try { return JSON.parse(active); } catch (_) {}
+  }
+  // 3. Сканируем localStorage на любую сохранённую вкладку этой группы
+  try {
+    const prefix = STORAGE_CACHE_PREFIX + group + '_';
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) {
+        const val = safeGetItem(k);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (parsed && (parsed.days || parsed.schedules)) return parsed;
+        }
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 let currentScheduleAbortController = null;
 
 async function loadSchedule(force = false) {
@@ -2036,32 +2180,21 @@ async function loadSchedule(force = false) {
 
   const cacheKey = STORAGE_CACHE_PREFIX + S.group + '_' + (S.activeGid || 'active');
 
-  // 1. ПРИ ПЕРВОМ СТАРТЕ САЙТА: показываем скелетон со спиннером с кадра №1 до прихода свежих данных (без промаргивания старого кэша)
-  if (!S.hasInitiallyLoadedFreshData) {
-    if (S.view === 'today' || S.view === 'week' || S.view === 'schedule') {
+  // 1. ОФФЛАЙН-ПЕРВЫЙ: мгновенно рендерим сохранённую копию из localStorage, не дожидаясь сети
+  if (!S.data) {
+    const preCached = getAnyCachedScheduleForGroup(S.group, S.activeGid);
+    if (preCached) {
+      S.data = preCached;
+      updateSidebarGroupInfo();
+      buildDayStrip();
+      updateTopbarParity();
+      renderSchedule();
+      updateLiveCard();
+      updateSyncStatus(true, true);
+      logApp('info', `Расписание мгновенно загружено из оффлайн-кэша для ${S.group}`);
+    } else if (S.view === 'today' || S.view === 'week' || S.view === 'schedule') {
       renderSkeleton();
     }
-  } else if (!S.data) {
-    try {
-      const cached = safeGetItem(cacheKey);
-      if (cached) {
-        S.data = JSON.parse(cached);
-        updateSidebarGroupInfo();
-        buildDayStrip();
-        updateTopbarParity();
-        renderSchedule();
-        updateLiveCard();
-        updateSyncStatus(true, true);
-        logApp('info', `Расписание мгновенно загружено из оффлайн-кэша для ${S.group}`);
-      }
-    } catch (err) {
-      logApp('warn', 'Ошибка чтения оффлайн-кэша:', err);
-    }
-  }
-
-  // Если данных в памяти нет — показываем элегантные skeleton-карточки
-  if (!S.data && (S.view === 'today' || S.view === 'week' || S.view === 'schedule')) {
-    renderSkeleton();
   }
 
   // 2. ИНДИКАТОР ПРОБУЖДЕНИЯ СЕРВЕРА RENDER (если ответ длится > 2.5с)
@@ -2173,6 +2306,7 @@ async function loadSchedule(force = false) {
 
     try {
       safeSetItem(cacheKey, JSON.stringify(freshData));
+      safeSetItem(STORAGE_CACHE_PREFIX + S.group + '_active', JSON.stringify(freshData));
       safeSetItem('schedule_last_sync_time', freshData.last_updated || new Date().toLocaleString('ru-RU'));
     } catch (err) {
       logApp('warn', 'Ошибка записи в кэш:', err);
@@ -2196,29 +2330,25 @@ async function loadSchedule(force = false) {
     }
     logApp('error', `Сбой синхронизации расписания (${e.message}):`, e);
 
-    // Проверяем наличие кэша
+    // Проверяем наличие оффлайн-кэша
     let hasCachedData = Boolean(S.data);
     if (!hasCachedData) {
-      try {
-        const cached = safeGetItem(cacheKey);
-        if (cached) {
-          S.data = JSON.parse(cached);
-          hasCachedData = true;
-          updateSidebarGroupInfo();
-          buildDayStrip();
-          updateTopbarParity();
-          renderSchedule();
-          updateLiveCard();
-        }
-      } catch (err) {
-        logApp('warn', 'Не удалось восстановить кэш:', err);
+      const recovered = getAnyCachedScheduleForGroup(S.group, S.activeGid);
+      if (recovered) {
+        S.data = recovered;
+        hasCachedData = true;
+        updateSidebarGroupInfo();
+        buildDayStrip();
+        updateTopbarParity();
+        renderSchedule();
+        updateLiveCard();
       }
     }
 
     updateSyncStatus(false, hasCachedData);
 
     if (hasCachedData) {
-      hideOfflineBanner();
+      showOfflineBanner('Офлайн-режим: показано сохранённое расписание', false);
     } else if (els.scheduleView) {
       hideOfflineBanner();
       els.scheduleView.removeAttribute('aria-busy');
@@ -2352,8 +2482,27 @@ function getActiveDow() {
 function renderDay() {
   const dow = getActiveDow();
   const dayName = DAYS[dow];
+  const today = new Date();
+  const todayDow = today.getDay();
+  const isSunday = (todayDow === 0) && (S.weekOffset === 0);
+
+  let weekendBanner = '';
+  if (isSunday && dow === 1) {
+    weekendBanner = `
+      <div class="weekend-status-banner">
+        <div class="weekend-status-content">
+          <div class="weekend-status-icon">🌴</div>
+          <div class="weekend-status-text">
+            <div class="weekend-status-title">Сегодня воскресенье — выходной</div>
+            <div class="weekend-status-sub">Показано расписание на завтра (Понедельник). Можно заранее подготовиться к занятиям!</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   const html = renderDayPairs(dayName);
-  els.scheduleView.innerHTML = html || `<div class="empty-pairs-hint">На ${dayName.toLowerCase()} пар нет</div>`;
+  els.scheduleView.innerHTML = weekendBanner + (html || `<div class="empty-pairs-hint">На ${dayName.toLowerCase()} пар нет</div>`);
 }
 
 function renderWeek() {
@@ -2631,6 +2780,13 @@ function renderSplitCard(num, den, pn, bell, isGoing, cardIndex = 0) {
 // ════════════════════════════════════════
 //  TEACHER & ROOM SELECTION & SEARCH
 // ════════════════════════════════════════
+window.returnToGroupSchedule = function() {
+  if (typeof clearTeacherSelection === 'function') clearTeacherSelection();
+  if (typeof clearClassroomSelection === 'function') clearClassroomSelection();
+  setView('schedule');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
 window.openTeacher = function(name) {
   setView('teacher');
   selectTeacher(name);
@@ -2647,6 +2803,7 @@ window.clearTeacherSelection = function() {
   S.selectedTeacher = null;
   if (els.teacherSearchInput) els.teacherSearchInput.value = '';
   if (els.teacherResult) els.teacherResult.innerHTML = '';
+  if (els.teacherContextBar) els.teacherContextBar.style.display = 'none';
   renderTeachersList('');
   updateTelegramBackButton();
 };
@@ -2655,6 +2812,7 @@ window.clearClassroomSelection = function() {
   S.selectedClassroom = null;
   if (els.classroomSearchInput) els.classroomSearchInput.value = '';
   if (els.classroomResult) els.classroomResult.innerHTML = '';
+  if (els.classroomContextBar) els.classroomContextBar.style.display = 'none';
   renderClassroomsList('');
   updateTelegramBackButton();
 };
@@ -2760,6 +2918,14 @@ async function selectTeacher(teacherName) {
   if (els.teacherSearchInput) els.teacherSearchInput.value = teacherName;
   renderTeachersList(teacherName);
 
+  if (els.teacherContextBar) {
+    els.teacherContextBar.style.display = 'flex';
+    if (els.teacherContextName) els.teacherContextName.textContent = teacherName;
+    document.querySelectorAll('.context-back-group-name').forEach(el => {
+      el.textContent = S.group || DEFAULT_GROUP;
+    });
+  }
+
   if (!els.teacherResult) return;
   els.teacherResult.innerHTML = '<div class="loading-placeholder"><div class="loading-spinner"></div><div>Загрузка расписания преподавателя...</div></div>';
 
@@ -2778,8 +2944,14 @@ async function selectTeacher(teacherName) {
 
     let html = `
       <div class="selected-target-banner">
-        <div class="selected-target-title">
-          <span>${ICONS.gradCap} ${esc(teacherName)}</span>
+        <div class="selected-target-left">
+          <button class="entity-back-btn" onclick="returnToGroupSchedule()" type="button" title="Вернуться к группе">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+            <span>К группе <strong>${esc(S.group || DEFAULT_GROUP)}</strong></span>
+          </button>
+          <div class="selected-target-title">
+            <span>${ICONS.gradCap} ${esc(teacherName)}</span>
+          </div>
         </div>
         <button class="selected-target-clear-btn" onclick="clearTeacherSelection()">${ICONS.x} Сбросить</button>
       </div>
@@ -2845,6 +3017,14 @@ async function selectClassroom(roomName) {
   if (els.classroomSearchInput) els.classroomSearchInput.value = roomName;
   renderClassroomsList(roomName);
 
+  if (els.classroomContextBar) {
+    els.classroomContextBar.style.display = 'flex';
+    if (els.classroomContextName) els.classroomContextName.textContent = roomName;
+    document.querySelectorAll('.context-back-group-name').forEach(el => {
+      el.textContent = S.group || DEFAULT_GROUP;
+    });
+  }
+
   if (!els.classroomResult) return;
   els.classroomResult.innerHTML = '<div class="loading-placeholder"><div class="loading-spinner"></div><div>Загрузка занятости аудитории...</div></div>';
 
@@ -2863,8 +3043,14 @@ async function selectClassroom(roomName) {
 
     let html = `
       <div class="selected-target-banner">
-        <div class="selected-target-title">
-          <span>${ICONS.door} Аудитория ${esc(roomName)}</span>
+        <div class="selected-target-left">
+          <button class="entity-back-btn" onclick="returnToGroupSchedule()" type="button" title="Вернуться к группе">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+            <span>К группе <strong>${esc(S.group || DEFAULT_GROUP)}</strong></span>
+          </button>
+          <div class="selected-target-title">
+            <span>${ICONS.door} Аудитория ${esc(roomName)}</span>
+          </div>
         </div>
         <button class="selected-target-clear-btn" onclick="clearClassroomSelection()">${ICONS.x} Сбросить</button>
       </div>

@@ -190,7 +190,7 @@
         </button>
 
         <!-- 12. Конструктор (Обязательный) -->
-        <button class="sidebar-nav-item" data-menu-id="menu-layout-editor" data-section="system" id="sidebarLayoutEditorBtn">
+        <button class="sidebar-nav-item" data-menu-id="menu-layout-editor" data-section="system" id="sidebarLayoutEditorBtn" style="display:none;">
           <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span>
           <span class="sidebar-nav-label">Конструктор интерфейса</span>
@@ -220,16 +220,13 @@
 
     <!-- ─── TOP BAR ─── -->
     <header class="topbar">
-      <button class="topbar-menu-btn" id="menuBtn" aria-label="Меню">
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
-        <span class="hamburger-line"></span>
+      <button class="topbar-title-btn" id="topbarGroupBtn" type="button" aria-label="Сменить группу" title="Нажмите, чтобы сменить группу">
+        <span class="group-btn-icon">👥</span>
+        <span class="group-btn-name" id="topbarGroupName">ИСС9-25</span>
+        <svg class="lucide-icon group-btn-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
       </button>
-      <div class="topbar-title">
-        <span id="topbarGroupName">ИСС9-25</span>
-      </div>
       <div class="topbar-parity" id="topbarParity">
-        <!-- числитель/знаменатель -->
+        <!-- даты недели -->
       </div>
     </header>
 
@@ -266,7 +263,7 @@
         </div>
         <div class="live-card-wrap" id="liveCardWrap">
           <div class="live-card" id="liveCard">
-            <button class="live-card-close-btn" id="liveCardCloseBtn" title="Скрыть карточку" aria-label="Скрыть"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+            <button class="live-card-close-btn" id="liveCardCloseBtn" title="Свернуть виджет пары" aria-label="Свернуть"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg></button>
             <div class="live-card-icon" id="liveCardIcon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
             <div class="live-card-text">
               <div class="live-card-title" id="liveCardTitle">ИСС9-25</div>
@@ -276,10 +273,10 @@
               <div class="live-card-progress" id="liveCardProgress"></div>
             </div>
           </div>
-          <button class="live-card-restore-btn" id="liveCardRestoreBtn" style="display:none;" title="Развернуть статус">
+          <button class="live-card-restore-btn" id="liveCardRestoreBtn" style="display:none;" title="Развернуть статус пары" type="button">
             <span class="live-restore-icon" id="liveRestoreIcon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
-            <span class="live-restore-text" id="liveRestoreText">Статус</span>
-            <span class="live-restore-arrow"><svg class="lucide-icon" style="width:12px;height:12px;" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            <span class="live-restore-text" id="liveRestoreText">Статус пары</span>
+            <span class="live-restore-arrow"><svg class="lucide-icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
           </button>
         </div>
       </div>
@@ -396,6 +393,18 @@
 
       <!-- Поиск по преподавателю -->
       <div id="teacherView" style="display:none">
+        <!-- Контекстная плашка возврата к группе при просмотре преподавателя -->
+        <div class="entity-context-bar" id="teacherContextBar" style="display:none;">
+          <button class="entity-back-btn" onclick="returnToGroupSchedule()" type="button" aria-label="Вернуться к расписанию группы">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+            <span>Назад к группе <strong class="context-back-group-name">ИСС9-25</strong></span>
+          </button>
+          <div class="entity-context-info">
+            <span class="entity-context-label">Расписание преподавателя:</span>
+            <strong class="entity-context-value" id="teacherContextName">—</strong>
+          </div>
+        </div>
+
         <div class="search-bar-wrap">
           <input type="text" id="teacherSearchInput" class="search-input" placeholder="Поиск по фамилии преподавателя...">
           <button class="search-btn" id="teacherSearchBtn">Найти</button>
@@ -413,6 +422,18 @@
 
       <!-- Поиск по аудитории -->
       <div id="classroomView" style="display:none">
+        <!-- Контекстная плашка возврата к группе при просмотре аудитории -->
+        <div class="entity-context-bar" id="classroomContextBar" style="display:none;">
+          <button class="entity-back-btn" onclick="returnToGroupSchedule()" type="button" aria-label="Вернуться к расписанию группы">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+            <span>Назад к группе <strong class="context-back-group-name">ИСС9-25</strong></span>
+          </button>
+          <div class="entity-context-info">
+            <span class="entity-context-label">Занятость аудитории:</span>
+            <strong class="entity-context-value" id="classroomContextName">—</strong>
+          </div>
+        </div>
+
         <div class="search-bar-wrap">
           <input type="text" id="classroomSearchInput" class="search-input" placeholder="Номер аудитории (например 110л, 205)...">
           <button class="search-btn" id="classroomSearchBtn">Найти</button>
@@ -634,9 +655,15 @@
 <div class="screen-blueprint-builder" id="screenBlueprintBuilder" style="display:none;" role="region" aria-label="Схематичный конструктор экрана">
   <div class="screen-blueprint-inner">
     <div class="blueprint-header">
-      <div class="blueprint-badge">
-        <span class="blueprint-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg></span>
-        <span class="blueprint-title">Схема блоков экрана</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div class="blueprint-badge">
+          <span class="blueprint-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg></span>
+          <span class="blueprint-title">Схема блоков экрана</span>
+        </div>
+        <button class="constructor-exit-btn" onclick="exitLayoutEditor(false)" type="button" style="display:inline-flex;align-items:center;gap:6px;background:rgba(239,68,68,0.16);color:#ef4444;border:1px solid rgba(239,68,68,0.35);padding:7px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">
+          <svg class="lucide-icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <span>← Выйти без сохранения</span>
+        </button>
       </div>
       <div class="blueprint-subtitle">Перетаскивайте блоки за <b>⠿</b> или двигайте кнопками <b>▲/▼</b>. Макет умещается на одном экране без лишнего скролла.</div>
     </div>
@@ -652,9 +679,15 @@
 <div class="card-template-builder" id="cardTemplateBuilder" style="display:none;" role="region" aria-label="Конструктор карточки пары">
   <div class="card-template-inner">
     <div class="card-template-header">
-      <div class="card-template-badge">
-        <span class="card-template-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg></span>
-        <span class="card-template-title">Шаблон карточки пары</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div class="card-template-badge">
+          <span class="card-template-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg></span>
+          <span class="card-template-title">Шаблон карточки пары</span>
+        </div>
+        <button class="constructor-exit-btn" onclick="exitLayoutEditor(false)" type="button" style="display:inline-flex;align-items:center;gap:6px;background:rgba(239,68,68,0.16);color:#ef4444;border:1px solid rgba(239,68,68,0.35);padding:7px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">
+          <svg class="lucide-icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <span>← Выйти без сохранения</span>
+        </button>
       </div>
       <div class="card-template-subtitle">Хватайте за <b>⠿</b> для переноса между зонами. Кликайте на размер (S/M/L/XL), цвет или глаз для скрытия.</div>
     </div>
@@ -895,7 +928,7 @@
         </button>
         <button class="settings-tab-btn" data-settings-tab="constructor" id="settingsTabConstructor" type="button">
           <svg class="lucide-icon" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-          <span>Конструктор</span>
+          <span>Продвинутые</span>
         </button>
         <button class="settings-tab-btn" data-settings-tab="weeks" id="settingsTabWeeks" type="button">
           <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
@@ -1017,8 +1050,12 @@
           </div>
         </div>
 
-        <!-- Вкладка 3: Конструктор интерфейса -->
+        <!-- Вкладка 3: Конструктор интерфейса (Для продвинутых) -->
         <div class="settings-tab-pane" id="paneConstructor" style="display:none;">
+          <div class="advanced-mode-banner" style="background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.35);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+            <span style="font-size:20px;flex-shrink:0;">⚙️</span>
+            <span style="font-size:13px;color:var(--text);line-height:1.4;"><strong>Раздел для опытных пользователей:</strong> тонкая настройка порядка блоков экрана, пунктов меню и макета карточек.</span>
+          </div>
           <div class="theme-section">
             <div class="theme-section-header">
               <span class="theme-section-title">Быстрый запуск конструктора</span>

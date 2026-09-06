@@ -43,16 +43,16 @@
     {
       id: 'themes',
       title: '🎨 Оформление и темы',
-      body: 'В боковом меню (кнопка ☰) доступен раздел <b>«Оформление и темы»</b>: выбирайте темы по вкусу (тёмные, светлые, киберпанк), настраивайте шрифт или включайте <b>«Минимальный режим»</b> без лишних рамок.',
-      getTarget: () => document.getElementById('menuBtn'),
-      preferredPosition: 'bottom'
+      body: 'В меню (кнопка <b>☰ Ещё</b> внизу) доступен раздел <b>«Оформление и темы»</b>: выбирайте темы по вкусу (тёмные, светлые, киберпанк), настраивайте шрифт или включайте <b>«Минимальный режим»</b> без лишних рамок.',
+      getTarget: () => document.getElementById('bottomNavMore') || document.getElementById('bottomNavSettings'),
+      preferredPosition: 'top'
     },
     {
       id: 'constructor',
-      title: '🛠 Конструктор интерфейса',
-      body: 'Настройте интерфейс под себя! В боковом меню выберите <b>«Конструктор интерфейса»</b>: можно менять порядок блоков на экране (перетаскиванием за иконку ⠿), скрывать ненужные виджеты и настраивать карточки пар.',
-      getTarget: () => document.getElementById('menuBtn'),
-      preferredPosition: 'bottom'
+      title: '🛠 Настройки интерфейса',
+      body: 'Настройте интерфейс под себя! В разделе <b>«Настройки → Продвинутые»</b> можно менять порядок блоков на экране, скрывать ненужные виджеты и настраивать отображение карточек пар.',
+      getTarget: () => document.getElementById('bottomNavSettings') || document.getElementById('bottomNavMore'),
+      preferredPosition: 'top'
     }
   ];
 
