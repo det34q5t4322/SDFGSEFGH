@@ -351,6 +351,7 @@ const els = {
   cardTemplateDropzone:     $('cardTemplateDropzone'),
   sidebarNav:               $('sidebarNav'),
   sidebarLayoutEditorBtn:   $('sidebarLayoutEditorBtn'),
+  sidebarInstallPwaBtn:     $('sidebarInstallPwaBtn'),
   sidebarResetLayoutBtn:    $('sidebarResetLayoutBtn'),
   modalOpenLayoutEditorBtn: $('modalOpenLayoutEditorBtn'),
   modalOpenLayoutMenuBtn:   $('modalOpenLayoutMenuBtn'),
@@ -500,6 +501,7 @@ async function init() {
   try { setupSearchInputs(); } catch (e) { console.error('setupSearchInputs error:', e); }
   try { initLayoutManager(); } catch (e) { console.error('initLayoutManager error:', e); }
   try { setupNavPosition(); } catch (e) { console.error('setupNavPosition error:', e); }
+  try { setupPWA(); } catch (e) { console.error('setupPWA error:', e); }
 
   // Привязка повтора в оффлайн-баннере
   els.offlineBannerRetryBtn?.addEventListener('click', async () => {
@@ -1051,6 +1053,128 @@ function updateSidebarGroupInfo() {
   if (els.sidebarGroupName) els.sidebarGroupName.textContent = S.group;
   if (els.sidebarGroupAvatar) els.sidebarGroupAvatar.textContent = S.group.slice(0, 2).toUpperCase();
   if (els.topbarGroupName) els.topbarGroupName.textContent = S.group;
+}
+
+// ════════════════════════════════════════
+//  PROGRESSIVE WEB APP (PWA)
+// ════════════════════════════════════════
+let deferredInstallPrompt = null;
+
+function setupPWA() {
+  // 1. Регистрация Service Worker с корневым scope
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .then(reg => {
+          console.log('[PWA] Service Worker registered with scope:', reg.scope);
+        })
+        .catch(err => {
+          console.warn('[PWA] Service Worker registration failed:', err);
+        });
+    });
+  }
+
+  const pwaBtn = els.sidebarInstallPwaBtn || $('sidebarInstallPwaBtn');
+
+  // Проверка автономного режима (уже запущено как PWA)
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                       window.navigator.standalone === true;
+
+  if (isStandalone && pwaBtn) {
+    const label = pwaBtn.querySelector('.sidebar-nav-label');
+    if (label) label.textContent = 'PWA установлено';
+  }
+
+  // 2. Перехват события перед показом диалога установки
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    console.log('[PWA] beforeinstallprompt event captured');
+
+    if (pwaBtn) {
+      pwaBtn.style.display = '';
+      if (!pwaBtn.querySelector('.pwa-ready-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'pwa-ready-badge';
+        badge.textContent = 'Доступно';
+        badge.style.cssText = 'background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); font-size: 10px; padding: 2px 6px; border-radius: 6px; margin-left: auto;';
+        const actionCol = pwaBtn.querySelector('.menu-action-col');
+        if (actionCol) {
+          actionCol.parentNode.insertBefore(badge, actionCol);
+        } else {
+          pwaBtn.appendChild(badge);
+        }
+      }
+    }
+  });
+
+  // 3. Обработка успешной установки приложения
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    console.log('[PWA] Application installed');
+    showToast('Приложение успешно установлено на главный экран!');
+    if (pwaBtn) {
+      const label = pwaBtn.querySelector('.sidebar-nav-label');
+      if (label) label.textContent = 'PWA установлено';
+      const badge = pwaBtn.querySelector('.pwa-ready-badge');
+      if (badge) badge.remove();
+    }
+  });
+
+  // 4. Клик по кнопке «Установить PWA» в сайдбаре
+  pwaBtn?.addEventListener('click', async () => {
+    closeSidebar();
+
+    const currentlyStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                                window.navigator.standalone === true;
+    if (currentlyStandalone) {
+      showToast('Приложение уже установлено и работает как PWA');
+      return;
+    }
+
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const choiceResult = await deferredInstallPrompt.userChoice;
+      if (choiceResult.outcome === 'accepted') {
+        showToast('Установка приложения началась...');
+      } else {
+        showToast('Установка отменена');
+      }
+      deferredInstallPrompt = null;
+    } else {
+      const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+      if (isIOS) {
+        showPwaIosInstructions();
+      } else {
+        showToast('Для установки нажмите ⋮ меню браузера → «Установить приложение»');
+      }
+    }
+  });
+}
+
+function showPwaIosInstructions() {
+  const existing = $('pwaIosModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'pwaIosModal';
+  modal.className = 'modal-backdrop open';
+  modal.style.zIndex = '3000';
+  modal.innerHTML = `
+    <div class="modal open" style="max-width:380px;text-align:center;padding:24px 20px;">
+      <div style="font-size:2.2rem;margin-bottom:12px;">📲</div>
+      <h3 style="font-size:1.15rem;font-weight:700;margin-bottom:12px;color:var(--text, #fff);">Установка на iPhone / iPad</h3>
+      <p style="font-size:0.88rem;color:var(--text-muted);line-height:1.5;margin-bottom:16px;text-align:left;">
+        1. Нажмите кнопку <strong>«Поделиться»</strong> <svg style="display:inline-block;vertical-align:middle;width:18px;height:18px;color:var(--accent,#6366f1);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> внизу Safari.<br>
+        2. Прокрутите список и выберите <strong>«На экран "Домой"»</strong>.<br>
+        3. В правом верхнем углу нажмите <strong>«Добавить»</strong>.
+      </p>
+      <button class="settings-modal-btn" style="width:100%;" id="pwaIosModalClose">Понятно</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  $('pwaIosModalClose').onclick = () => modal.remove();
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }
 
 function isTestTab(tabName) {
@@ -3671,6 +3795,7 @@ const DEFAULT_MENU_SECTION_MAP = {
   'menu-theme':         'system',
   'menu-support':       'system',
   'menu-layout-editor': 'system',
+  'menu-pwa-install':   'system',
   'menu-sync-footer':   'system'
 };
 
@@ -3688,6 +3813,7 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
+  { id: 'menu-pwa-install',   visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
 ];
 
@@ -3706,6 +3832,7 @@ const PRESETS_MENU = {
     { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-pwa-install',   visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
   ],
   studyOnly: [
@@ -3722,6 +3849,7 @@ const PRESETS_MENU = {
     { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-pwa-install',   visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
   ],
   minimal: [
@@ -3738,6 +3866,7 @@ const PRESETS_MENU = {
     { id: 'menu-theme',         visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-pwa-install',   visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: false, section: 'system',  color: 'default' },
   ]
 };
