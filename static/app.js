@@ -1143,24 +1143,27 @@ function showToastWithAction(msg, actionText, onAction, duration = 4000) {
   }
   toast.style.cssText = `
     position: fixed;
-    top: 24px;
+    top: 18px;
     left: 50%;
     transform: translateX(-50%) translateY(-20px);
     background: var(--bg-card, #1c1c28);
     color: var(--text, #fff);
     border: 1px solid var(--accent, #6366f1);
     box-shadow: 0 12px 32px rgba(0,0,0,0.6);
-    padding: 10px 16px;
-    border-radius: 20px;
+    padding: 10px 14px;
+    border-radius: 16px;
     font-size: 13px;
     font-weight: 600;
+    line-height: 1.35;
     z-index: 9999;
     opacity: 0;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
     align-items: center;
     gap: 10px;
-    max-width: 90vw;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    box-sizing: border-box;
     text-align: left;
     pointer-events: auto;
   `;
@@ -1169,8 +1172,8 @@ function showToastWithAction(msg, actionText, onAction, duration = 4000) {
     <span style="display:inline-flex;color:var(--accent,#818cf8);flex-shrink:0;">
       <svg style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     </span>
-    <span style="flex:1;">${esc(msg)}</span>
-    ${actionText ? `<button id="toastActionBtn" style="background:var(--accent,#6366f1);color:#fff;border:none;border-radius:12px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;transition:transform 0.15s;">${esc(actionText)}</button>` : ''}
+    <span style="flex:1;word-break:break-word;">${esc(msg)}</span>
+    ${actionText ? `<button id="toastActionBtn" style="background:var(--accent,#6366f1);color:#fff;border:none;border-radius:10px;padding:6px 14px;min-height:36px;box-sizing:border-box;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;transition:transform 0.15s;">${esc(actionText)}</button>` : ''}
   `;
 
   if (actionText && onAction) {
