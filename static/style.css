@@ -2378,6 +2378,64 @@ input {
   font-weight: 500;
 }
 
+.diary-trouble-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-card, #14141e);
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  font-size: 0.84rem;
+  color: var(--text-muted, #94a3b8);
+  flex-shrink: 0;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+
+.diary-trouble-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.diary-trouble-text svg {
+  width: 16px;
+  height: 16px;
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.diary-trouble-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--accent, #6366f1);
+  color: #fff;
+  border: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.diary-trouble-btn:hover {
+  opacity: 0.9;
+}
+
+.diary-trouble-btn:active {
+  transform: scale(0.96);
+}
+
+.diary-trouble-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 @media (max-width: 768px) {
   .diary-modal-window {
     width: 100vw;

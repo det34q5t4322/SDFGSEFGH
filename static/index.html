@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260906_9">
+  <link rel="stylesheet" href="/static/style.css?v=20260906_10">
   <script>
     (function() {
       try {
@@ -837,6 +837,16 @@
         </div>
         <iframe id="diaryIframe" class="diary-iframe" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
       </div>
+      <div class="diary-trouble-bar" id="diaryTroubleBar">
+        <div class="diary-trouble-text">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+          <span>Белый экран? Браузер блокирует cookie 1С</span>
+        </div>
+        <button class="diary-trouble-btn" id="diaryTroubleBtn" type="button">
+          <span>Открыть напрямую</span>
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1093,7 +1103,7 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/onboarding.js?v=20260906_9"></script>
-  <script src="/static/app.js?v=20260906_9"></script>
+  <script src="/static/onboarding.js?v=20260906_10"></script>
+  <script src="/static/app.js?v=20260906_10"></script>
 </body>
 </html>

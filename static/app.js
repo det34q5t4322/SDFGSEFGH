@@ -333,6 +333,7 @@ const els = {
   diaryLoader:          $('diaryLoader'),
   diaryReloadBtn:       $('diaryReloadBtn'),
   diaryExternalBtn:     $('diaryExternalBtn'),
+  diaryTroubleBtn:      $('diaryTroubleBtn'),
   sidebarDiaryBtn:      $('sidebarDiaryBtn'),
 
   onboardModal:         $('onboardModal'),
@@ -1037,7 +1038,17 @@ function setupSidebar() {
   const diaryBtn = document.getElementById('sidebarDiaryBtn');
   diaryBtn?.addEventListener('click', () => {
     closeSidebar();
-    openDiaryModal();
+    const isTelegramMobile = Boolean(
+      window.Telegram?.WebApp?.initData &&
+      window.Telegram?.WebApp?.openLink &&
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    );
+
+    if (isTelegramMobile) {
+      window.Telegram.WebApp.openLink(DIARY_1C_URL, { try_instant_view: false });
+    } else {
+      openDiaryModal();
+    }
   });
 
   let startX = 0;
@@ -3583,13 +3594,16 @@ els.diaryReloadBtn?.addEventListener('click', () => {
   }
 });
 
-els.diaryExternalBtn?.addEventListener('click', () => {
+function openDiaryExternal() {
   if (window.Telegram?.WebApp?.openLink) {
     window.Telegram.WebApp.openLink(DIARY_1C_URL, { try_instant_view: false });
   } else {
     window.open(DIARY_1C_URL, '_blank', 'noopener,noreferrer');
   }
-});
+}
+
+els.diaryExternalBtn?.addEventListener('click', openDiaryExternal);
+els.diaryTroubleBtn?.addEventListener('click', openDiaryExternal);
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && els.diaryModal?.classList.contains('open')) {
