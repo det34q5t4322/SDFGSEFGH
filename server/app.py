@@ -364,11 +364,28 @@ async def get_schedule(
     schedules = data.get("schedules", {})
 
     if group_norm not in schedules:
-        # Регистронезависимый поиск группы
+        # 1. Точное совпадение без учета регистра
         matched = next((g for g in schedules if g.lower() == group_norm.lower()), None)
         if matched:
             group_norm = matched
         else:
+            # 2. Очистка от пробелов и дефисов
+            clean_input = re.sub(r'[\s\-]+', '', group_norm).lower()
+            matched = next((g for g in schedules if re.sub(r'[\s\-]+', '', g).lower() == clean_input), None)
+            if matched:
+                group_norm = matched
+            else:
+                # 3. Отрезание суффиксов подгрупп (например, "ИСС9-25П", "ИСС9-25 (1)", "ИСС9-25-1")
+                base_cand = re.sub(r'[-_\s]*[пП\(\)\d]+$', '', group_norm).strip()
+                if base_cand:
+                    matched = next((g for g in schedules if g.lower() == base_cand.lower()), None)
+                    if not matched:
+                        clean_base = re.sub(r'[\s\-]+', '', base_cand).lower()
+                        matched = next((g for g in schedules if re.sub(r'[\s\-]+', '', g).lower() == clean_base), None)
+                    if matched:
+                        group_norm = matched
+
+        if group_norm not in schedules:
             raise HTTPException(status_code=404, detail=f"Группа '{group}' не найдена")
 
     return {

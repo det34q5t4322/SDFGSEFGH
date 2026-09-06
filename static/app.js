@@ -2095,6 +2095,29 @@ async function loadSchedule(force = false) {
     const forceParam = force ? '&force=true' : '';
     const url = `${API}/schedule?group=${encodeURIComponent(S.group)}${tabParam}${forceParam}`;
     const res = await fetchWithTimeout(url, { signal: currentSignal }, 8500);
+    if (res.status === 404) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      if (els.scheduleView) {
+        els.scheduleView.removeAttribute('aria-busy');
+        els.scheduleView.innerHTML = `
+          <div class="schedule-error-card">
+            <div class="schedule-error-icon">${ICONS.search || ICONS.alert}</div>
+            <div class="schedule-error-title">Группа «${escapeHtml(S.group)}» не найдена</div>
+            <div class="schedule-error-desc">Проверьте правильность написания или выберите действующую группу колледжа:</div>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:16px;">
+              <button class="primary-btn" onclick="openGroupModal()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:12px;background:var(--accent,#6366f1);color:#fff;border:none;font-weight:600;cursor:pointer;">
+                <span>Выбрать группу</span>
+              </button>
+              <button class="secondary-btn" onclick="saveActiveGroup('ИСС9-25'); loadSchedule(true);" style="display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:12px;background:rgba(255,255,255,0.08);color:var(--text,#fff);border:1px solid var(--border,rgba(255,255,255,0.15));font-weight:600;cursor:pointer;">
+                <span>Сбросить на ИСС9-25</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+      return;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const freshData = await res.json();
 
