@@ -1167,40 +1167,27 @@ function setupPWA() {
   });
 
   // 4. Клик по кнопке «Установить PWA» в сайдбаре
-  pwaBtn?.addEventListener('click', async (e) => {
+  const handlePwaClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     closeSidebar();
-
-    const isTelegram = Boolean(window.Telegram?.WebApp?.initData || window.TelegramWebviewProxy);
-
-    // Если браузер поддерживает прямой системный диалог установки и мы не внутри Telegram:
-    if (deferredInstallPrompt && !isTelegram) {
-      try {
-        deferredInstallPrompt.prompt();
-        const choiceResult = await deferredInstallPrompt.userChoice;
-        if (choiceResult.outcome === 'accepted') {
-          showToast('Установка приложения началась...');
-          deferredInstallPrompt = null;
-          return;
-        }
-      } catch (err) {
-        console.warn('Install prompt error:', err);
-      }
-      deferredInstallPrompt = null;
-    }
-
-    // Всегда открываем подробную, понятную модалку с инструкцией и кнопками!
     openPwaInstallModal();
-  });
+  };
+  pwaBtn?.addEventListener('click', handlePwaClick);
 }
 
 function openPwaInstallModal() {
   const existing = $('pwaInstallModal');
   if (existing) existing.remove();
 
-  const isTelegram = Boolean(window.Telegram?.WebApp?.initData || window.TelegramWebviewProxy);
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent || '');
+  const tg = window.Telegram?.WebApp;
+  const isTelegram = Boolean(
+    (tg && tg.platform && tg.platform !== 'unknown') ||
+    (tg && tg.initData && tg.initData.length > 0) ||
+    window.TelegramWebviewProxy ||
+    /telegram/i.test(navigator.userAgent || '')
+  );
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
   const modal = document.createElement('div');

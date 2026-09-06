@@ -4,13 +4,13 @@
    Offline Fallback for navigation.
    ════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'college-schedule-cache-v2';
+const CACHE_NAME = 'college-schedule-cache-v3';
 
 const STATIC_SHELL_ASSETS = [
   '/',
   '/static/style.css?v=20260906_6',
-  '/static/app.js?v=20260906_6',
-  '/static/onboarding.js?v=20260906_6',
+  '/static/app.js?v=20260906_7',
+  '/static/onboarding.js?v=20260906_7',
   '/static/sortable.min.js',
   '/static/telegram-web-app.js?v=20260906_1',
   '/static/manifest.webmanifest',
