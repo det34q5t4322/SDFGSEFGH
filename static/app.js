@@ -162,9 +162,19 @@ const DEFAULT_GROUPS = [
 
 const DEFAULT_GROUP = 'ИСС9-25';
 
+function sanitizeGroupName(name) {
+  if (!name || typeof name !== 'string') return DEFAULT_GROUP;
+  let clean = name.trim();
+  // Устранение ошибочного суффикса 'П' для группы ИСС9-25 (в колледже существует ИСС9-25)
+  if (/^ИСС9-25[пП]$/i.test(clean)) {
+    clean = 'ИСС9-25';
+  }
+  return clean || DEFAULT_GROUP;
+}
+
 // ── STATE ───────────────────────────────
 const S = {
-  group:              safeGetItem(STORAGE_GROUP, DEFAULT_GROUP),
+  group:              sanitizeGroupName(safeGetItem(STORAGE_GROUP, DEFAULT_GROUP)),
   activeGid:          '',
   parity:             'auto',
   parityOverride:     null,         // 'num' | 'den' | null (ручное переключение чётности через чип в шапке)
@@ -541,14 +551,15 @@ async function init() {
   let urlGroup = null;
   try {
     const urlParams = new URLSearchParams(window.location.search);
-    urlGroup = urlParams.get('group') || urlParams.get('tgWebAppStartParam');
+    const rawUrl = urlParams.get('group') || urlParams.get('tgWebAppStartParam');
+    if (rawUrl) urlGroup = sanitizeGroupName(rawUrl);
   } catch (_) {}
 
   let savedGroup = null;
   try {
-    savedGroup = localStorage.getItem(STORAGE_GROUP) || localStorage.getItem('schedule_group');
-    if (savedGroup === 'null' || savedGroup === 'undefined' || !savedGroup.trim()) {
-      savedGroup = null;
+    const rawSaved = safeGetItem(STORAGE_GROUP) || safeGetItem('schedule_group');
+    if (rawSaved && rawSaved !== 'null' && rawSaved !== 'undefined' && rawSaved.trim()) {
+      savedGroup = sanitizeGroupName(rawSaved);
     }
   } catch (_) {}
 
@@ -563,10 +574,11 @@ async function init() {
   } else {
     S.group = DEFAULT_GROUP;
   }
+  S.group = sanitizeGroupName(S.group);
 
   try {
-    localStorage.setItem(STORAGE_GROUP, S.group);
-    localStorage.setItem('schedule_group', S.group);
+    safeSetItem(STORAGE_GROUP, S.group);
+    safeSetItem('schedule_group', S.group);
     const u = new URL(window.location.href);
     u.searchParams.set('group', S.group);
     window.history.replaceState(null, '', u.toString());
@@ -585,16 +597,20 @@ async function init() {
       fetch(`/api/user-group?user_id=${tgUser.id}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data && data.group && data.group !== S.group && !savedGroup) {
-            S.group = data.group;
-            try {
-              localStorage.setItem(STORAGE_GROUP, data.group);
-              const u = new URL(window.location.href);
-              u.searchParams.set('group', data.group);
-              window.history.replaceState(null, '', u.toString());
-            } catch (_) {}
-            updateSidebarGroupInfo();
-            loadSchedule();
+          if (data && data.group) {
+            const cleanTg = sanitizeGroupName(data.group);
+            if (cleanTg !== S.group && !savedGroup) {
+              S.group = cleanTg;
+              try {
+                safeSetItem(STORAGE_GROUP, cleanTg);
+                safeSetItem('schedule_group', cleanTg);
+                const u = new URL(window.location.href);
+                u.searchParams.set('group', cleanTg);
+                window.history.replaceState(null, '', u.toString());
+              } catch (_) {}
+              updateSidebarGroupInfo();
+              loadSchedule();
+            }
           }
         })
         .catch(() => {});
@@ -605,12 +621,14 @@ async function init() {
     try {
       window.Telegram.WebApp.CloudStorage.getItem(STORAGE_GROUP, (err, val) => {
         if (!err && val && val !== 'null' && val !== 'undefined') {
-          if (val !== S.group && !savedGroup) {
-            S.group = val;
+          const cleanCloud = sanitizeGroupName(val);
+          if (cleanCloud !== S.group && !savedGroup) {
+            S.group = cleanCloud;
             try {
-              localStorage.setItem(STORAGE_GROUP, val);
+              safeSetItem(STORAGE_GROUP, cleanCloud);
+              safeSetItem('schedule_group', cleanCloud);
               const u = new URL(window.location.href);
-              u.searchParams.set('group', val);
+              u.searchParams.set('group', cleanCloud);
               window.history.replaceState(null, '', u.toString());
             } catch (_) {}
             updateSidebarGroupInfo();
@@ -1138,8 +1156,9 @@ function isTestTab(tabName) {
 function getWeekDateRange(weekOffset = 0) {
   const now = new Date();
   const dow = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  const dayFromMon = (dow === 0 ? 7 : dow) - 1; // 0 for Mon, 6 for Sun
-  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayFromMon + (weekOffset * 7));
+  // В воскресенье учебная неделя завершена; студенты смотрят расписание на наступающую неделю (с понедельника завтра)
+  const dayOffsetToMon = (dow === 0) ? 1 : -(dow - 1);
+  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffsetToMon + (weekOffset * 7));
   mon.setHours(0, 0, 0, 0);
   const sat = new Date(mon);
   sat.setDate(mon.getDate() + 5);
@@ -1166,7 +1185,14 @@ function findTabForWeek(weekOffset = 0) {
     }
   }
 
-  if (matching.length === 0) return null;
+  if (matching.length === 0) {
+    // Fallback: для текущей недели, если диапазон ещё не попал в расписание, берём официальную активную вкладку
+    if (weekOffset === 0) {
+      const activeTab = (S.tabs || []).find(t => t.is_active && !isTestTab(t.name));
+      if (activeTab) return activeTab;
+    }
+    return null;
+  }
 
   // 1. Точное совпадение: диапазон дат + тип недели (числитель/знаменатель)
   const parityMatch = matching.find(t => t.parity === targetParity);
@@ -2015,6 +2041,7 @@ async function loadSchedule(force = false) {
   S.isLoading = true;
 
   if (!S.group) S.group = DEFAULT_GROUP;
+  S.group = sanitizeGroupName(S.group);
   updateSidebarGroupInfo();
 
   const cacheKey = STORAGE_CACHE_PREFIX + S.group + '_' + (S.activeGid || 'active');
@@ -2086,7 +2113,7 @@ async function loadSchedule(force = false) {
         renderScheduleNotPublished();
         return;
       } else if (!S.activeGid || S.activeGid === 'active') {
-        const foundActive = S.tabs.find(t => t.is_active);
+        const foundActive = S.tabs.find(t => t.is_active && !isTestTab(t.name));
         S.activeGid = foundActive ? foundActive.gid : (S.tabs[0]?.gid || '');
       }
     }
@@ -2141,6 +2168,11 @@ async function loadSchedule(force = false) {
     hideOfflineBanner();
 
     S.isNotPublished = false;
+    if (freshData.group) {
+      S.group = sanitizeGroupName(freshData.group);
+      safeSetItem(STORAGE_GROUP, S.group);
+      safeSetItem('schedule_group', S.group);
+    }
     S.data = freshData;
     S.hasInitiallyLoadedFreshData = true;
 
@@ -2357,11 +2389,9 @@ function renderWeek() {
 }
 
 function getDayDate(dow) {
-  const today = new Date();
-  const todayDow = today.getDay() || 7;
-  const diff = dow - todayDow + (S.weekOffset * 7);
-  const d = new Date(today);
-  d.setDate(today.getDate() + diff);
+  const { mon } = getWeekDateRange(S.weekOffset || 0);
+  const d = new Date(mon);
+  d.setDate(mon.getDate() + (dow - 1));
   return d;
 }
 
@@ -3488,14 +3518,15 @@ function ensureGroupsLoaded() {
 }
 
 function saveActiveGroup(grp) {
-  S.group = grp;
+  const clean = sanitizeGroupName(grp);
+  S.group = clean;
   try {
-    safeSetItem(STORAGE_GROUP, grp);
-    safeSetItem('schedule_group', grp);
+    safeSetItem(STORAGE_GROUP, clean);
+    safeSetItem('schedule_group', clean);
   } catch (_) {}
   if (window.Telegram?.WebApp?.CloudStorage) {
     try {
-      window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, grp);
+      window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, clean);
     } catch (_) {}
   }
   try {
@@ -3506,7 +3537,7 @@ function saveActiveGroup(grp) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: Number(tgUser.id),
-          group: grp,
+          group: clean,
           init_data: window.Telegram?.WebApp?.initData || ''
         })
       }).catch(() => {});
@@ -3514,7 +3545,7 @@ function saveActiveGroup(grp) {
   } catch (_) {}
   try {
     const u = new URL(window.location.href);
-    u.searchParams.set('group', grp);
+    u.searchParams.set('group', clean);
     window.history.replaceState(null, '', u.toString());
   } catch (_) {}
 }
