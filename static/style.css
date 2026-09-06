@@ -6113,12 +6113,14 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
 
 /* ── 2. Снизу (Bottom Navigation Bar) ── */
 .bottom-nav-bar {
-  display: none;
+  display: flex;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 62px;
+  height: calc(60px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
   background: var(--sidebar-glass, rgba(15, 16, 28, 0.94));
   backdrop-filter: blur(28px) saturate(190%);
   -webkit-backdrop-filter: blur(28px) saturate(190%);
@@ -6127,7 +6129,8 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
   z-index: 1000;
   align-items: center;
   justify-content: space-around;
-  padding: 0 4px;
+  padding-left: calc(4px + env(safe-area-inset-left, 0px));
+  padding-right: calc(4px + env(safe-area-inset-right, 0px));
 }
 
 [data-nav-position="bottom"] .bottom-nav-bar {
@@ -6135,7 +6138,7 @@ body:not(.menu-editing-active) .sidebar-nav-item.menu-item-hidden {
 }
 
 [data-nav-position="bottom"] .app-wrapper {
-  padding-bottom: 74px !important;
+  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 .bottom-nav-item {

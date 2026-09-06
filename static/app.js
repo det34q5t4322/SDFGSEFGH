@@ -47,8 +47,8 @@ function safeRemoveItem(key) {
     document.documentElement.setAttribute('data-font', savedFont);
     const savedSize = safeGetItem(STORAGE_FONT_SIZE, 'normal');
     document.documentElement.setAttribute('data-font-size', savedSize);
-    const savedNavPos = safeGetItem(STORAGE_NAV_POSITION, 'left');
-    document.documentElement.setAttribute('data-nav-position', savedNavPos);
+    const savedNavPos = safeGetItem(STORAGE_NAV_POSITION, 'bottom');
+    document.documentElement.setAttribute('data-nav-position', 'bottom');
 
     if (safeGetItem(STORAGE_SHOW_TEACHER) === 'false') {
       document.documentElement.setAttribute('data-hide-teacher', 'true');
@@ -4594,62 +4594,46 @@ function syncActiveMenuConfigFromDOM() {
   updatePresetsUI();
 }
 
-// ── НАВИГАЦИОННОЕ РАСПОЛОЖЕНИЕ (Left / Bottom / Top / Right) ──
+// ── НАВИГАЦИОННОЕ РАСПОЛОЖЕНИЕ (По умолчанию и только снизу: Bottom Tab Bar) ──
 function getStoredNavPosition() {
-  try {
-    return localStorage.getItem(STORAGE_NAV_POSITION) || 'left';
-  } catch (_) {
-    return 'left';
-  }
+  return 'bottom';
 }
 
-function applyNavPosition(pos, persist = false) {
-  const valid = ['left', 'bottom', 'top', 'right'];
-  if (!valid.includes(pos)) pos = 'left';
-
-  document.documentElement.setAttribute('data-nav-position', pos);
+function applyNavPosition(pos = 'bottom', persist = false) {
+  document.documentElement.setAttribute('data-nav-position', 'bottom');
 
   // Обновляем кнопки в панели конструктора
   document.querySelectorAll('#layoutNavPosChips .nav-pos-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.navPos === pos);
+    btn.classList.toggle('active', btn.dataset.navPos === 'bottom');
   });
 
   // Обновляем карточки в модальном окне настроек
   document.querySelectorAll('#modalNavPosSelectorGrid .nav-pos-card').forEach(card => {
-    card.classList.toggle('active', card.dataset.navPos === pos);
+    card.classList.toggle('active', card.dataset.navPos === 'bottom');
   });
 
   if (persist) {
     try {
-      localStorage.setItem(STORAGE_NAV_POSITION, pos);
+      localStorage.setItem(STORAGE_NAV_POSITION, 'bottom');
     } catch (_) {}
-    const labels = {
-      left: 'Слева (боковой сайдбар)',
-      bottom: 'Снизу (мобильный Tab Bar)',
-      top: 'Сверху (шапка)',
-      right: 'Справа (боковой сайдбар)'
-    };
-    showToast(`Меню: ${labels[pos] || pos}`);
+    showToast('Меню: Снизу (мобильный Tab Bar)');
   }
 }
 
 function setupNavPosition() {
-  const currentPos = getStoredNavPosition();
-  applyNavPosition(currentPos, false);
+  applyNavPosition('bottom', false);
 
   // Кнопки в панели конструктора
   document.querySelectorAll('#layoutNavPosChips .nav-pos-btn').forEach(btn => {
     btn.onclick = () => {
-      const pos = btn.dataset.navPos;
-      if (pos) applyNavPosition(pos, true);
+      applyNavPosition('bottom', true);
     };
   });
 
   // Карточки в окне настроек
   document.querySelectorAll('#modalNavPosSelectorGrid .nav-pos-card').forEach(card => {
     card.onclick = () => {
-      const pos = card.dataset.navPos;
-      if (pos) applyNavPosition(pos, true);
+      applyNavPosition('bottom', true);
     };
   });
 
