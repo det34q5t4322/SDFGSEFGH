@@ -3354,6 +3354,8 @@ function closeSupportModal() {
 els.closeSupportModal?.addEventListener('click', closeSupportModal);
 els.supportModal?.addEventListener('click', e => { if (e.target === els.supportModal) closeSupportModal(); });
 els.sidebarSupportBtn?.addEventListener('click', () => { closeSidebar(); openSupportModal(); });
+window.openSupportModal = openSupportModal;
+window.closeSupportModal = closeSupportModal;
 
 function showOnboarding() {
   ensureGroupsLoaded();
