@@ -322,6 +322,11 @@ const els = {
   groupsGrid:           $('groupsGrid'),
   courseChips:          $('courseChips'),
 
+  supportModal:         $('supportModal'),
+  closeSupportModal:    $('closeSupportModal'),
+  supportVideo:         $('supportVideo'),
+  sidebarSupportBtn:    $('sidebarSupportBtn'),
+
   onboardModal:         $('onboardModal'),
   onboardSearchInput:   $('onboardSearchInput'),
   onboardGroupsGrid:    $('onboardGroupsGrid'),
@@ -3321,6 +3326,35 @@ function closeGroupModal() {
 els.closeGroupModal?.addEventListener('click', closeGroupModal);
 els.groupModal?.addEventListener('click', e => { if (e.target === els.groupModal) closeGroupModal(); });
 
+function openSupportModal() {
+  if (els.supportModal) {
+    els.supportModal.classList.add('open');
+    if (els.supportVideo) {
+      try {
+        els.supportVideo.currentTime = 0;
+        els.supportVideo.play();
+      } catch (_) {}
+    }
+    updateTelegramBackButton();
+  }
+}
+
+function closeSupportModal() {
+  if (els.supportModal) {
+    els.supportModal.classList.remove('open');
+    if (els.supportVideo) {
+      try {
+        els.supportVideo.pause();
+      } catch (_) {}
+    }
+    updateTelegramBackButton();
+  }
+}
+
+els.closeSupportModal?.addEventListener('click', closeSupportModal);
+els.supportModal?.addEventListener('click', e => { if (e.target === els.supportModal) closeSupportModal(); });
+els.sidebarSupportBtn?.addEventListener('click', () => { closeSidebar(); openSupportModal(); });
+
 function showOnboarding() {
   ensureGroupsLoaded();
   els.onboardModal?.classList.add('open');
@@ -3511,6 +3545,7 @@ const DEFAULT_MENU_SECTION_MAP = {
   'menu-theme':         'system',
   'menu-refresh':       'system',
   'menu-onboarding':    'system',
+  'menu-support':       'system',
   'menu-layout-editor': 'system',
   'menu-sync-footer':   'system'
 };
@@ -3526,6 +3561,7 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
   { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
+  { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
   { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
 ];
@@ -3542,6 +3578,7 @@ const PRESETS_MENU = {
     { id: 'menu-change-group',  visible: true,  section: 'tools',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
   ],
@@ -3556,6 +3593,7 @@ const PRESETS_MENU = {
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: true,  section: 'system',  color: 'default' },
   ],
@@ -3570,6 +3608,7 @@ const PRESETS_MENU = {
     { id: 'menu-diary',         visible: false, section: 'study',   color: 'default' },
     { id: 'menu-refresh',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-onboarding',    visible: true,  section: 'system',  color: 'default' },
+    { id: 'menu-support',       visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-layout-editor', visible: true,  section: 'system',  color: 'default' },
     { id: 'menu-sync-footer',   visible: false, section: 'system',  color: 'default' },
   ]

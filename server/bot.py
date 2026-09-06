@@ -704,6 +704,26 @@ async def diary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard, disable_notification=True)
 
 
+async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /support — отправка гифки службы поддержки."""
+    anim_path = os.path.join(os.path.dirname(__file__), "..", "static", "support_animation.mp4")
+    chat_id = update.effective_chat.id
+    if os.path.exists(anim_path):
+        try:
+            with open(anim_path, "rb") as f:
+                await context.bot.send_animation(
+                    chat_id=chat_id,
+                    animation=f,
+                    caption="🎧 <b>Служба поддержки</b>\nМы получили Ваше обращение и внимательно его изучаем!",
+                    parse_mode="HTML",
+                    disable_notification=True,
+                )
+                return
+        except Exception as e:
+            logger.warning(f"Ошибка отправки анимации поддержки: {e}")
+    await send_or_edit(update, context, "🎧 Служба поддержки всегда на связи!")
+
+
 async def post_init(application) -> None:
     """Регистрация команд в официальном меню Telegram и кнопки WebApp."""
     try:
@@ -715,6 +735,7 @@ async def post_init(application) -> None:
             BotCommand("alarm", "💀🚨 До английского"),
             BotCommand("group", "⚙️ Сменить группу"),
             BotCommand("diary", "📚 Дневник 1С"),
+            BotCommand("support", "🎧 Служба поддержки"),
             BotCommand("start", "🔄 Главное меню"),
         ])
         logger.info("Команды меню бота успешно зарегистрированы!")
@@ -776,6 +797,7 @@ def create_bot_app():
     app.add_handler(CommandHandler(["alarm", "english"], alarm_command))
     app.add_handler(CommandHandler("group", show_courses_menu))
     app.add_handler(CommandHandler(["diary", "dnevnik"], diary_command))
+    app.add_handler(CommandHandler(["support", "help_me"], support_command))
 
     # Регистрация callback-обработчиков (редактирование на месте)
     app.add_handler(CallbackQueryHandler(show_courses_menu, pattern="^select_group_courses$"))

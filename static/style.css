@@ -7391,3 +7391,48 @@ body.menu-editing-active .sidebar-footer.menu-item-hidden {
   background: linear-gradient(135deg, #10b981, #059669);
   box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
 }
+
+
+/* ════════════════════════════════════════════
+   MODAL: ПОДДЕРЖКА
+════════════════════════════════════════════ */
+.modal-sheet-support {
+  max-width: 440px;
+  text-align: center;
+}
+
+.support-modal-body {
+  padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.support-anim-wrap {
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background: #ffffff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.support-video {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+.support-subtitle {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-sub, rgba(255, 255, 255, 0.75));
+  margin: 0;
+  text-align: center;
+}
