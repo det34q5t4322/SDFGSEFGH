@@ -376,14 +376,20 @@ async def get_schedule(
                 group_norm = matched
             else:
                 # 3. Отрезание суффиксов подгрупп (например, "ИСС9-25П", "ИСС9-25 (1)", "ИСС9-25-1")
-                base_cand = re.sub(r'[-_\s]*[пП\(\)\d]+$', '', group_norm).strip()
-                if base_cand:
-                    matched = next((g for g in schedules if g.lower() == base_cand.lower()), None)
-                    if not matched:
-                        clean_base = re.sub(r'[\s\-]+', '', base_cand).lower()
-                        matched = next((g for g in schedules if re.sub(r'[\s\-]+', '', g).lower() == clean_base), None)
-                    if matched:
-                        group_norm = matched
+                candidates = [
+                    re.sub(r'[пП]$', '', group_norm).strip(),
+                    re.sub(r'[\(\s\-]+[12]п?[\)\s]*$', '', group_norm, flags=re.I).strip(),
+                    re.sub(r'[\s\-]+', '', re.sub(r'[пП]$', '', group_norm)).strip()
+                ]
+                for cand in candidates:
+                    if cand and cand != group_norm:
+                        matched = next((g for g in schedules if g.lower() == cand.lower()), None)
+                        if not matched:
+                            clean_cand = re.sub(r'[\s\-]+', '', cand).lower()
+                            matched = next((g for g in schedules if re.sub(r'[\s\-]+', '', g).lower() == clean_cand), None)
+                        if matched:
+                            group_norm = matched
+                            break
 
         if group_norm not in schedules:
             raise HTTPException(status_code=404, detail=f"Группа '{group}' не найдена")
