@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -239,37 +239,14 @@ async def ping():
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    icon_path = os.path.join(STATIC_DIR, "icons", "favicon-32x32.png")
-    if os.path.exists(icon_path):
-        return FileResponse(icon_path, media_type="image/png")
     return JSONResponse(status_code=204, content=None)
-
-
-@app.get("/manifest.webmanifest", include_in_schema=False)
-@app.get("/manifest.json", include_in_schema=False)
-async def get_manifest():
-    manifest_path = os.path.join(STATIC_DIR, "manifest.webmanifest")
-    if not os.path.exists(manifest_path):
-        manifest_path = os.path.join(STATIC_DIR, "manifest.json")
-    return FileResponse(
-        manifest_path,
-        media_type="application/manifest+json",
-        headers={"Cache-Control": "public, max-age=3600"}
-    )
 
 
 @app.get("/sw.js", include_in_schema=False)
 @app.get("/service-worker.js", include_in_schema=False)
-async def get_service_worker():
-    sw_path = os.path.join(STATIC_DIR, "sw.js")
-    return FileResponse(
-        sw_path,
-        media_type="application/javascript",
-        headers={
-            "Cache-Control": "no-cache, must-revalidate",
-            "Service-Worker-Allowed": "/",
-        }
-    )
+async def unregister_sw():
+    content = "self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.registration.unregister().then(()=>caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))))));"
+    return Response(content=content, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @app.get("/")
