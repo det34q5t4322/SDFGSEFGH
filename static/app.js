@@ -1056,11 +1056,7 @@ function setupSidebar() {
   const diaryBtn = document.getElementById('sidebarDiaryBtn');
   diaryBtn?.addEventListener('click', () => {
     closeSidebar();
-    if (window.Telegram?.WebApp?.openLink) {
-      window.Telegram.WebApp.openLink(DIARY_1C_URL, { try_instant_view: false });
-    } else {
-      openDiaryModal();
-    }
+    openDiaryExternal();
   });
 
   let startX = 0;
@@ -3604,44 +3600,6 @@ window.closeSupportModal = closeSupportModal;
 // ── ЭЛЕКТРОННЫЙ ДНЕВНИК 1С:КОЛЛЕДЖ ──
 const DIARY_1C_URL = 'https://online-obr-e5cloud-02-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi';
 
-function openDiaryModal() {
-  if (els.diaryModal) {
-    els.diaryModal.classList.add('open');
-    document.body.style.overflow = 'hidden';
-
-    if (els.diaryIframe) {
-      if (!els.diaryIframe.src || els.diaryIframe.src === 'about:blank' || !els.diaryIframe.src.includes('1c.ru')) {
-        if (els.diaryLoader) els.diaryLoader.classList.remove('hidden');
-        els.diaryIframe.src = DIARY_1C_URL;
-        els.diaryIframe.onload = () => {
-          if (els.diaryLoader) els.diaryLoader.classList.add('hidden');
-        };
-      }
-    }
-    updateTelegramBackButton();
-  }
-}
-
-function closeDiaryModal() {
-  if (els.diaryModal) {
-    els.diaryModal.classList.remove('open');
-    document.body.style.overflow = '';
-    updateTelegramBackButton();
-  }
-}
-
-els.closeDiaryModal?.addEventListener('click', closeDiaryModal);
-els.diaryModal?.addEventListener('click', (e) => {
-  if (e.target === els.diaryModal) closeDiaryModal();
-});
-
-els.diaryReloadBtn?.addEventListener('click', () => {
-  if (els.diaryIframe) {
-    if (els.diaryLoader) els.diaryLoader.classList.remove('hidden');
-    els.diaryIframe.src = DIARY_1C_URL;
-  }
-});
-
 function openDiaryExternal() {
   if (window.Telegram?.WebApp?.openLink) {
     window.Telegram.WebApp.openLink(DIARY_1C_URL, { try_instant_view: false });
@@ -3650,16 +3608,19 @@ function openDiaryExternal() {
   }
 }
 
-els.diaryExternalBtn?.addEventListener('click', openDiaryExternal);
-els.diaryTroubleBtn?.addEventListener('click', openDiaryExternal);
+function openDiaryModal() {
+  openDiaryExternal();
+}
 
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && els.diaryModal?.classList.contains('open')) {
-    closeDiaryModal();
+function closeDiaryModal() {
+  if (els.diaryModal) {
+    els.diaryModal.classList.remove('open');
+    document.body.style.overflow = '';
   }
-});
+}
 
-window.openDiaryModal = openDiaryModal;
+window.openDiaryModal = openDiaryExternal;
+window.openDiaryExternal = openDiaryExternal;
 window.closeDiaryModal = closeDiaryModal;
 
 function showOnboarding() {

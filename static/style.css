@@ -3995,6 +3995,28 @@ input {
   box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
   animation: pulseDot 1s infinite alternate;
 }
+.sidebar-external-arrow {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.55;
+  color: var(--text-muted, rgba(255, 255, 255, 0.55));
+  transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
+}
+.sidebar-nav-item:hover .sidebar-external-arrow {
+  opacity: 1;
+  color: var(--accent, #6366f1);
+  transform: translate(2px, -2px);
+}
+.sidebar-external-arrow svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.2;
+}
+body.menu-editing-active .sidebar-external-arrow {
+  display: none !important;
+}
 
 /* ── EMERGENCY ALARM CARD & VIEW ── */
 .english-alarm-view-wrap {
