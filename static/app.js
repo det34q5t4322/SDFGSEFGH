@@ -317,8 +317,10 @@ const els = {
   sidebarFooter:        $('sidebarFooter'),
   sidebarChangeGroup:   $('sidebarChangeGroup'),
   sidebarRefresh:       $('sidebarRefresh'),
-  sidebarOnboardingBtn: $('sidebarOnboardingBtn'),
-  sidebarSettingsBtn:   $('sidebarSettingsBtn') || $('sidebarThemeBtn'),
+  sidebarOnboardingBtn:   $('sidebarOnboardingBtn'),
+  sidebarGraduationBtn:   $('sidebarGraduationBtn'),
+  sidebarGraduationLabel: $('sidebarGraduationLabel'),
+  sidebarSettingsBtn:     $('sidebarSettingsBtn') || $('sidebarThemeBtn'),
 
   topbarGroupName:      $('topbarGroupName'),
   topbarParity:         $('topbarParity'),
@@ -593,6 +595,7 @@ async function init() {
   try { setupSearchInputs(); } catch (e) { console.error('setupSearchInputs error:', e); }
   try { initLayoutManager(); } catch (e) { console.error('initLayoutManager error:', e); }
   try { setupNavPosition(); } catch (e) { console.error('setupNavPosition error:', e); }
+  try { updateGraduationCountdown(); } catch (_) {}
   try {
     if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
       navigator.serviceWorker.register('/sw.js').catch(err => {
@@ -1138,6 +1141,26 @@ function setupSidebar() {
     openDiaryExternal();
   });
 
+  const gradBtn = $('sidebarGraduationBtn') || els.sidebarGraduationBtn;
+  gradBtn?.addEventListener('click', () => {
+    const days = getDaysUntilGraduation();
+    if (days < 0) {
+      showToast('🎉 Выпускной состоялся! Поздравляем!');
+    } else if (days === 0) {
+      showToast('🎉 Выпускной сегодня! Поздравляем!');
+    } else {
+      const abs = Math.abs(days);
+      const mod10 = abs % 10;
+      const mod100 = abs % 100;
+      let word = 'дней';
+      if (mod100 < 11 || mod100 > 19) {
+        if (mod10 === 1) word = 'день';
+        else if (mod10 >= 2 && mod10 <= 4) word = 'дня';
+      }
+      showToast(`🎓 До выпуска (31.08.2029): ${days} ${word}`);
+    }
+  });
+
   let startX = 0;
   els.sidebar?.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
   els.sidebar?.addEventListener('touchmove', e => {
@@ -1146,6 +1169,7 @@ function setupSidebar() {
 }
 
 function openSidebar() {
+  updateGraduationCountdown();
   buildSidebarTabs();
   els.sidebar?.classList.add('open');
   els.sidebarOverlay?.classList.add('active');
@@ -1165,6 +1189,46 @@ function updateSidebarGroupInfo() {
   if (els.sidebarGroupName) els.sidebarGroupName.textContent = S.group;
   if (els.sidebarGroupAvatar) els.sidebarGroupAvatar.textContent = S.group.slice(0, 2).toUpperCase();
   if (els.topbarGroupName) els.topbarGroupName.textContent = S.group;
+}
+
+// ════════════════════════════════════════
+//  GRADUATION COUNTDOWN (31.08.2029)
+// ════════════════════════════════════════
+const GRADUATION_TARGET_DATE = new Date(2029, 7, 31, 0, 0, 0); // 31.08.2029
+
+function getDaysUntilGraduation() {
+  const target = new Date(2029, 7, 31, 0, 0, 0);
+  const now = new Date();
+  const dTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const dNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffMs = dTarget.getTime() - dNow.getTime();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function formatGraduationCountdown() {
+  const days = getDaysUntilGraduation();
+  if (days < 0) {
+    return 'Выпуск состоялся!';
+  }
+  if (days === 0) {
+    return 'Выпуск сегодня!';
+  }
+  const abs = Math.abs(days);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  let word = 'дней';
+  if (mod100 < 11 || mod100 > 19) {
+    if (mod10 === 1) word = 'день';
+    else if (mod10 >= 2 && mod10 <= 4) word = 'дня';
+  }
+  return `До выпуска: ${days} ${word}`;
+}
+
+function updateGraduationCountdown() {
+  const labelEl = $('sidebarGraduationLabel') || els.sidebarGraduationLabel;
+  if (labelEl) {
+    labelEl.textContent = formatGraduationCountdown();
+  }
 }
 
 // ════════════════════════════════════════
@@ -4095,6 +4159,7 @@ const DEFAULT_MENU_SECTION_MAP = {
   'menu-theme':         'frequent',
   'menu-diary':         'services',
   'menu-stats':         'services',
+  'menu-graduation':    'services',
   'menu-onboarding':    'services',
   'menu-support':       'services',
   'menu-reset-layout':  'system',
@@ -4106,6 +4171,7 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
   { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
   { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
   { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
   { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
   { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
@@ -4118,6 +4184,7 @@ const PRESETS_MENU = {
     { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
     { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
     { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
     { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
@@ -4128,6 +4195,7 @@ const PRESETS_MENU = {
     { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
     { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
     { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
     { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
@@ -4138,6 +4206,7 @@ const PRESETS_MENU = {
     { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
     { id: 'menu-diary',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-graduation',    visible: false, section: 'services', color: 'default' },
     { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
     { id: 'menu-support',       visible: false, section: 'services', color: 'default' },
     { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
