@@ -15,15 +15,13 @@ from telegram import (
     BotCommand,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    KeyboardButton,
     MenuButtonWebApp,
-    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
     Update,
     WebAppInfo,
 )
 from telegram.ext import (
     ApplicationBuilder,
-    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     Defaults,
@@ -93,29 +91,7 @@ def html_esc(text: Any) -> str:
     return html.escape(str(text))
 
 
-def verify_telegram_init_data(init_data: str, bot_token: str) -> Optional[dict]:
-    """Верификация подписи данных Telegram WebApp через HMAC-SHA256."""
-    if not init_data or not bot_token:
-        return None
-    try:
-        parsed = urllib.parse.parse_qsl(init_data, keep_blank_values=True)
-        data_dict = dict(parsed)
-        received_hash = data_dict.pop("hash", None)
-        if not received_hash:
-            return None
-        check_items = [f"{k}={v}" for k, v in sorted(data_dict.items())]
-        data_check_string = "\n".join(check_items)
-        secret_key = hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
-        calculated_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
-        if hmac.compare_digest(calculated_hash, received_hash):
-            user_json = data_dict.get("user")
-            if user_json:
-                return json.loads(user_json)
-            return data_dict
-        return None
-    except Exception as e:
-        logger.warning(f"Telegram initData verification error: {e}")
-        return None
+from security import verify_telegram_init_data
 
 
 DEFAULT_GROUP = "ИСС9-25"
@@ -167,17 +143,6 @@ def get_current_week_parity() -> str:
     now = get_moscow_now()
     return get_academic_week_info(now)["parity"]
 
-
-def build_main_keyboard(group: str = DEFAULT_GROUP) -> ReplyKeyboardMarkup:
-    """Нижняя панель Telegram (для быстрого доступа)."""
-    keyboard = []
-    wa_url = get_webapp_url(group)
-    if wa_url:
-        keyboard.append([KeyboardButton("🚀 Открыть приложение", web_app=WebAppInfo(url=wa_url))])
-    keyboard.append([KeyboardButton("📅 Сегодня"), KeyboardButton("📆 Завтра")])
-    keyboard.append([KeyboardButton("🗓 Вся неделя"), KeyboardButton("⚙️ Сменить группу")])
-    keyboard.append([KeyboardButton("💀🚨 Английский"), KeyboardButton("📚 Дневник 1С")])
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
 def build_schedule_keyboard(offset_days: int = 0, group: str = DEFAULT_GROUP) -> InlineKeyboardMarkup:
@@ -260,30 +225,41 @@ async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Приветственное меню /start: открывает клавиатуру и расписание на сегодня."""
+    """Приветственное меню /start: удаляет старые нижние кнопки и предлагает открыть WebApp."""
     user = update.effective_user
     user_id = user.id
     current_group = get_user_group(user_id)
     context.user_data["last_bot_msg_id"] = None
 
-    if not current_group:
-        await show_courses_menu(update, context)
-        return
-
     welcome_text = (
         f"👋 Привет, <b>{html_esc(user.first_name or 'студент')}</b>!\n"
         f"Я бот с актуальным расписанием Колледжа телекоммуникаций МТУСИ.\n\n"
-        f"👥 Твоя группа: <b>{html_esc(current_group)}</b>"
+        f"👥 Твоя группа: <b>{html_esc(current_group)}</b>\n\n"
+        f"Нажмите кнопку ниже, чтобы открыть интерактивное расписание:"
     )
 
+    kb = build_schedule_keyboard(0, group=current_group)
+
     if update.message:
+        # Принудительно очищаем сохраненную клавиатуру ReplyKeyboardMarkup у клиента Telegram
+        clean_msg = await update.message.reply_text(
+            "⏳",
+            reply_markup=ReplyKeyboardRemove(),
+            disable_notification=True,
+        )
+        try:
+            await clean_msg.delete()
+        except Exception:
+            pass
+
         await update.message.reply_text(
             welcome_text,
             parse_mode="HTML",
-            reply_markup=build_main_keyboard(current_group),
+            reply_markup=kb,
             disable_notification=True,
         )
-    await send_schedule_for_day(update, context, offset_days=0)
+    elif update.callback_query:
+        await send_or_edit(update, context, welcome_text, reply_markup=kb)
 
 
 async def show_courses_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -298,44 +274,6 @@ async def show_courses_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
     await send_or_edit(update, context, text, reply_markup=build_schedule_keyboard(0, group=current_group))
 
-
-async def show_groups_for_course(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показывает группы конкретного курса в том же сообщении."""
-    query = update.callback_query
-    course_name = query.data.replace("course_", "")
-    data = parser.get_data()
-    all_groups = data.get("groups", [])
-
-    course_groups = [g["name"] for g in all_groups if g.get("course") == course_name]
-
-    if not course_groups:
-        await send_or_edit(update, context, f"Группы для '{html_esc(course_name)}' не найдены.", None)
-        return
-
-    # Разбиваем кнопки по 3 в ряд
-    keyboard = []
-    row = []
-    for g in course_groups:
-        row.append(InlineKeyboardButton(g, callback_data=f"setgrp_{g}"))
-        if len(row) == 3:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
-
-    keyboard.append([InlineKeyboardButton("⬅ Назад к курсам", callback_data="select_group_courses")])
-
-    text = f"👥 <b>Выберите вашу группу ({html_esc(course_name)}):</b>"
-    await send_or_edit(update, context, text, reply_markup=InlineKeyboardMarkup(keyboard))
-
-
-async def set_group_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Сохранение группы и моментальное отображение расписания в том же сообщении."""
-    query = update.callback_query
-    group_name = query.data.replace("setgrp_", "")
-    user = update.effective_user
-    set_user_group(user.id, user.username, group_name)
-    await send_schedule_for_day(update, context, offset_days=0)
 
 
 def get_break_description(after_pair: int, before_pair: int) -> str:
@@ -530,29 +468,15 @@ async def send_week_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await send_or_edit(update, context, text, reply_markup=build_week_keyboard(group=group_name))
 
 
-async def day_offset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик листания дней (Вчера / Сегодня / Завтра)."""
-    query = update.callback_query
-    offset = int(query.data.replace("day_", ""))
-    await send_schedule_for_day(update, context, offset_days=offset)
-
-
-async def day_dow_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик перехода на конкретный день недели из меню недели."""
-    query = update.callback_query
-    target_dow = int(query.data.replace("day_dow_", ""))
-    now = get_moscow_now()
-    offset = target_dow - now.weekday()
-    await send_schedule_for_day(update, context, offset_days=offset)
-
-
 async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработка текстовых сообщений и команд в одном сообщении."""
     text = update.message.text.strip()
+    user = update.effective_user
+    current_group = get_user_group(user.id) if user else DEFAULT_GROUP
 
-    if "Сегодня" in text:
+    if "сегодня" in text.lower():
         await send_schedule_for_day(update, context, offset_days=0)
-    elif "Завтра" in text:
+    elif "завтра" in text.lower():
         await send_schedule_for_day(update, context, offset_days=1)
     elif "неделя" in text.lower():
         await send_week_schedule(update, context)
@@ -573,12 +497,38 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         if group_match:
             user = update.effective_user
             set_user_group(user.id, user.username, group_match)
+            clean_msg = await update.message.reply_text(
+                f"✅ Группа успешно изменена на <b>{html_esc(group_match)}</b>!",
+                parse_mode="HTML",
+                reply_markup=ReplyKeyboardRemove(),
+                disable_notification=True,
+            )
+            try:
+                await clean_msg.delete()
+            except Exception:
+                pass
             await send_schedule_for_day(update, context, offset_days=0)
         else:
-            await send_or_edit(
-                update, context,
-                "Используйте кнопки меню для навигации по расписанию:",
-                reply_markup=build_schedule_keyboard(0),
+            # Очищаем старую Reply-клавиатуру, если осталась, и выводим кнопку расписания
+            clean_msg = await update.message.reply_text(
+                "⏳",
+                reply_markup=ReplyKeyboardRemove(),
+                disable_notification=True,
+            )
+            try:
+                await clean_msg.delete()
+            except Exception:
+                pass
+            welcome_text = (
+                f"👋 Расписание занятий Колледжа телекоммуникаций МТУСИ\n"
+                f"👥 Твоя группа: <b>{html_esc(current_group)}</b>\n\n"
+                f"Нажмите кнопку ниже, чтобы открыть интерактивное расписание:"
+            )
+            await update.message.reply_text(
+                welcome_text,
+                parse_mode="HTML",
+                reply_markup=build_schedule_keyboard(0, group=current_group),
+                disable_notification=True,
             )
 
 
@@ -626,11 +576,6 @@ async def alarm_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await send_or_edit(update, context, text, reply_markup=keyboard)
 
 
-async def alarm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Callback для инлайн-кнопки view_alarm."""
-    await alarm_command(update, context)
-
-
 async def diary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Прямой переход в электронный дневник 1С:Колледж."""
     text = (
@@ -676,15 +621,9 @@ async def post_init(application) -> None:
     """Регистрация команд в официальном меню Telegram и кнопки WebApp."""
     try:
         await application.bot.set_my_commands([
-            BotCommand("app", "🚀 Открыть приложение"),
-            BotCommand("today", "📅 Расписание на сегодня"),
-            BotCommand("tomorrow", "📆 Расписание на завтра"),
-            BotCommand("week", "🗓 Расписание на неделю"),
-            BotCommand("alarm", "💀🚨 До английского"),
-            BotCommand("group", "⚙️ Сменить группу"),
-            BotCommand("diary", "📚 Дневник 1С"),
-            BotCommand("support", "🎧 Служба поддержки"),
             BotCommand("start", "🔄 Главное меню"),
+            BotCommand("app", "🚀 Открыть расписание"),
+            BotCommand("support", "🎧 Служба поддержки"),
         ])
         logger.info("Команды меню бота успешно зарегистрированы!")
 

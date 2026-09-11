@@ -126,16 +126,29 @@ async def rate_limiting_middleware(request: Request, call_next):
 PUBLIC_ROUTES = {"/api/ping", "/api/health"}
 
 def get_verified_user_from_request(request: Request) -> Optional[dict]:
-    """Извлекает и валидирует Telegram WebApp initData из заголовков или параметров запроса."""
+    """Извлекает и валидирует Telegram WebApp initData с кэшированием сессии в request.state."""
+    if hasattr(request.state, "verified_user"):
+        return request.state.verified_user
+
     client_ip = get_real_client_ip(request)
     # Поддержка dev-режима на локалхосте
     if client_ip in ("127.0.0.1", "localhost", "::1", "testclient"):
         if request.query_params.get("dev") == "1" or request.headers.get("x-dev-mode") == "1":
-            return {"id": 7552844207, "username": "Dadrik1", "first_name": "AdminDev", "is_admin": True, "is_banned": False}
-        mock_uid = request.query_params.get("mock_user")
+            user = {"id": 7552844207, "username": "Dadrik1", "first_name": "AdminDev", "is_admin": True, "is_banned": False}
+            request.state.verified_user = user
+            return user
+        mock_uid = request.query_params.get("mock_user") or request.headers.get("x-mock-user")
         if mock_uid and mock_uid.isdigit():
             uid = int(mock_uid)
-            return {"id": uid, "username": f"user_{uid}", "first_name": "Test", "is_admin": is_admin_user(uid), "is_banned": db.is_user_banned(uid)}
+            user = {
+                "id": uid,
+                "username": f"user_{uid}",
+                "first_name": "Test",
+                "is_admin": is_admin_user(uid),
+                "is_banned": db.is_user_banned(uid)
+            }
+            request.state.verified_user = user
+            return user
 
     init_data = (
         request.headers.get("x-telegram-init-data")
@@ -144,8 +157,12 @@ def get_verified_user_from_request(request: Request) -> Optional[dict]:
     )
     bot_token = os.getenv("BOT_TOKEN", "")
     if not init_data or not bot_token:
+        request.state.verified_user = None
         return None
-    return verify_telegram_init_data(init_data, bot_token)
+
+    user = verify_telegram_init_data(init_data, bot_token)
+    request.state.verified_user = user
+    return user
 
 
 @app.middleware("http")
@@ -153,6 +170,12 @@ async def telegram_gate_middleware(request: Request, call_next):
     path = request.url.path
     if path.startswith("/api/") and path not in PUBLIC_ROUTES:
         user = get_verified_user_from_request(request)
+
+        # Скрытие админ-панели (Zero-Knowledge): для любого не-владельца админки НЕ СУЩЕСТВУЕТ
+        if path.startswith("/api/admin"):
+            if not user or not user.get("is_admin") or user.get("is_banned"):
+                return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
         if not user or user.get("is_banned"):
             # Если запрос пришел вне Telegram, подпись невалидна или пользователь забанен:
             # Не отдаем данные, не раскрывая статусных кодов (200 OK с пустой структурой, удержание в вечном скелетоне)
@@ -174,9 +197,6 @@ async def telegram_gate_middleware(request: Request, call_next):
                 return JSONResponse({"authenticated": False, "is_admin": False, "can_edit_notes": False})
             elif path == "/api/notes":
                 return JSONResponse({"notes": [], "can_edit": False})
-            elif path.startswith("/api/admin"):
-                # Для заблокированных или сторонних сканеров админки не существует
-                return JSONResponse(status_code=404, content={"detail": "Not Found"})
             else:
                 return JSONResponse({"gate_active": True, "published": False})
 
@@ -508,7 +528,6 @@ async def set_api_user_group(payload: UserGroupPayload):
     """Сохранить выбранную группу пользователя Telegram с валидацией и защитой от IDOR."""
     bot_token = os.getenv("BOT_TOKEN", "")
     if payload.init_data and bot_token:
-        from bot import verify_telegram_init_data
         verified_user = verify_telegram_init_data(payload.init_data, bot_token)
         if not verified_user:
             raise HTTPException(status_code=401, detail="Неверная подпись данных Telegram (HMAC invalid)")
@@ -646,7 +665,7 @@ async def get_admin_info(request: Request):
     """Данные админ-панели (статистика, авторы, баны). Доступ строго для владельца."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=403, detail="Доступ запрещён (только для владельца)")
+        raise HTTPException(status_code=404, detail="Not Found")
 
     authors = db.get_notes_authors()
     banned = db.get_banned_users()
@@ -666,7 +685,7 @@ async def get_admin_authors(request: Request):
     """Список авторов заметок. Доступ для владельца."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=403, detail="Доступ запрещён")
+        raise HTTPException(status_code=404, detail="Not Found")
     return {"status": "ok", "authors": db.get_notes_authors()}
 
 
@@ -675,7 +694,7 @@ async def manage_admin_authors(request: Request, payload: AdminAuthorPayload):
     """Управление списком авторов заметок/ДЗ. Доступ строго для владельца."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=403, detail="Доступ запрещён")
+        raise HTTPException(status_code=404, detail="Not Found")
 
     uname = payload.name or payload.username or ""
     if payload.action == "remove":
@@ -691,7 +710,7 @@ async def delete_admin_author(request: Request, telegram_id: int):
     """Удаление автора заметок по ID."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=403, detail="Доступ запрещён")
+        raise HTTPException(status_code=404, detail="Not Found")
     db.remove_notes_author(telegram_id)
     return {"status": "ok"}
 
@@ -701,7 +720,7 @@ async def get_admin_bans(request: Request):
     """Список заблокированных пользователей. Доступ для владельца."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=403, detail="Доступ запрещён")
+        raise HTTPException(status_code=404, detail="Not Found")
     return {"status": "ok", "banned_users": db.get_banned_users()}
 
 
@@ -710,7 +729,7 @@ async def manage_admin_bans(request: Request, payload: AdminBanPayload):
     """Управление списком забаненных Telegram ID. Доступ строго для владельца."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=403, detail="Доступ запрещён")
+        raise HTTPException(status_code=404, detail="Not Found")
 
     if payload.action == "unban":
         db.unban_user(payload.telegram_id)
@@ -725,7 +744,7 @@ async def delete_admin_ban(request: Request, telegram_id: int):
     """Разблокировка пользователя по ID."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=403, detail="Доступ запрещён")
+        raise HTTPException(status_code=404, detail="Not Found")
     db.unban_user(telegram_id)
     return {"status": "ok"}
 

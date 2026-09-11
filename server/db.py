@@ -1,12 +1,18 @@
 import os
 import sqlite3
 import logging
-from typing import Dict, List, Optional
+import threading
+from typing import Dict, List, Optional, Set
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data.db')
+
+# In-memory кэш для моментальной O(1) проверки без дискового I/O на каждый HTTP-запрос
+_banned_ids_cache: Set[int] = set()
+_notes_authors_cache: Set[int] = set()
+_cache_lock = threading.Lock()
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -19,6 +25,11 @@ def init_db() -> None:
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            # Настройка высокой производительности и защиты от блокировок
+            cursor.execute('PRAGMA journal_mode = WAL;')
+            cursor.execute('PRAGMA busy_timeout = 5000;')
+            cursor.execute('PRAGMA synchronous = NORMAL;')
+
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS notes_authors (
                     telegram_id INTEGER PRIMARY KEY,
@@ -49,22 +60,31 @@ def init_db() -> None:
                 )
             ''')
             conn.commit()
-            logger.info(f'SQLite DB initialized: {DB_PATH}')
+
+            # Загрузка списков бана и авторов в память
+            cursor.execute('SELECT telegram_id FROM banned_users')
+            banned_set = {int(row[0]) for row in cursor.fetchall()}
+
+            cursor.execute('SELECT telegram_id FROM notes_authors')
+            authors_set = {int(row[0]) for row in cursor.fetchall()}
+
+            with _cache_lock:
+                _banned_ids_cache.clear()
+                _banned_ids_cache.update(banned_set)
+                _notes_authors_cache.clear()
+                _notes_authors_cache.update(authors_set)
+
+            logger.info(f'SQLite DB initialized in WAL mode ({len(banned_set)} banned, {len(authors_set)} authors): {DB_PATH}')
     except Exception as e:
         logger.error(f'SQLite init error: {e}')
 
 
 def is_user_banned(telegram_id: int) -> bool:
+    """Моментальная проверка статуса бана из памяти (O(1), 0 дисковых обращений)."""
     if not telegram_id or telegram_id <= 0:
         return False
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT 1 FROM banned_users WHERE telegram_id = ?', (telegram_id,))
-            return cursor.fetchone() is not None
-    except Exception as e:
-        logger.error(f'Error checking ban for {telegram_id}: {e}')
-        return False
+    with _cache_lock:
+        return telegram_id in _banned_ids_cache
 
 
 def ban_user(telegram_id: int, username: str = "", reason: str = "") -> None:
@@ -82,6 +102,8 @@ def ban_user(telegram_id: int, username: str = "", reason: str = "") -> None:
                 banned_at = excluded.banned_at
         ''', (telegram_id, username or "", reason or "", now_iso))
         conn.commit()
+    with _cache_lock:
+        _banned_ids_cache.add(telegram_id)
 
 
 def unban_user(telegram_id: int) -> bool:
@@ -91,7 +113,10 @@ def unban_user(telegram_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM banned_users WHERE telegram_id = ?', (telegram_id,))
         conn.commit()
-        return cursor.rowcount > 0
+        success = cursor.rowcount > 0
+    with _cache_lock:
+        _banned_ids_cache.discard(telegram_id)
+    return success
 
 
 def get_banned_users() -> List[Dict]:
@@ -102,16 +127,11 @@ def get_banned_users() -> List[Dict]:
 
 
 def is_notes_author(telegram_id: int) -> bool:
+    """Моментальная проверка прав автора заметок из памяти (O(1), 0 дисковых обращений)."""
     if not telegram_id or telegram_id <= 0:
         return False
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT 1 FROM notes_authors WHERE telegram_id = ?', (telegram_id,))
-            return cursor.fetchone() is not None
-    except Exception as e:
-        logger.error(f'Error checking author for {telegram_id}: {e}')
-        return False
+    with _cache_lock:
+        return telegram_id in _notes_authors_cache
 
 
 def add_notes_author(telegram_id: int, username: str = "") -> None:
@@ -128,6 +148,8 @@ def add_notes_author(telegram_id: int, username: str = "") -> None:
                 added_at = excluded.added_at
         ''', (telegram_id, username or "", now_iso))
         conn.commit()
+    with _cache_lock:
+        _notes_authors_cache.add(telegram_id)
 
 
 def remove_notes_author(telegram_id: int) -> bool:
@@ -137,7 +159,10 @@ def remove_notes_author(telegram_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM notes_authors WHERE telegram_id = ?', (telegram_id,))
         conn.commit()
-        return cursor.rowcount > 0
+        success = cursor.rowcount > 0
+    with _cache_lock:
+        _notes_authors_cache.discard(telegram_id)
+    return success
 
 
 def get_notes_authors() -> List[Dict]:
@@ -156,7 +181,7 @@ def get_notes_for_group(group_name: str) -> List[Dict]:
         cursor.execute('''
             SELECT id, group_name, day_key, pair_num, subject, text, updated_by, updated_by_name, updated_at
             FROM lesson_notes
-            WHERE group_name = ?
+            WHERE group_name = ? AND text != ''
             ORDER BY day_key, pair_num
         ''', (clean_group,))
         return [dict(row) for row in cursor.fetchall()]
@@ -172,7 +197,7 @@ def get_lesson_note(group_name: str, day_key: str, pair_num: int) -> Optional[Di
         cursor.execute('''
             SELECT id, group_name, day_key, pair_num, subject, text, updated_by, updated_by_name, updated_at
             FROM lesson_notes
-            WHERE group_name = ? AND day_key = ? AND pair_num = ?
+            WHERE group_name = ? AND day_key = ? AND pair_num = ? AND text != ''
         ''', (clean_group, clean_day, int(pair_num)))
         row = cursor.fetchone()
         return dict(row) if row else None
@@ -195,6 +220,25 @@ def save_lesson_note(
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
+
+        # Если текст пустой — удаляем запись из базы, предотвращая накопление пустых строк
+        if not clean_text:
+            cursor.execute('''
+                DELETE FROM lesson_notes
+                WHERE group_name = ? AND day_key = ? AND pair_num = ?
+            ''', (clean_group, clean_day, int(pair_num)))
+            conn.commit()
+            return {
+                'group_name': clean_group,
+                'day_key': clean_day,
+                'pair_num': int(pair_num),
+                'subject': clean_subject,
+                'text': '',
+                'updated_by': updated_by,
+                'updated_by_name': updated_by_name,
+                'updated_at': now_iso,
+            }
+
         cursor.execute('''
             INSERT INTO lesson_notes (group_name, day_key, pair_num, subject, text, updated_by, updated_by_name, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -222,9 +266,10 @@ def save_lesson_note(
 def get_notes_count() -> int:
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM lesson_notes')
+        cursor.execute("SELECT COUNT(*) FROM lesson_notes WHERE text != ''")
         row = cursor.fetchone()
         return row[0] if row else 0
 
 
 init_db()
+

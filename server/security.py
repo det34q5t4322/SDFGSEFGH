@@ -31,7 +31,14 @@ def verify_telegram_init_data(
     init_data: str,
     bot_token: str,
     max_age_seconds: int = 3600
-)-> Optional[Dict[str, Any]]:
+) -> Optional[Dict[str, Any]]:
+    """
+    Валидация подписи initData из Telegram WebApp:
+    - Проверка наличия обязательных полей (hash, auth_date, user).
+    - Проверка времени подписи (auth_date не старше max_age_seconds и не из будущего >5 мин).
+    - Криптографическая проверка HMAC-SHA256 через секретный ключ WebAppData.
+    - Извлечение ID пользователя и проверка статуса администратора и бана.
+    """
     if not init_data or not bot_token:
         return None
 
@@ -51,7 +58,7 @@ def verify_telegram_init_data(
             now = int(time.time())
             if (now - auth_date) > max_age_seconds or auth_date > (now + 300):
                 return None
-        except ValueError:
+        except (ValueError, TypeError):
             return None
 
         check_items = [f"{k}={v}" for k, v in sorted(data_dict.items())]
@@ -63,25 +70,34 @@ def verify_telegram_init_data(
             return None
 
         user_json = data_dict.get("user")
-        user_info: Dict[str, Any] = {}
-        if user_json:
-            try:
-                user_info = json.loads(user_json)
-            except Exception:
-                pass
+        if not user_json:
+            return None
 
-        user_id = user_info.get("id")
-        if user_id:
-            user_info["id"] = int(user_id)
-            user_info["is_admin"] = is_admin_user(user_info["id"])
-            user_info["is_banned"] = is_user_banned(user_info["id"])
+        try:
+            user_info = json.loads(user_json)
+        except Exception:
+            return None
+
+        raw_id = user_info.get("id")
+        if raw_id is None:
+            return None
+        try:
+            uid = int(raw_id)
+            if uid <= 0:
+                return None
+            user_info["id"] = uid
+        except (ValueError, TypeError):
+            return None
+
+        user_info["auth_date"] = auth_date
+        user_info["is_admin"] = is_admin_user(uid)
+        user_info["is_banned"] = is_user_banned(uid)
 
         return user_info
 
     except Exception as e:
         logger.warning(f"initData verification error: {e}")
         return None
-
 
 
 def generate_mock_init_data(user_id: int, username: str = "tester", bot_token: str = "", auth_date_offset: int = 0) -> str:
@@ -99,3 +115,4 @@ def generate_mock_init_data(user_id: int, username: str = "tester", bot_token: s
     calchash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
     data_dict["hash"] = calchash
     return urllib.parse.urlencode(data_dict)
+
