@@ -194,6 +194,11 @@ const S = {
   isLoading:          false,        // true = запрос расписания в процессе
   isNavigatingWeek:   false,        // true = переключение недели выполняется
   hasInitiallyLoadedFreshData: false, // true = свежие данные от сервера уже успешно получены в текущей сессии
+  isAdmin:            false,
+  canEditNotes:       false,
+  telegramId:         null,
+  telegramUsername:   null,
+  notes:              [],
 };
 
 // ── FAULT TOLERANCE & NETWORK HELPERS ───
@@ -221,6 +226,50 @@ function hideOfflineBanner() {
   }
 }
 
+// ── AUTH & TELEGRAM GATE ─────────────────
+function getAuthHeaders() {
+  const headers = {};
+  const initData = window.Telegram?.WebApp?.initData || '';
+  if (initData) {
+    headers['X-Telegram-Init-Data'] = initData;
+  }
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (isLocalhost && (window.location.search.includes('dev=1') || window.location.search.includes('mock_user='))) {
+    headers['X-Dev-Mode'] = '1';
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mock_user')) {
+      headers['X-Mock-User'] = params.get('mock_user');
+    }
+  }
+  return headers;
+}
+
+function isTelegramGatePassed() {
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const isDev = isLocalhost && (window.location.search.includes('dev=1') || window.location.search.includes('mock_user='));
+  const hasInitData = Boolean(window.Telegram?.WebApp?.initData);
+  return hasInitData || isDev;
+}
+
+// Intercept fetch for /api/* requests to automatically inject Telegram WebApp headers
+const _origFetch = window.fetch;
+window.fetch = function(resource, init = {}) {
+  const url = typeof resource === 'string' ? resource : (resource?.url || '');
+  if (url.includes('/api/')) {
+    const authHeaders = getAuthHeaders();
+    const headers = new Headers(init.headers || (resource instanceof Request ? resource.headers : {}));
+    for (const [k, v] of Object.entries(authHeaders)) {
+      if (!headers.has(k)) {
+        headers.set(k, v);
+      }
+    }
+    init = { ...init, headers };
+  }
+  return _origFetch.call(this, resource, init);
+};
+
+const escapeHtml = esc;
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8500) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -234,6 +283,10 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8500) {
   try {
     const fetchOptions = { ...options };
     delete fetchOptions.signal;
+    fetchOptions.headers = {
+      ...getAuthHeaders(),
+      ...(options.headers || {})
+    };
     const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
     clearTimeout(timer);
     return res;
@@ -382,6 +435,37 @@ const els = {
   layoutSaveBtn:            $('layoutSaveBtn'),
   layoutCancelBtn:          $('layoutCancelBtn'),
   layoutResetBtn:           $('layoutResetBtn'),
+
+  // Заметки
+  notesModalBackdrop:   $('notesModalBackdrop'),
+  notesDrawer:          $('notesDrawer'),
+  notesDrawerCloseBtn:  $('notesDrawerCloseBtn'),
+  notesDrawerBadge:     $('notesDrawerBadge'),
+  notesDrawerTitle:     $('notesDrawerTitle'),
+  notesViewMode:        $('notesViewMode'),
+  notesContentText:     $('notesContentText'),
+  notesMetaInfo:        $('notesMetaInfo'),
+  notesAuthorActions:   $('notesAuthorActions'),
+  notesEditBtn:         $('notesEditBtn'),
+  notesEditMode:        $('notesEditMode'),
+  notesTextarea:        $('notesTextarea'),
+  notesSaveBtn:         $('notesSaveBtn'),
+
+  // Админ-панель
+  adminModalBackdrop:   $('adminModalBackdrop'),
+  adminModal:           $('adminModal'),
+  adminModalCloseBtn:   $('adminModalCloseBtn'),
+  adminTabAuthorsBtn:   $('adminTabAuthorsBtn'),
+  adminTabBansBtn:      $('adminTabBansBtn'),
+  adminAuthorsSection:  $('adminAuthorsSection'),
+  adminBansSection:     $('adminBansSection'),
+  newAuthorId:          $('newAuthorId'),
+  newAuthorName:        $('newAuthorName'),
+  adminAuthorsList:     $('adminAuthorsList'),
+  newBanId:             $('newBanId'),
+  newBanReason:         $('newBanReason'),
+  adminBansList:        $('adminBansList'),
+  sidebarAdminBtn:      $('sidebarAdminBtn'),
 };
 
 // ════════════════════════════════════════
@@ -392,7 +476,9 @@ function updateTelegramBackButton() {
   if (!tg?.BackButton) return;
 
   const isModalOpen = Boolean(
-    document.querySelector('.modal-backdrop.open, .modal.open') ||
+    document.querySelector('.modal-backdrop.open, .modal.open, .drawer-backdrop.open') ||
+    els.notesModalBackdrop?.classList.contains('open') ||
+    els.adminModalBackdrop?.classList.contains('open') ||
     els.groupModal?.classList.contains('open') ||
     (els.settingsModal || els.themeModal)?.classList.contains('open') ||
     els.onboardModal?.classList.contains('open') ||
@@ -418,6 +504,10 @@ function handleTelegramBackButtonClick() {
 
   if (isEditing) {
     if (typeof exitLayoutEditor === 'function') exitLayoutEditor(false);
+  } else if (els.notesModalBackdrop?.classList.contains('open')) {
+    closeNotesDrawer();
+  } else if (els.adminModalBackdrop?.classList.contains('open')) {
+    closeAdminModal();
   } else if (els.diaryModal?.classList.contains('open')) {
     closeDiaryModal();
   } else if (els.sidebar?.classList.contains('open')) {
@@ -518,6 +608,9 @@ window.handleTelegramBackButtonClick = handleTelegramBackButtonClick;
 //  INIT
 // ════════════════════════════════════════
 async function init() {
+  if (!isTelegramGatePassed()) {
+    renderSkeleton();
+  }
   try { setupTelegramWebApp(); } catch (e) { console.error('setupTelegramWebApp error:', e); }
   try { setupThemes(); } catch (e) { console.error('setupThemes error:', e); }
   try { setupSidebar(); } catch (e) { console.error('setupSidebar error:', e); }
@@ -641,6 +734,20 @@ async function init() {
       });
     } catch (_) {}
   }
+
+  // Wire Admin button & Modal backdrop clicks
+  document.getElementById('sidebarAdminBtn')?.addEventListener('click', () => {
+    closeSidebar();
+    openAdminModal();
+  });
+  document.getElementById('notesModalBackdrop')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('notesModalBackdrop')) closeNotesDrawer();
+  });
+  document.getElementById('adminModalBackdrop')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('adminModalBackdrop')) closeAdminModal();
+  });
+
+  checkAuthStatus();
 
   // 4. Загружаем данные расписания
   loadSchedule();
@@ -2133,6 +2240,7 @@ function fmtTime(min) {
 //  LOAD DATA (FAULT TOLERANT & CACHED)
 // ════════════════════════════════════════
 function getAnyCachedScheduleForGroup(group, targetGid) {
+  if (!isTelegramGatePassed()) return null;
   if (!group) return null;
   // 1. По точному GID
   if (targetGid) {
@@ -2166,6 +2274,10 @@ function getAnyCachedScheduleForGroup(group, targetGid) {
 let currentScheduleAbortController = null;
 
 async function loadSchedule(force = false) {
+  if (!isTelegramGatePassed()) {
+    renderSkeleton();
+    return;
+  }
   if (S.isLoading && !force) {
     logApp('info', 'loadSchedule пропущен: предыдущий запрос ещё выполняется');
     return;
@@ -2286,6 +2398,14 @@ async function loadSchedule(force = false) {
       return;
     }
 
+    if (freshData && (freshData.gate_active || !freshData.days || (Object.keys(freshData.days).length === 0 && !freshData.schedules))) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      S.data = null;
+      renderSkeleton();
+      return;
+    }
+
     if (!freshData || (!freshData.days && !freshData.schedules)) {
       throw new Error('Некорректный формат расписания от сервера');
     }
@@ -2325,8 +2445,14 @@ async function loadSchedule(force = false) {
     if (S.view === 'stats') renderStatsView(currentStatsScope);
     if (S.view === 'english') startEnglishCountdown();
     logApp('info', `Расписание успешно синхронизировано для ${S.group}`);
+    loadGroupNotes(S.group);
   } catch (e) {
     clearTimeout(wakeupTimer);
+    if (!isTelegramGatePassed()) {
+      hideOfflineBanner();
+      renderSkeleton();
+      return;
+    }
     if (currentSignal.aborted || e.name === 'AbortError') {
       logApp('info', 'Запрос расписания отменён (переключение группы или вкладки)');
       return;
@@ -2459,6 +2585,10 @@ function renderSkeleton() {
 // ════════════════════════════════════════
 function renderSchedule() {
   if (!els.scheduleView) return;
+  if (!isTelegramGatePassed()) {
+    renderSkeleton();
+    return;
+  }
   els.scheduleView.removeAttribute('aria-busy');
   if (S.isNotPublished) {
     renderScheduleNotPublished();
@@ -2609,17 +2739,17 @@ function renderDayPairs(dayName) {
       const num = slot.numerator;
       const den = slot.denominator;
       if (activeParity === 'all') {
-        html += renderSplitCard(num, den, pn, bell, isGoing, idx);
+        html += renderSplitCard(num, den, pn, bell, isGoing, idx, dayName);
       } else if (activeParity === 'num' && num && num.subject) {
-        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx);
+        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx, dayName);
       } else if (activeParity === 'den' && den && den.subject) {
-        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx);
+        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx, dayName);
       } else if (num && num.subject) {
-        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx);
+        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx, dayName);
       } else if (den && den.subject) {
-        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx);
+        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx, dayName);
       } else {
-        html += renderSplitCard(num, den, pn, bell, isGoing, idx);
+        html += renderSplitCard(num, den, pn, bell, isGoing, idx, dayName);
       }
       return;
     }
@@ -2627,13 +2757,13 @@ function renderDayPairs(dayName) {
     const p = slot.both || slot.numerator || slot.denominator;
     if (!p || !p.subject) return;
 
-    html += renderSingleCard(p, pn, bell, isGoing, '', idx);
+    html += renderSingleCard(p, pn, bell, isGoing, '', idx, dayName);
   });
 
   return html;
 }
 
-function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant) {
+function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant, dayName = '') {
   const cfg = getActiveCardTemplateConfig();
   const timeStr = bell ? `${fmtTime(bell.s)}–${fmtTime(bell.e)}` : (p.time || '');
   const classroom = p.classroom || p.room || '';
@@ -2708,6 +2838,14 @@ function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelle
     }
   });
 
+  // Note button (📝)
+  if (p && p.subject) {
+    const noteBtnHtml = renderNoteButton(dayName, pn, p.subject);
+    if (noteBtnHtml) {
+      zones['top-right'].push(noteBtnHtml);
+    }
+  }
+
   let content = '';
 
   // Ряд 1: Верх (левый и правый угол)
@@ -2736,7 +2874,7 @@ function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelle
   return content;
 }
 
-function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0) {
+function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0, dayName = '') {
   const cancelled = p.is_cancelled || (p.subject && /отмена/i.test(p.subject));
   const replacement = p.is_replacement || (p.subject && /замена/i.test(p.subject));
   const classroom = p.classroom || p.room || '';
@@ -2751,14 +2889,14 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0)
     replacement ? 'replacement' : '',
   ].filter(Boolean).join(' ');
 
-  const content = renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant);
+  const content = renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant, dayName);
 
   return `<div class="${cardClass}" style="--card-index:${cardIndex}">
     ${content}
   </div>`;
 }
 
-function renderSplitCard(num, den, pn, bell, isGoing, cardIndex = 0) {
+function renderSplitCard(num, den, pn, bell, isGoing, cardIndex = 0, dayName = '') {
   const isCustom = isCardTemplateCustom() || (isLayoutEditingMode && currentLayoutTab === 'card');
   const mkRow = (p, type, label) => {
     if (!p || !p.subject) return '';
@@ -2766,7 +2904,7 @@ function renderSplitCard(num, den, pn, bell, isGoing, cardIndex = 0) {
     const replacement = p.is_replacement || (p.subject && /замена/i.test(p.subject));
     const classroom = p.classroom || p.room || '';
     const distant = p.is_distant || /дист/i.test(classroom);
-    const content = renderCardContentByTemplate(p, pn, bell, isGoing, label, cancelled, replacement, distant);
+    const content = renderCardContentByTemplate(p, pn, bell, isGoing, label, cancelled, replacement, distant, dayName);
 
     return `<div class="split-row ${type}-row${isCustom ? ' custom-template' : ''}">
       ${content}
@@ -5446,6 +5584,485 @@ function initLayoutManager() {
     }
   });
 }
+
+
+// ════════════════════════════════════════
+//  NOTES & HOMEWORK (📝) LOGIC
+// ════════════════════════════════════════
+let currentNoteContext = null;
+
+function hasNote(dayName, pairNum, subject) {
+  if (!S.notes || !Array.isArray(S.notes)) return false;
+  const cleanSubj = (subject || '').trim().toLowerCase();
+  return S.notes.some(n => {
+    const matchDay = !n.day_name || n.day_name === dayName;
+    const matchPair = !n.pair_num || String(n.pair_num) === String(pairNum);
+    const matchSubj = !n.subject || n.subject.trim().toLowerCase() === cleanSubj;
+    return matchDay && matchPair && matchSubj && n.content && n.content.trim().length > 0;
+  });
+}
+
+function getNote(dayName, pairNum, subject) {
+  if (!S.notes || !Array.isArray(S.notes)) return null;
+  const cleanSubj = (subject || '').trim().toLowerCase();
+  let found = S.notes.find(n =>
+    n.day_name === dayName &&
+    String(n.pair_num) === String(pairNum) &&
+    (n.subject || '').trim().toLowerCase() === cleanSubj
+  );
+  if (!found) {
+    found = S.notes.find(n =>
+      n.day_name === dayName &&
+      String(n.pair_num) === String(pairNum)
+    );
+  }
+  return found || null;
+}
+
+function renderNoteButton(dayName, pairNum, subject) {
+  if (!subject) return '';
+  const noteExists = hasNote(dayName, pairNum, subject);
+  const activeClass = noteExists ? ' has-note' : '';
+  const dotHtml = noteExists ? '<span class="note-active-dot"></span>' : '';
+  const safeDay = esc(dayName || '');
+  const safePair = esc(String(pairNum || ''));
+  const safeSubject = esc(subject || '');
+
+  return `<button type="button" class="pair-note-btn${activeClass}" ` +
+    `data-day="${safeDay}" data-pair="${safePair}" data-subject="${safeSubject}" ` +
+    `onclick="openNotesDrawer(this, event)" title="${noteExists ? 'Просмотреть заметку / ДЗ' : 'Добавить заметку / ДЗ'}">` +
+    `📝${dotHtml}</button>`;
+}
+
+function updateNoteIndicators() {
+  document.querySelectorAll('.pair-note-btn').forEach(btn => {
+    const day = btn.dataset.day || '';
+    const pair = btn.dataset.pair || '';
+    const subj = btn.dataset.subject || '';
+    const has = hasNote(day, pair, subj);
+    btn.classList.toggle('has-note', has);
+    const existingDot = btn.querySelector('.note-active-dot');
+    if (has && !existingDot) {
+      btn.insertAdjacentHTML('beforeend', '<span class="note-active-dot"></span>');
+    } else if (!has && existingDot) {
+      existingDot.remove();
+    }
+    btn.title = has ? 'Просмотреть заметку / ДЗ' : 'Добавить заметку / ДЗ';
+  });
+}
+
+async function loadGroupNotes(groupName) {
+  if (!groupName || !isTelegramGatePassed()) return;
+  try {
+    const res = await fetchWithTimeout(`${API}/notes?group=${encodeURIComponent(groupName)}`, {}, 6000);
+    if (!res.ok) return;
+    const data = await res.json();
+    S.notes = data.notes || [];
+    if (typeof data.can_edit === 'boolean') {
+      S.canEditNotes = data.can_edit;
+    }
+    updateNoteIndicators();
+  } catch (e) {
+    logApp('warn', 'Ошибка загрузки заметок:', e);
+  }
+}
+
+window.openNotesDrawer = function(btn, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const day = btn.dataset.day || '';
+  const pair = btn.dataset.pair || '';
+  const subj = btn.dataset.subject || '';
+
+  currentNoteContext = {
+    groupName: S.group,
+    dayName: day,
+    pairNum: pair,
+    subject: subj
+  };
+
+  const badgeEl = document.getElementById('notesDrawerBadge');
+  const titleEl = document.getElementById('notesDrawerTitle');
+  const contentEl = document.getElementById('notesContentText');
+  const metaEl = document.getElementById('notesMetaInfo');
+  const actionsEl = document.getElementById('notesAuthorActions');
+  const textareaEl = document.getElementById('notesTextarea');
+  const viewModeEl = document.getElementById('notesViewMode');
+  const editModeEl = document.getElementById('notesEditMode');
+
+  if (badgeEl) {
+    badgeEl.textContent = pair ? `${pair} пара • ${day}` : (day || 'Пара');
+  }
+  if (titleEl) {
+    titleEl.textContent = subj ? subj : 'Заметка к паре';
+  }
+
+  const note = getNote(day, pair, subj);
+  if (note && note.content && note.content.trim()) {
+    if (contentEl) contentEl.innerHTML = esc(note.content).replace(/\n/g, '<br>');
+    if (metaEl) {
+      const author = note.author_name ? esc(note.author_name) : `ID: ${note.author_id || ''}`;
+      const dt = note.updated_at ? new Date(note.updated_at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      metaEl.innerHTML = `<span>Автор: <b>${author}</b></span>${dt ? ` • <span>${dt}</span>` : ''}`;
+      metaEl.style.display = 'block';
+    }
+    if (textareaEl) textareaEl.value = note.content;
+  } else {
+    if (contentEl) contentEl.innerHTML = '<span class="notes-empty-hint">Заметок пока нет. Будьте первым, кто запишет ДЗ!</span>';
+    if (metaEl) metaEl.style.display = 'none';
+    if (textareaEl) textareaEl.value = '';
+  }
+
+  if (actionsEl) {
+    actionsEl.style.display = S.canEditNotes ? 'flex' : 'none';
+  }
+
+  if (viewModeEl) viewModeEl.style.display = 'block';
+  if (editModeEl) editModeEl.style.display = 'none';
+
+  const backdrop = document.getElementById('notesModalBackdrop');
+  const drawer = document.getElementById('notesDrawer');
+  if (backdrop && drawer) {
+    backdrop.classList.add('open');
+    drawer.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  updateTelegramBackButton();
+};
+
+window.closeNotesDrawer = function() {
+  const backdrop = document.getElementById('notesModalBackdrop');
+  const drawer = document.getElementById('notesDrawer');
+  if (backdrop && drawer) {
+    drawer.classList.remove('open');
+    backdrop.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  updateTelegramBackButton();
+};
+
+window.switchNotesToEditMode = function() {
+  if (!S.canEditNotes) return;
+  const viewModeEl = document.getElementById('notesViewMode');
+  const editModeEl = document.getElementById('notesEditMode');
+  const textareaEl = document.getElementById('notesTextarea');
+
+  if (viewModeEl) viewModeEl.style.display = 'none';
+  if (editModeEl) editModeEl.style.display = 'block';
+  if (textareaEl) {
+    textareaEl.focus();
+    textareaEl.setSelectionRange(textareaEl.value.length, textareaEl.value.length);
+  }
+};
+
+window.cancelNotesEdit = function() {
+  const viewModeEl = document.getElementById('notesViewMode');
+  const editModeEl = document.getElementById('notesEditMode');
+  if (viewModeEl) viewModeEl.style.display = 'block';
+  if (editModeEl) editModeEl.style.display = 'none';
+};
+
+window.saveCurrentNote = async function() {
+  if (!currentNoteContext) return;
+  const textareaEl = document.getElementById('notesTextarea');
+  const saveBtn = document.getElementById('notesSaveBtn');
+  const content = (textareaEl?.value || '').trim();
+
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Сохранение...';
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${API}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        group_name: currentNoteContext.groupName,
+        day_name: currentNoteContext.dayName,
+        pair_num: parseInt(currentNoteContext.pairNum, 10) || 0,
+        subject: currentNoteContext.subject,
+        content: content
+      })
+    }, 8000);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const savedNote = data.note;
+
+    if (savedNote) {
+      const cleanSubj = (currentNoteContext.subject || '').trim().toLowerCase();
+      const existingIdx = (S.notes || []).findIndex(n =>
+        n.day_name === currentNoteContext.dayName &&
+        String(n.pair_num) === String(currentNoteContext.pairNum) &&
+        (n.subject || '').trim().toLowerCase() === cleanSubj
+      );
+      if (existingIdx >= 0) {
+        if (content) {
+          S.notes[existingIdx] = savedNote;
+        } else {
+          S.notes.splice(existingIdx, 1);
+        }
+      } else if (content) {
+        if (!S.notes) S.notes = [];
+        S.notes.push(savedNote);
+      }
+    }
+
+    const contentEl = document.getElementById('notesContentText');
+    const metaEl = document.getElementById('notesMetaInfo');
+    if (content) {
+      if (contentEl) contentEl.innerHTML = esc(content).replace(/\n/g, '<br>');
+      if (metaEl) {
+        const author = savedNote?.author_name ? esc(savedNote.author_name) : (S.telegramUsername ? `@${esc(S.telegramUsername)}` : `ID: ${S.telegramId || ''}`);
+        metaEl.innerHTML = `<span>Автор: <b>${author}</b></span> • <span>Только что</span>`;
+        metaEl.style.display = 'block';
+      }
+    } else {
+      if (contentEl) contentEl.innerHTML = '<span class="notes-empty-hint">Заметок пока нет. Будьте первым, кто запишет ДЗ!</span>';
+      if (metaEl) metaEl.style.display = 'none';
+    }
+
+    cancelNotesEdit();
+    updateNoteIndicators();
+
+  } catch (err) {
+    alert(`Ошибка сохранения: ${err.message}`);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '💾 Сохранить';
+    }
+  }
+};
+
+// ════════════════════════════════════════
+//  ADMIN PANEL LOGIC
+// ════════════════════════════════════════
+async function checkAuthStatus() {
+  if (!isTelegramGatePassed()) return;
+  try {
+    const res = await fetchWithTimeout(`${API}/auth-status`, {}, 5000);
+    if (!res.ok) return;
+    const data = await res.json();
+    S.isAdmin = Boolean(data.is_admin);
+    S.canEditNotes = Boolean(data.can_edit_notes);
+    S.telegramId = data.telegram_id || null;
+    S.telegramUsername = data.username || null;
+
+    const adminBtn = document.getElementById('sidebarAdminBtn');
+    if (adminBtn) {
+      adminBtn.style.display = S.isAdmin ? 'flex' : 'none';
+    }
+  } catch (e) {
+    logApp('warn', 'Ошибка проверки статуса авторизации:', e);
+  }
+}
+
+window.openAdminModal = function() {
+  if (!S.isAdmin) return;
+  const backdrop = document.getElementById('adminModalBackdrop');
+  const modal = document.getElementById('adminModal');
+  if (backdrop && modal) {
+    backdrop.classList.add('open');
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  switchAdminTab('authors');
+  updateTelegramBackButton();
+};
+
+window.closeAdminModal = function() {
+  const backdrop = document.getElementById('adminModalBackdrop');
+  const modal = document.getElementById('adminModal');
+  if (backdrop && modal) {
+    modal.classList.remove('open');
+    backdrop.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  updateTelegramBackButton();
+};
+
+window.switchAdminTab = function(tab) {
+  const tabAuthorsBtn = document.getElementById('adminTabAuthorsBtn');
+  const tabBansBtn = document.getElementById('adminTabBansBtn');
+  const authorsSection = document.getElementById('adminAuthorsSection');
+  const bansSection = document.getElementById('adminBansSection');
+
+  if (tab === 'authors') {
+    tabAuthorsBtn?.classList.add('active');
+    tabBansBtn?.classList.remove('active');
+    if (authorsSection) authorsSection.style.display = 'block';
+    if (bansSection) bansSection.style.display = 'none';
+    loadAdminAuthors();
+  } else {
+    tabAuthorsBtn?.classList.remove('active');
+    tabBansBtn?.classList.add('active');
+    if (authorsSection) authorsSection.style.display = 'none';
+    if (bansSection) bansSection.style.display = 'block';
+    loadAdminBans();
+  }
+};
+
+async function loadAdminAuthors() {
+  const listEl = document.getElementById('adminAuthorsList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="admin-empty-hint">Загрузка авторов...</div>';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/authors`, {}, 6000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const authors = data.authors || [];
+
+    if (authors.length === 0) {
+      listEl.innerHTML = '<div class="admin-empty-hint">Список авторов пуст (только владелец может редактировать)</div>';
+      return;
+    }
+
+    let html = '';
+    authors.forEach(a => {
+      html += `
+        <div class="admin-row-item">
+          <div class="admin-row-info">
+            <div class="admin-row-id">ID: ${a.telegram_id}</div>
+            <div class="admin-row-user">${esc(a.name || 'Без имени')}</div>
+          </div>
+          <button type="button" class="admin-del-btn" onclick="removeAuthor(${a.telegram_id})" title="Удалить">
+            Удалить
+          </button>
+        </div>
+      `;
+    });
+    listEl.innerHTML = html;
+  } catch (err) {
+    listEl.innerHTML = `<div class="admin-empty-hint" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+}
+
+window.submitAddAuthor = async function() {
+  const idInput = document.getElementById('newAuthorId');
+  const nameInput = document.getElementById('newAuthorName');
+  const idVal = (idInput?.value || '').trim();
+  const nameVal = (nameInput?.value || '').trim();
+  const tgId = parseInt(idVal, 10);
+
+  if (!tgId || isNaN(tgId)) {
+    alert('Введите корректный числовой Telegram ID');
+    return;
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/authors`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telegram_id: tgId, name: nameVal })
+    }, 8000);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    if (idInput) idInput.value = '';
+    if (nameInput) nameInput.value = '';
+    await loadAdminAuthors();
+  } catch (err) {
+    alert(`Ошибка добавления автора: ${err.message}`);
+  }
+};
+
+window.removeAuthor = async function(telegramId) {
+  if (!confirm(`Удалить автора ID ${telegramId}?`)) return;
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/authors/${telegramId}`, { method: 'DELETE' }, 8000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await loadAdminAuthors();
+  } catch (err) {
+    alert(`Ошибка удаления: ${err.message}`);
+  }
+};
+
+async function loadAdminBans() {
+  const listEl = document.getElementById('adminBansList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="admin-empty-hint">Загрузка черного списка...</div>';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/bans`, {}, 6000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const bans = data.banned_users || [];
+
+    if (bans.length === 0) {
+      listEl.innerHTML = '<div class="admin-empty-hint">Черный список пуст</div>';
+      return;
+    }
+
+    let html = '';
+    bans.forEach(b => {
+      html += `
+        <div class="admin-row-item">
+          <div class="admin-row-info">
+            <div class="admin-row-id" style="color:#ef4444;">ID: ${b.telegram_id}</div>
+            <div class="admin-row-reason">${esc(b.reason || 'Без причины')}</div>
+          </div>
+          <button type="button" class="admin-unban-btn" onclick="unbanUser(${b.telegram_id})" title="Разблокировать">
+            Разбан
+          </button>
+        </div>
+      `;
+    });
+    listEl.innerHTML = html;
+  } catch (err) {
+    listEl.innerHTML = `<div class="admin-empty-hint" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+}
+
+window.submitAddBan = async function() {
+  const idInput = document.getElementById('newBanId');
+  const reasonInput = document.getElementById('newBanReason');
+  const idVal = (idInput?.value || '').trim();
+  const reasonVal = (reasonInput?.value || '').trim();
+  const tgId = parseInt(idVal, 10);
+
+  if (!tgId || isNaN(tgId)) {
+    alert('Введите корректный числовой Telegram ID');
+    return;
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/bans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telegram_id: tgId, reason: reasonVal })
+    }, 8000);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    if (idInput) idInput.value = '';
+    if (reasonInput) reasonInput.value = '';
+    await loadAdminBans();
+  } catch (err) {
+    alert(`Ошибка блокировки: ${err.message}`);
+  }
+};
+
+window.unbanUser = async function(telegramId) {
+  if (!confirm(`Разблокировать пользователя ID ${telegramId}?`)) return;
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/bans/${telegramId}`, { method: 'DELETE' }, 8000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await loadAdminBans();
+  } catch (err) {
+    alert(`Ошибка разблокировки: ${err.message}`);
+  }
+};
 
 // ── UTILS ───────────────────────────────
 function esc(str) {

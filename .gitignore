@@ -11,10 +11,12 @@ venv/
 env/
 .venv/
 
-# Caches
+# Caches & Databases
 .cache/
 server/schedule_cache.json
 server/bot_users.json
+server/data.db
+*.db
 verify_fix.py
 
 # OS files

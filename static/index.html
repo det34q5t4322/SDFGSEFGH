@@ -135,6 +135,12 @@
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></span>
           <span class="sidebar-nav-label">Сброс интерфейса</span>
         </button>
+
+        <!-- Админ-панель (только для владельца) -->
+        <button class="sidebar-nav-item" data-menu-id="menu-admin" data-section="system" id="sidebarAdminBtn" style="display:none;" type="button" title="Панель управления">
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
+          <span class="sidebar-nav-label" style="color:var(--accent,#818cf8);font-weight:700;">Админ-панель</span>
+        </button>
       </div>
     </nav>
 
@@ -1065,12 +1071,101 @@
           </div>
         </div>
 
+  <!-- ══════════════════════════════════════════════════
+       ШТОРКА ЗАМЕТОК И ДОМАШНИХ ЗАДАНИЙ (BOTTOM SHEET)
+       ══════════════════════════════════════════════════ -->
+  <div class="modal-backdrop" id="notesModalBackdrop">
+    <div class="modal-sheet notes-modal-sheet" id="notesDrawer">
+      <div class="modal-sheet-handle" onclick="closeNotesDrawer()"></div>
+      <div class="modal-sheet-header">
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <span class="notes-drawer-badge" id="notesDrawerBadge">1 пара</span>
+          <div class="modal-sheet-title" id="notesDrawerTitle" style="font-size:16px;">Заметка к паре</div>
+        </div>
+        <button class="modal-close-btn" id="notesDrawerCloseBtn" onclick="closeNotesDrawer()" type="button" aria-label="Закрыть">&times;</button>
+      </div>
+      <div class="notes-sheet-body">
+        <div id="notesViewMode">
+          <div class="notes-card-content" id="notesContentText"></div>
+          <div class="notes-meta-line" id="notesMetaInfo"></div>
+          <div class="notes-actions-row" id="notesAuthorActions" style="display:none;">
+            <button class="notes-btn-action" id="notesEditBtn" onclick="switchNotesToEditMode()" type="button">
+              <span>✏️ Редактировать заметку / ДЗ</span>
+            </button>
+          </div>
+        </div>
+        <div id="notesEditMode" style="display:none;">
+          <textarea class="notes-edit-textarea" id="notesTextarea" rows="6" placeholder="Введите домашнее задание или заметку к этой паре..."></textarea>
+          <div class="notes-edit-footer">
+            <button class="notes-btn-cancel" onclick="cancelNotesEdit()" type="button">Отмена</button>
+            <button class="notes-btn-save" id="notesSaveBtn" onclick="saveCurrentNote()" type="button">💾 Сохранить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       АДМИН-ПАНЕЛЬ (ДОСТУП СТРОГО ДЛЯ ВЛАДЕЛЬЦА)
+       ══════════════════════════════════════════════════ -->
+  <div class="modal-backdrop" id="adminModalBackdrop">
+    <div class="modal-sheet admin-modal-sheet" id="adminModal">
+      <div class="modal-sheet-handle" onclick="closeAdminModal()"></div>
+      <div class="modal-sheet-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:20px;">👑</span>
+          <div class="modal-sheet-title">Панель управления</div>
+        </div>
+        <button class="modal-close-btn" id="adminModalCloseBtn" onclick="closeAdminModal()" type="button" aria-label="Закрыть">&times;</button>
+      </div>
+
+      <div class="admin-segmented-nav">
+        <button class="admin-nav-tab-btn active" id="adminTabAuthorsBtn" onclick="switchAdminTab('authors')" type="button">
+          ✍️ Авторы ДЗ
+        </button>
+        <button class="admin-nav-tab-btn" id="adminTabBansBtn" onclick="switchAdminTab('bans')" type="button">
+          🚫 Бан-лист
+        </button>
+      </div>
+
+      <div class="admin-sheet-body">
+        <!-- Секция 1: Авторы заметок -->
+        <div id="adminAuthorsSection">
+          <div class="admin-input-card">
+            <div class="admin-card-subtitle">Добавить автора заметок:</div>
+            <div class="admin-input-row">
+              <input type="number" id="newAuthorId" class="admin-text-input" placeholder="Telegram ID (число)">
+              <input type="text" id="newAuthorName" class="admin-text-input" placeholder="Имя / @username">
+            </div>
+            <button class="admin-action-submit-btn" onclick="submitAddAuthor()" type="button">
+              + Добавить автора
+            </button>
+          </div>
+          <div class="admin-list-header">Разрешённые авторы:</div>
+          <div class="admin-records-list" id="adminAuthorsList"></div>
+        </div>
+
+        <!-- Секция 2: Бан-лист -->
+        <div id="adminBansSection" style="display:none;">
+          <div class="admin-input-card">
+            <div class="admin-card-subtitle">Заблокировать пользователя:</div>
+            <div class="admin-input-row">
+              <input type="number" id="newBanId" class="admin-text-input" placeholder="Telegram ID (число)">
+              <input type="text" id="newBanReason" class="admin-text-input" placeholder="Причина бана">
+            </div>
+            <button class="admin-action-submit-btn ban-color" onclick="submitAddBan()" type="button">
+              🚫 Заблокировать ID
+            </button>
+          </div>
+          <div class="admin-list-header">Заблокированные пользователи:</div>
+          <div class="admin-records-list" id="adminBansList"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260906_12"></script>
-  <script src="/static/app.js?v=20260906_16"></script>
+  <script src="/static/app.js?v=20260911_final"></script>
 </body>
 </html>

@@ -181,31 +181,13 @@ def build_main_keyboard(group: str = DEFAULT_GROUP) -> ReplyKeyboardMarkup:
 
 
 def build_schedule_keyboard(offset_days: int = 0, group: str = DEFAULT_GROUP) -> InlineKeyboardMarkup:
-    """Инлайн-кнопки под расписанием для мгновенного переключения дней на месте."""
+    """Инлайн-кнопки под сообщением: строго одна кнопка Web App для открытия интерактивного расписания."""
     buttons = []
     wa_url = get_webapp_url(group)
     if wa_url:
         buttons.append([
-            InlineKeyboardButton("🚀 Открыть интерактивное приложение", web_app=WebAppInfo(url=wa_url))
+            InlineKeyboardButton("🚀 Открыть расписание", web_app=WebAppInfo(url=wa_url))
         ])
-
-    nav_row = [
-        InlineKeyboardButton("◀ Вчера", callback_data=f"day_{offset_days - 1}"),
-        InlineKeyboardButton("📅 Сегодня", callback_data="day_0"),
-        InlineKeyboardButton("Завтра ▶", callback_data=f"day_{offset_days + 1}"),
-    ]
-    buttons.append(nav_row)
-
-    actions = [
-        InlineKeyboardButton("🗓 Вся неделя", callback_data="view_week"),
-        InlineKeyboardButton("⚙️ Сменить группу", callback_data="select_group_courses"),
-    ]
-    buttons.append(actions)
-    buttons.append([
-        InlineKeyboardButton("💀🚨 До английского", callback_data="view_alarm"),
-        InlineKeyboardButton("📚 Электронный дневник 1С", url=DIARY_1C_URL),
-    ])
-
     return InlineKeyboardMarkup(buttons)
 
 
@@ -305,19 +287,16 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def show_courses_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показывает список курсов для выбора группы в том же сообщении."""
-    courses = ["1 курс", "2 курс", "3 курс", "4 курс", "Очно-заочное"]
-    keyboard = [
-        [InlineKeyboardButton(f"🎓 {c}", callback_data=f"course_{c}")] for c in courses
-    ]
-
-    user_id = update.effective_user.id
-    current_group = get_user_group(user_id)
-    if current_group:
-        keyboard.append([InlineKeyboardButton("⬅ Назад к расписанию", callback_data="day_0")])
-
-    text = "👥 <b>Выберите ваш курс или отделение:</b>"
-    await send_or_edit(update, context, text, reply_markup=InlineKeyboardMarkup(keyboard))
+    """Уведомление о смене группы."""
+    user = update.effective_user
+    user_id = user.id if user else 0
+    current_group = get_user_group(user_id) if user_id else DEFAULT_GROUP
+    text = (
+        f"👥 Ваша текущая группа: <b>{html_esc(current_group)}</b>\n\n"
+        "Вы можете сменить группу прямо в приложении (нажав на название группы вверху экрана) "
+        "или просто напишите точное название вашей группы в этот чат (например: <code>ИСС9-25</code>)."
+    )
+    await send_or_edit(update, context, text, reply_markup=build_schedule_keyboard(0, group=current_group))
 
 
 async def show_groups_for_course(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -522,38 +501,12 @@ async def send_schedule_for_day(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 def build_week_keyboard(group: str = DEFAULT_GROUP) -> InlineKeyboardMarkup:
-    """Инлайн-кнопки дней недели для быстрого переключения в одном сообщении."""
-    buttons = []
-    wa_url = get_webapp_url(group)
-    if wa_url:
-        buttons.append([
-            InlineKeyboardButton("🚀 Открыть приложение (Mini App)", web_app=WebAppInfo(url=wa_url))
-        ])
-
-    row1 = [
-        InlineKeyboardButton("Пн", callback_data="day_dow_0"),
-        InlineKeyboardButton("Вт", callback_data="day_dow_1"),
-        InlineKeyboardButton("Ср", callback_data="day_dow_2"),
-    ]
-    row2 = [
-        InlineKeyboardButton("Чт", callback_data="day_dow_3"),
-        InlineKeyboardButton("Пт", callback_data="day_dow_4"),
-        InlineKeyboardButton("Сб", callback_data="day_dow_5"),
-    ]
-    buttons.append(row1)
-    buttons.append(row2)
-    buttons.append([
-        InlineKeyboardButton("📅 К сегодняшнему дню", callback_data="day_0"),
-        InlineKeyboardButton("⚙️ Сменить группу", callback_data="select_group_courses"),
-    ])
-    buttons.append([
-        InlineKeyboardButton("📚 Электронный дневник 1С", url=DIARY_1C_URL)
-    ])
-    return InlineKeyboardMarkup(buttons)
+    """Инлайн-кнопки: строго одна кнопка Web App для открытия интерактивного расписания."""
+    return build_schedule_keyboard(0, group=group)
 
 
 async def send_week_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обзор недели в одном сообщении с кнопками перехода на любой день без спама."""
+    """Обзор недели в одном сообщении с кнопкой открытия в приложении."""
     user_id = update.effective_user.id
     group_name = get_user_group(user_id)
 
@@ -571,7 +524,7 @@ async def send_week_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"👥 Группа: <b>{html_esc(group_name)}</b>\n"
         f"⚡ Неделя: <b>{html_esc(parity_str)}</b> ({week_num}-я)\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Нажмите на день недели ниже, чтобы сразу открыть его расписание прямо здесь:"
+        f"Нажмите кнопку ниже, чтобы открыть полное расписание недели в интерактивном приложении:"
     )
 
     await send_or_edit(update, context, text, reply_markup=build_week_keyboard(group=group_name))
@@ -669,16 +622,7 @@ async def alarm_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             f"🕐 МСК сейчас: {html_esc(str(alarm['now_msk']))}"
         )
 
-    wa_url = get_webapp_url(group_name)
-    buttons = []
-    if wa_url:
-        buttons.append([InlineKeyboardButton("💀🚨 Открыть тревогу в приложении", web_app=WebAppInfo(url=wa_url))])
-    buttons.append([
-        InlineKeyboardButton("🔄 Обновить", callback_data="view_alarm"),
-        InlineKeyboardButton("📅 Сегодня", callback_data="day_0"),
-    ])
-    keyboard = InlineKeyboardMarkup(buttons) if buttons else None
-
+    keyboard = build_schedule_keyboard(0, group=group_name)
     await send_or_edit(update, context, text, reply_markup=keyboard)
 
 
@@ -698,9 +642,9 @@ async def diary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "Портал 1С защищён DDoS-Guard и требует открытия в обычном браузере. "
         "Нажмите на <b>три точки (⋮)</b> вверху справа экрана Telegram и выберите <b>«Открыть в браузере»</b> (Chrome / Safari / Яндекс)."
     )
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📚 Открыть дневник 1С", url=DIARY_1C_URL)]
-    ])
+    user = update.effective_user
+    group_name = get_user_group(user.id) if user else DEFAULT_GROUP
+    keyboard = build_schedule_keyboard(0, group=group_name)
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard, disable_notification=True)
@@ -803,14 +747,7 @@ def create_bot_app():
     app.add_handler(CommandHandler(["diary", "dnevnik"], diary_command))
     app.add_handler(CommandHandler(["support", "help_me"], support_command))
 
-    # Регистрация callback-обработчиков (редактирование на месте)
-    app.add_handler(CallbackQueryHandler(show_courses_menu, pattern="^select_group_courses$"))
-    app.add_handler(CallbackQueryHandler(show_groups_for_course, pattern="^course_"))
-    app.add_handler(CallbackQueryHandler(set_group_callback, pattern="^setgrp_"))
-    app.add_handler(CallbackQueryHandler(send_week_schedule, pattern="^view_week$"))
-    app.add_handler(CallbackQueryHandler(alarm_callback, pattern="^view_alarm$"))
-    app.add_handler(CallbackQueryHandler(day_offset_callback, pattern=r"^day_(-?\d+)$"))
-    app.add_handler(CallbackQueryHandler(day_dow_callback, pattern=r"^day_dow_(\d+)$"))
+    # Все инлайн-кнопки переведены на Web App; устаревшие callback-обработчики отключены для максимальной скорости
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
