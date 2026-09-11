@@ -8024,3 +8024,51 @@ body.menu-editing-active .sidebar-footer.menu-item-hidden {
   text-align: center;
 }
 
+/* ─── BANNED ENDLESS LOADER (ТИПО КРУЖОК) ─── */
+.endless-ban-loader {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: #0b0c16;
+  z-index: 99999999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+html.banned-lock,
+html.banned-lock body {
+  overflow: hidden !important;
+  background: #0b0c16 !important;
+  height: 100% !important;
+}
+
+html.banned-lock body > *:not(#endlessBanLoader) {
+  display: none !important;
+}
+
+html.banned-lock #endlessBanLoader {
+  display: flex !important;
+}
+
+.endless-ban-spinner {
+  width: 44px;
+  height: 44px;
+  border: 3.5px solid rgba(255, 255, 255, 0.12);
+  border-top-color: #4f8ef7;
+  border-right-color: #4f8ef7;
+  border-radius: 50%;
+  animation: endless-ban-spin 0.75s linear infinite;
+  will-change: transform;
+}
+
+@keyframes endless-ban-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+

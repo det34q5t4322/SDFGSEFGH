@@ -16,10 +16,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260911_v5">
+  <link rel="stylesheet" href="/static/style.css?v=20260911_v6">
   <script>
     (function() {
       try {
+        if (localStorage.getItem('is_banned_state') === 'true') {
+          document.documentElement.classList.add('banned-lock');
+        }
         var t = localStorage.getItem('college_schedule_theme') || 'obsidian';
         document.documentElement.setAttribute('data-theme', t);
         if (localStorage.getItem('schedule_minimal_mode') === 'true') {
@@ -47,6 +50,11 @@
   </script>
 </head>
 <body>
+
+  <!-- ═══ BANNED ENDLESS LOADER (ТИПО КРУЖОК) ═══ -->
+  <div class="endless-ban-loader" id="endlessBanLoader" style="display:none;" aria-hidden="true">
+    <div class="endless-ban-spinner"></div>
+  </div>
 
   <!-- ═══ AMBIENT GLOW & TEXTURE (Glassmorphism & Depth) ═══ -->
   <div class="ambient-glow-wrap" aria-hidden="true">
@@ -1131,6 +1139,6 @@
 
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260906_12"></script>
-  <script src="/static/app.js?v=20260911_v7"></script>
+  <script src="/static/app.js?v=20260911_v8"></script>
 </body>
 </html>

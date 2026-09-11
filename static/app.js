@@ -243,6 +243,31 @@ function isTelegramGatePassed() {
   return hasInitData || isDev;
 }
 
+// ── BAN LOCK & ENDLESS LOADER ──
+function triggerBanEndlessLoading() {
+  try { safeSetItem('is_banned_state', 'true'); } catch (_) {}
+  document.documentElement.classList.add('banned-lock');
+  const loader = document.getElementById('endlessBanLoader');
+  if (loader) loader.style.display = 'flex';
+
+  try { stopAutoRefresh(); } catch (_) {}
+  try { stopLiveCardClock(); } catch (_) {}
+  try { stopEnglishCountdown(); } catch (_) {}
+  S.data = null;
+
+  try { closeSidebar(); } catch (_) {}
+  try { if (typeof closeAdminModal === 'function') closeAdminModal(); } catch (_) {}
+  try { if (typeof closeSettingsModal === 'function') closeSettingsModal(); } catch (_) {}
+  logApp('warn', 'Active ban detected. Site locked in endless loading circle.');
+}
+
+function clearBanEndlessLoading() {
+  try { localStorage.removeItem('is_banned_state'); } catch (_) {}
+  document.documentElement.classList.remove('banned-lock');
+  const loader = document.getElementById('endlessBanLoader');
+  if (loader) loader.style.display = 'none';
+}
+
 // Intercept fetch for /api/* requests to automatically inject Telegram WebApp headers
 const _origFetch = window.fetch;
 window.fetch = function(resource, init = {}) {
@@ -577,6 +602,9 @@ window.handleTelegramBackButtonClick = handleTelegramBackButtonClick;
 //  INIT
 // ════════════════════════════════════════
 async function init() {
+  if (localStorage.getItem('is_banned_state') === 'true') {
+    triggerBanEndlessLoading();
+  }
   if (!isTelegramGatePassed()) {
     renderSkeleton();
   }
@@ -2328,6 +2356,11 @@ async function loadSchedule(force = false) {
 
   const cacheKey = STORAGE_CACHE_PREFIX + S.group + '_' + (S.activeGid || 'active');
 
+  if (localStorage.getItem('is_banned_state') === 'true') {
+    triggerBanEndlessLoading();
+    return;
+  }
+
   // 1. ОФФЛАЙН-ПЕРВЫЙ: мгновенно рендерим сохранённую копию из localStorage, не дожидаясь сети
   if (!S.data) {
     const preCached = getAnyCachedScheduleForGroup(S.group, S.activeGid);
@@ -2418,6 +2451,13 @@ async function loadSchedule(force = false) {
     const freshData = await res.json();
 
     if (currentSignal.aborted) return;
+
+    if (freshData && freshData.is_banned) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      triggerBanEndlessLoading();
+      return;
+    }
 
     if (freshData && freshData.published === false) {
       clearTimeout(wakeupTimer);
@@ -5674,6 +5714,12 @@ async function checkAuthStatus() {
     const res = await fetchWithTimeout(`${API}/auth-status`, {}, 5000);
     if (!res.ok) return;
     const data = await res.json();
+    if (data && data.is_banned) {
+      triggerBanEndlessLoading();
+      return;
+    } else if (data && data.authenticated && data.is_banned === false) {
+      clearBanEndlessLoading();
+    }
     S.isAdmin = Boolean(data.is_admin);
     S.telegramId = data.telegram_id || null;
     S.telegramUsername = data.username || null;

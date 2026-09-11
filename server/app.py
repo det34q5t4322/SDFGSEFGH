@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -176,8 +176,30 @@ async def telegram_gate_middleware(request: Request, call_next):
             if not user or not user.get("is_admin") or user.get("is_banned"):
                 return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
-        if not user or user.get("is_banned"):
-            # Если запрос пришел вне Telegram, подпись невалидна или пользователь забанен:
+        if user and user.get("is_banned"):
+            # ПОЛЬЗОВАТЕЛЬ ЗАБАНЕН: клиент переводится в бесконечную загрузку (кружок)
+            if path == "/api/schedule":
+                return JSONResponse({
+                    "published": False,
+                    "gate_active": True,
+                    "is_banned": True,
+                    "group": "",
+                    "groups": [],
+                    "courses": [],
+                    "available_tabs": [],
+                    "days": {}
+                })
+            elif path == "/api/auth-status":
+                return JSONResponse({"authenticated": False, "is_admin": False, "is_banned": True})
+            elif path == "/api/tabs":
+                return JSONResponse({"tabs": [], "active_gid": "", "is_banned": True})
+            elif path == "/api/groups":
+                return JSONResponse({"groups": [], "courses": [], "is_banned": True})
+            else:
+                return JSONResponse({"gate_active": True, "published": False, "is_banned": True})
+
+        if not user:
+            # Если запрос пришел вне Telegram, подпись невалидна:
             # Не отдаем данные, не раскрывая статусных кодов (200 OK с пустой структурой, удержание в вечном скелетоне)
             if path == "/api/schedule":
                 return JSONResponse({
@@ -331,8 +353,29 @@ async def unregister_sw():
 
 
 @app.get("/")
-async def root():
+async def root(request: Request):
     """Отдача главного интерфейса расписания."""
+    user = get_verified_user_from_request(request)
+    if user and user.get("is_banned"):
+        return HTMLResponse(
+            content="""<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Расписание | Колледж телекоммуникаций</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; height:100dvh; background:#0b0c16; overflow:hidden; display:flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; }
+  .spinner { width:44px; height:44px; border:3.5px solid rgba(255,255,255,0.12); border-top-color:#4f8ef7; border-right-color:#4f8ef7; border-radius:50%; animation:spin 0.75s linear infinite; }
+  @keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="spinner"></div>
+</body>
+</html>""",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(
@@ -561,8 +604,10 @@ class AdminBanPayload(BaseModel):
 async def get_auth_status(request: Request):
     """Проверка статуса сессии: Telegram ID и статус владельца."""
     user = get_verified_user_from_request(request)
-    if not user or user.get("is_banned"):
+    if not user:
         return {"authenticated": False, "is_admin": False}
+    if user.get("is_banned"):
+        return {"authenticated": False, "is_admin": False, "is_banned": True}
 
     uid = user.get("id", 0)
     is_admin = is_admin_user(uid)
@@ -629,9 +674,13 @@ async def delete_admin_ban(request: Request, telegram_id: int):
 
 @app.get("/api/english-alarm")
 async def get_english_alarm(
+    request: Request,
     group: Optional[str] = Query(None, description="Название группы")
 ):
     """Информация о ближайшем занятии по английскому языку / тревоге и обратный отсчет."""
+    user = get_verified_user_from_request(request)
+    if user and user.get("is_banned"):
+        return {"found": False, "is_banned": True}
     target_group = (group or "ИСС9-25").strip()
     return await asyncio.to_thread(parser.get_upcoming_alarm, target_group, pattern=r"(англ|иностр)")
 
