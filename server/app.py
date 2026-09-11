@@ -123,7 +123,7 @@ async def rate_limiting_middleware(request: Request, call_next):
                     _ip_request_timestamps.pop(ip, None)
     return await call_next(request)
 
-PUBLIC_ROUTES = {"/api/ping", "/api/health"}
+PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm"}
 
 def get_verified_user_from_request(request: Request) -> Optional[dict]:
     """Извлекает и валидирует Telegram WebApp initData с кэшированием сессии в request.state."""

@@ -209,19 +209,12 @@ function logApp(level, msg, data = null) {
 }
 
 function showOfflineBanner(message, isWakingUp = false) {
-  if (!els.offlineBanner || !els.offlineBannerText) return;
-  els.offlineBannerText.textContent = message;
-  els.offlineBanner.className = 'offline-banner' + (isWakingUp ? ' waking-up' : '');
-  if (els.offlineBannerRetryBtn) {
-    els.offlineBannerRetryBtn.style.display = isWakingUp ? 'none' : 'inline-flex';
-  }
-  els.offlineBanner.style.display = 'flex';
+  logApp('info', `[OfflineStatus] ${message}`);
+  // Visual banner removed per user request - silent logging only
 }
 
 function hideOfflineBanner() {
-  if (els.offlineBanner) {
-    els.offlineBanner.style.display = 'none';
-  }
+  // Visual banner removed per user request
 }
 
 // ── AUTH & TELEGRAM GATE ─────────────────
@@ -2352,10 +2345,8 @@ async function loadSchedule(force = false) {
     }
   }
 
-  // 2. ИНДИКАТОР ПРОБУЖДЕНИЯ СЕРВЕРА RENDER (если ответ длится > 2.5с)
-  const wakeupTimer = setTimeout(() => {
-    showOfflineBanner('⏳ Сервер просыпается, подгружаем свежее расписание...', true);
-  }, 2500);
+  // 2. Индикатор пробуждения убран по запросу пользователя (тихая фоновая загрузка)
+  const wakeupTimer = null;
 
   // 3. СЕТЕВОЙ ЗАПРОС С ТАЙМАУТОМ (8.5 сек)
   try {
@@ -3300,20 +3291,23 @@ function findUpcomingEnglishInSchedule(data) {
       if (/англ|иностр/i.test(subj)) {
         const startStr = (p.start || (p.time ? p.time.split('-')[0] : '')).trim();
         const [startH, startM] = startStr.split(':').map(Number);
-        const targetDate = new Date(year, m - 1, d, startH || 8, startM || 0, 0);
+        let targetDate = new Date(year, m - 1, d, startH || 8, startM || 0, 0);
 
-        if (targetDate.getTime() > now.getTime()) {
-          candidates.push({
-            dayName,
-            dateFormatted: `${String(d).padStart(2, '0')}.${String(m).padStart(2, '0')}.${year}`,
-            pairNum: p.pair_num || p.num || 1,
-            time: p.time || `${p.start} - ${p.end}`,
-            subject: subj,
-            teacher: pairInfo.teacher || p.teacher || '',
-            room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || '',
-            targetDate
-          });
+        // Если пара на текущей неделе уже завершилась или прошла, она повторится на следующей (+7 дней)
+        if (targetDate.getTime() <= now.getTime()) {
+          targetDate = new Date(targetDate.getTime() + 7 * 86400 * 1000);
         }
+
+        candidates.push({
+          dayName,
+          dateFormatted: `${String(targetDate.getDate()).padStart(2, '0')}.${String(targetDate.getMonth() + 1).padStart(2, '0')}.${targetDate.getFullYear()}`,
+          pairNum: p.pair_num || p.num || 1,
+          time: p.time || `${p.start} - ${p.end}`,
+          subject: subj,
+          teacher: pairInfo.teacher || p.teacher || '',
+          room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || '',
+          targetDate
+        });
       }
     }
   }
@@ -3336,101 +3330,20 @@ async function startEnglishCountdown() {
   const subjEl = document.getElementById('alarmPairSubject');
   const teacherEl = document.getElementById('alarmPairTeacher');
   const roomEl = document.getElementById('alarmPairRoom');
-
   const countdownGrid = document.querySelector('.alarm-countdown-grid');
-  if (countdownGrid) countdownGrid.classList.add('is-loading');
-
-  if (daysEl) daysEl.textContent = '—';
-  if (hoursEl) hoursEl.textContent = '—';
-  if (minsEl) minsEl.textContent = '—';
-  if (secsEl) secsEl.textContent = '—';
 
   if (groupNoticeEl) groupNoticeEl.textContent = `Группа: ${S.group || '—'}`;
-  if (dateEl) dateEl.textContent = '⏳ Загрузка расписания и поиск пары...';
-  if (timeEl) timeEl.textContent = 'Пожалуйста, подождите...';
 
-  // 1. Быстрый и безошибочный серверный API
-  let serverAlarm = null;
-  try {
-    const res = await fetchWithTimeout(`${API}/english-alarm?group=${encodeURIComponent(S.group || 'ИСС9-25')}`, {}, 6000);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.found) {
-        serverAlarm = data;
-      }
-    }
-  } catch (err) {
-    console.warn('Серверный запрос будильника не удался, переходим на клиентский поиск:', err);
+  function applyAlarmData(info) {
+    if (dateEl) dateEl.textContent = info.display_date || `${info.dayName}, ${info.dateFormatted}`;
+    if (timeEl) timeEl.textContent = `${info.pair_num || info.pairNum} пара (${info.time})`;
+    if (subjEl) subjEl.textContent = info.subject;
+    if (teacherEl) teacherEl.textContent = info.teacher || 'Не указан';
+    if (roomEl) roomEl.textContent = info.classroom ? `ауд. ${info.classroom}` : (info.room ? `ауд. ${info.room}` : 'Не указана');
+    currentEnglishTargetDate = info.target_iso ? new Date(info.target_iso) : info.targetDate;
+    if (countdownGrid) countdownGrid.classList.remove('is-loading');
+    tick();
   }
-
-  if (serverAlarm) {
-    if (dateEl) dateEl.textContent = serverAlarm.display_date;
-    if (timeEl) timeEl.textContent = `${serverAlarm.pair_num} пара (${serverAlarm.time})`;
-    if (subjEl) subjEl.textContent = serverAlarm.subject;
-    if (teacherEl) teacherEl.textContent = serverAlarm.teacher || 'Не указан';
-    if (roomEl) roomEl.textContent = serverAlarm.classroom ? `ауд. ${serverAlarm.classroom}` : 'Не указана';
-
-    currentEnglishTargetDate = new Date(serverAlarm.target_iso);
-  } else {
-    // 2. Клиентский резервный поиск
-    let englishPair = findUpcomingEnglishInSchedule(S.data);
-
-    // Если в текущей вкладке нет — проверяем другие вкладки
-    if (!englishPair && S.data?.available_tabs?.length) {
-      const activeGid = S.data.active_gid || S.activeGid;
-      for (const tab of S.data.available_tabs) {
-        if (tab.gid === activeGid) continue;
-        try {
-          let tabData = null;
-          const cacheKey = `schedule_${S.group}_${tab.gid}`;
-          const cached = localStorage.getItem(cacheKey);
-          if (cached) {
-            try { tabData = JSON.parse(cached); } catch (_) {}
-          }
-          if (!tabData) {
-            const res = await fetchWithTimeout(`${API}/schedule?group=${encodeURIComponent(S.group)}&tab=${encodeURIComponent(tab.gid)}`, {}, 5000);
-            if (res.ok) {
-              tabData = await res.json();
-              try { localStorage.setItem(cacheKey, JSON.stringify(tabData)); } catch (_) {}
-            }
-          }
-          if (tabData) {
-            const candidate = findUpcomingEnglishInSchedule(tabData);
-            if (candidate) {
-              englishPair = candidate;
-              break;
-            }
-          }
-        } catch (err) {
-          console.warn('Ошибка проверки вкладки на английский:', err);
-        }
-      }
-    }
-
-    if (!englishPair) {
-      if (countdownGrid) countdownGrid.classList.remove('is-loading');
-      if (dateEl) dateEl.textContent = 'В расписании группы пар не найдено';
-      if (timeEl) timeEl.textContent = '—';
-      if (subjEl) subjEl.textContent = 'Иностранный язык';
-      if (teacherEl) teacherEl.textContent = '—';
-      if (roomEl) roomEl.textContent = '—';
-      if (daysEl) daysEl.textContent = '00';
-      if (hoursEl) hoursEl.textContent = '00';
-      if (minsEl) minsEl.textContent = '00';
-      if (secsEl) secsEl.textContent = '00';
-      return;
-    }
-
-    if (dateEl) dateEl.textContent = `${englishPair.dayName}, ${englishPair.dateFormatted}`;
-    if (timeEl) timeEl.textContent = `${englishPair.pairNum} пара (${englishPair.time})`;
-    if (subjEl) subjEl.textContent = englishPair.subject;
-    if (teacherEl) teacherEl.textContent = englishPair.teacher || 'Не указан';
-    if (roomEl) roomEl.textContent = englishPair.room ? `ауд. ${englishPair.room}` : 'Не указана';
-
-    currentEnglishTargetDate = englishPair.targetDate;
-  }
-
-  if (countdownGrid) countdownGrid.classList.remove('is-loading');
 
   function tick() {
     if (!currentEnglishTargetDate) return;
@@ -3441,7 +3354,9 @@ async function startEnglishCountdown() {
       if (hoursEl) hoursEl.textContent = '00';
       if (minsEl) minsEl.textContent = '00';
       if (secsEl) secsEl.textContent = '00';
-      if (dateEl) dateEl.textContent += ' (ИДЁТ СЕЙЧАС ИЛИ ЗАВЕРШИЛСЯ)';
+      if (dateEl && !dateEl.textContent.includes('ИДЁТ СЕЙЧАС')) {
+        dateEl.textContent += ' (ИДЁТ СЕЙЧАС ИЛИ ЗАВЕРШИЛСЯ)';
+      }
       stopEnglishCountdown();
       return;
     }
@@ -3457,8 +3372,72 @@ async function startEnglishCountdown() {
     if (secsEl) secsEl.textContent = String(s).padStart(2, '0');
   }
 
-  tick();
-  englishCountdownInterval = setInterval(tick, 1000);
+  // 1. МГНОВЕННЫЙ ЛОКАЛЬНЫЙ ПОИСК (0 миллисекунд)
+  let localPair = findUpcomingEnglishInSchedule(S.data);
+
+  // Если нет в текущей вкладке, синхронно ищем по кэшу сохранённых вкладок
+  if (!localPair && S.tabs && S.tabs.length > 0) {
+    for (const tab of S.tabs) {
+      const cacheKey = `schedule_${S.group}_${tab.gid}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const tabData = JSON.parse(cached);
+          const c = findUpcomingEnglishInSchedule(tabData);
+          if (c) {
+            localPair = c;
+            break;
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  // Если найдено локально — рендерим и запускаем таймер СРАЗУ
+  if (localPair) {
+    applyAlarmData(localPair);
+    englishCountdownInterval = setInterval(tick, 1000);
+  } else {
+    // Временно показываем поиск
+    if (countdownGrid) countdownGrid.classList.add('is-loading');
+    if (daysEl) daysEl.textContent = '—';
+    if (hoursEl) hoursEl.textContent = '—';
+    if (minsEl) minsEl.textContent = '—';
+    if (secsEl) secsEl.textContent = '—';
+    if (dateEl) dateEl.textContent = 'Поиск английского языка...';
+    if (timeEl) timeEl.textContent = '—';
+  }
+
+  // 2. ФОНОВЫЙ ЗАПРОС К СЕРВЕРНОМУ API (без блокировки таймера)
+  try {
+    const res = await fetchWithTimeout(`${API}/english-alarm?group=${encodeURIComponent(S.group || 'ИСС9-25')}`, {}, 4000);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.found) {
+        applyAlarmData(data);
+        if (!englishCountdownInterval) {
+          englishCountdownInterval = setInterval(tick, 1000);
+        }
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('Фоновое обновление будильника:', err);
+  }
+
+  // Если пара не найдена вообще
+  if (!localPair && !currentEnglishTargetDate) {
+    if (countdownGrid) countdownGrid.classList.remove('is-loading');
+    if (dateEl) dateEl.textContent = 'В расписании группы пар не найдено';
+    if (timeEl) timeEl.textContent = '—';
+    if (subjEl) subjEl.textContent = 'Иностранный язык';
+    if (teacherEl) teacherEl.textContent = '—';
+    if (roomEl) roomEl.textContent = '—';
+    if (daysEl) daysEl.textContent = '00';
+    if (hoursEl) hoursEl.textContent = '00';
+    if (minsEl) minsEl.textContent = '00';
+    if (secsEl) secsEl.textContent = '00';
+  }
 }
 
 function stopEnglishCountdown() {
@@ -4794,7 +4773,7 @@ function applyMenuConfig(cfg, persist = false) {
         const rawSec = item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'frequent';
         const secName = secMap[rawSec] || 'services';
         const secContainer = container.querySelector(`.sidebar-section-container[data-section="${secName}"]`);
-        if (secContainer && el.parentElement !== secContainer) {
+        if (secContainer) {
           secContainer.appendChild(el);
         }
         el.dataset.section = secName;
@@ -5477,19 +5456,60 @@ function resetLayoutOrder() {
       showLayoutNotification('Шаблон карточки сброшен');
     }
     updatePresetsUI();
-  } else {
-    // Полный аварийный сброс всех трёх уровней
-    try {
-      localStorage.removeItem(STORAGE_LAYOUT_ORDER);
-      localStorage.removeItem(STORAGE_MENU_CONFIG);
-      localStorage.removeItem(STORAGE_CARD_TEMPLATE);
-    } catch (_) {}
-
-    applyLayoutOrder(DEFAULT_LAYOUT_CONFIG, false);
-    applyMenuConfig(DEFAULT_MENU_CONFIG, false);
-    applyCardConfig(DEFAULT_CARD_CONFIG, false);
-    showLayoutNotification('Интерфейс полностью сброшен по умолчанию');
+    return;
   }
+
+  // Полный заводской сброс всего интерфейса до самого первого варианта:
+  // 1. Очищаем все сохранённые ключи кастомизации
+  const keysToRemove = [
+    STORAGE_THEME,
+    STORAGE_FONT_FAMILY,
+    STORAGE_FONT_SIZE,
+    STORAGE_MINIMAL,
+    STORAGE_SHOW_TEACHER,
+    STORAGE_SHOW_ROOM,
+    STORAGE_SHOW_BADGES,
+    STORAGE_SHOW_BREAKS,
+    STORAGE_NAV_POSITION,
+    STORAGE_LAYOUT_ORDER,
+    STORAGE_MENU_CONFIG,
+    STORAGE_CARD_TEMPLATE,
+    STORAGE_LIVE_HIDDEN,
+    'schedule_layout_preset_screen',
+    'schedule_layout_preset_menu',
+    'schedule_layout_preset_card'
+  ];
+
+  keysToRemove.forEach(k => {
+    try { localStorage.removeItem(k); } catch (_) {}
+    if (window.Telegram?.WebApp?.CloudStorage) {
+      try { window.Telegram.WebApp.CloudStorage.removeItem(k, () => {}); } catch (_) {}
+    }
+  });
+
+  // 2. Сбрасываем тему, шрифт, размер шрифта и компактный режим на заводские
+  applyTheme('obsidian');
+  applyFontFamily('system');
+  applyFontSize('normal');
+  applyMinimalMode(false);
+
+  // 3. Сбрасываем отображение деталей карточки (все включены)
+  if (Array.isArray(DISPLAY_OPTION_CONFIGS)) {
+    DISPLAY_OPTION_CONFIGS.forEach(c => {
+      document.documentElement.removeAttribute(c.attr);
+      const cb = document.getElementById(c.id);
+      if (cb) cb.checked = true;
+    });
+  }
+
+  // 4. Сбрасываем все 3 уровня конструктора (экран, меню, карточка)
+  applyLayoutOrder(DEFAULT_LAYOUT_CONFIG, false);
+  applyMenuConfig(DEFAULT_MENU_CONFIG, false);
+  applyCardConfig(DEFAULT_CARD_CONFIG, false);
+
+  updatePresetsUI();
+  updateResetButtonsVisibility();
+  showLayoutNotification('Интерфейс полностью сброшен к заводским настройкам');
 }
 
 function showLayoutNotification(msg) {
