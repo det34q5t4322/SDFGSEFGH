@@ -604,6 +604,11 @@ window.handleTelegramBackButtonClick = handleTelegramBackButtonClick;
 async function init() {
   if (localStorage.getItem('is_banned_state') === 'true') {
     triggerBanEndlessLoading();
+    // Проверяем сервер — если юзер уже разбанен, снимем лок
+    await checkAuthStatus();
+    if (localStorage.getItem('is_banned_state') === 'true') {
+      return; // всё ещё забанен — не грузим ничего дальше
+    }
   }
   if (!isTelegramGatePassed()) {
     renderSkeleton();
@@ -5717,7 +5722,7 @@ async function checkAuthStatus() {
     if (data && data.is_banned) {
       triggerBanEndlessLoading();
       return;
-    } else if (data && data.authenticated && data.is_banned === false) {
+    } else if (data && data.authenticated && !data.is_banned) {
       clearBanEndlessLoading();
     }
     S.isAdmin = Boolean(data.is_admin);

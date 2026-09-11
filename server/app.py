@@ -636,6 +636,7 @@ async def get_auth_status(request: Request):
         "username": user.get("username", ""),
         "first_name": user.get("first_name", ""),
         "is_admin": is_admin,
+        "is_banned": False,
     }
 
 
