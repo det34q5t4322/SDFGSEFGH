@@ -194,9 +194,7 @@ async def telegram_gate_middleware(request: Request, call_next):
             elif path == "/api/groups":
                 return JSONResponse({"groups": [], "courses": []})
             elif path == "/api/auth-status":
-                return JSONResponse({"authenticated": False, "is_admin": False, "can_edit_notes": False})
-            elif path == "/api/notes":
-                return JSONResponse({"notes": [], "can_edit": False})
+                return JSONResponse({"authenticated": False, "is_admin": False})
             else:
                 return JSONResponse({"gate_active": True, "published": False})
 
@@ -550,24 +548,7 @@ async def set_api_user_group(payload: UserGroupPayload):
         raise HTTPException(status_code=500, detail="Внутренняя ошибка при сохранении группы")
 
 
-# ── СИСТЕМА АВТОРИЗАЦИИ, ЗАМЕТОК/ДЗ И АДМИН-ПАНЕЛЬ ──
-
-class LessonNotePayload(BaseModel):
-    group_name: str = Field(..., min_length=1, max_length=50)
-    day_key: Optional[str] = None
-    day_name: Optional[str] = None
-    pair_num: int = Field(..., ge=1, le=10)
-    subject: Optional[str] = ""
-    text: Optional[str] = None
-    content: Optional[str] = None
-
-
-class AdminAuthorPayload(BaseModel):
-    telegram_id: int = Field(..., gt=0)
-    username: Optional[str] = ""
-    name: Optional[str] = ""
-    action: Optional[str] = "add"
-
+# ── СИСТЕМА АВТОРИЗАЦИИ И АДМИН-ПАНЕЛЬ (БАН-ЛИСТ) ──
 
 class AdminBanPayload(BaseModel):
     telegram_id: int = Field(..., gt=0)
@@ -578,14 +559,13 @@ class AdminBanPayload(BaseModel):
 
 @app.get("/api/auth-status")
 async def get_auth_status(request: Request):
-    """Проверка статуса сессии: Telegram ID, права автора заметок и статус владельца."""
+    """Проверка статуса сессии: Telegram ID и статус владельца."""
     user = get_verified_user_from_request(request)
     if not user or user.get("is_banned"):
-        return {"authenticated": False, "is_admin": False, "can_edit_notes": False}
+        return {"authenticated": False, "is_admin": False}
 
     uid = user.get("id", 0)
     is_admin = is_admin_user(uid)
-    can_edit = is_admin or db.is_notes_author(uid)
 
     return {
         "authenticated": True,
@@ -594,125 +574,23 @@ async def get_auth_status(request: Request):
         "username": user.get("username", ""),
         "first_name": user.get("first_name", ""),
         "is_admin": is_admin,
-        "can_edit_notes": can_edit,
     }
-
-
-@app.get("/api/notes")
-async def get_notes(request: Request, group: Optional[str] = Query(None)):
-    """Получение всех заметок/ДЗ для указанной группы."""
-    user = get_verified_user_from_request(request)
-    if not user or user.get("is_banned"):
-        return {"notes": [], "can_edit": False}
-
-    uid = user.get("id", 0)
-    can_edit = is_admin_user(uid) or db.is_notes_author(uid)
-    raw_notes = db.get_notes_for_group(group or "") if group else []
-    
-    notes = []
-    for n in raw_notes:
-        item = dict(n)
-        item["content"] = item.get("text", "")
-        item["day_name"] = item.get("day_key", "")
-        item["author_name"] = item.get("updated_by_name", "")
-        item["author_id"] = item.get("updated_by", 0)
-        notes.append(item)
-
-    return {
-        "group": group or "",
-        "notes": notes,
-        "can_edit": can_edit,
-    }
-
-
-@app.post("/api/notes")
-async def save_note(request: Request, payload: LessonNotePayload):
-    """Сохранение заметки/ДЗ к паре (только для разрешённых авторов и владельца)."""
-    user = get_verified_user_from_request(request)
-    if not user or user.get("is_banned"):
-        raise HTTPException(status_code=403, detail="Доступ запрещён")
-
-    uid = user.get("id", 0)
-    can_edit = is_admin_user(uid) or db.is_notes_author(uid)
-    if not can_edit:
-        raise HTTPException(status_code=403, detail="У вас нет прав на редактирование заметок")
-
-    day_k = (payload.day_key or payload.day_name or "").strip()
-    txt = (payload.text if payload.text is not None else (payload.content or "")).strip()
-    if not day_k:
-        raise HTTPException(status_code=400, detail="Не указан день недели (day_key / day_name)")
-
-    author_name = user.get("username") or user.get("first_name") or str(uid)
-    saved = db.save_lesson_note(
-        group_name=payload.group_name,
-        day_key=day_k,
-        pair_num=payload.pair_num,
-        subject=payload.subject or "",
-        text=txt,
-        updated_by=uid,
-        updated_by_name=author_name,
-    )
-    saved_dict = dict(saved)
-    saved_dict["content"] = saved_dict.get("text", "")
-    saved_dict["day_name"] = saved_dict.get("day_key", "")
-    saved_dict["author_name"] = saved_dict.get("updated_by_name", "")
-    saved_dict["author_id"] = saved_dict.get("updated_by", 0)
-    return {"status": "ok", "note": saved_dict}
 
 
 @app.get("/api/admin/info")
 async def get_admin_info(request: Request):
-    """Данные админ-панели (статистика, авторы, баны). Доступ строго для владельца."""
+    """Данные админ-панели (статистика, баны). Доступ строго для владельца."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
         raise HTTPException(status_code=404, detail="Not Found")
 
-    authors = db.get_notes_authors()
     banned = db.get_banned_users()
     return {
         "admin_id": user["id"],
-        "authors": authors,
         "banned_users": banned,
         "banned": banned,
-        "total_authors": len(authors),
         "total_banned": len(banned),
-        "total_notes": db.get_notes_count(),
     }
-
-
-@app.get("/api/admin/authors")
-async def get_admin_authors(request: Request):
-    """Список авторов заметок. Доступ для владельца."""
-    user = get_verified_user_from_request(request)
-    if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=404, detail="Not Found")
-    return {"status": "ok", "authors": db.get_notes_authors()}
-
-
-@app.post("/api/admin/authors")
-async def manage_admin_authors(request: Request, payload: AdminAuthorPayload):
-    """Управление списком авторов заметок/ДЗ. Доступ строго для владельца."""
-    user = get_verified_user_from_request(request)
-    if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=404, detail="Not Found")
-
-    uname = payload.name or payload.username or ""
-    if payload.action == "remove":
-        db.remove_notes_author(payload.telegram_id)
-    else:
-        db.add_notes_author(payload.telegram_id, uname)
-
-    return {"status": "ok", "authors": db.get_notes_authors()}
-
-
-@app.delete("/api/admin/authors/{telegram_id}")
-async def delete_admin_author(request: Request, telegram_id: int):
-    """Удаление автора заметок по ID."""
-    user = get_verified_user_from_request(request)
-    if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=404, detail="Not Found")
-    db.remove_notes_author(telegram_id)
-    return {"status": "ok"}
 
 
 @app.get("/api/admin/bans")
