@@ -85,6 +85,10 @@ MAX_REQUESTS_PER_WINDOW = 120  # запросов в минуту с одног�
 
 _ip_request_timestamps = defaultdict(list)
 
+# Онлайн-трекинг активных пользователей (TTL 5 минут)
+ONLINE_TTL = 300  # секунд
+_online_users: dict = {}  # {telegram_id: {"username": str, "first_name": str, "last_seen": float}}
+
 def get_real_client_ip(request: Request) -> str:
     """Извлечение реального IP клиента с учетом заголовков обратных прокси (Cloudflare, Render, Nginx)."""
     cf_ip = request.headers.get("cf-connecting-ip")
@@ -170,6 +174,19 @@ async def telegram_gate_middleware(request: Request, call_next):
     path = request.url.path
     if path.startswith("/api/") and path not in PUBLIC_ROUTES:
         user = get_verified_user_from_request(request)
+
+        # Онлайн-трекинг: записываем активность аутентифицированного пользователя
+        if user and not user.get("is_banned"):
+            try:
+                uid = user.get("id") or user.get("telegram_id")
+                if uid:
+                    _online_users[int(uid)] = {
+                        "username": user.get("username", ""),
+                        "first_name": user.get("first_name", ""),
+                        "last_seen": time.time()
+                    }
+            except Exception:
+                pass
 
         # Скрытие админ-панели (Zero-Knowledge): для любого не-владельца админки НЕ СУЩЕСТВУЕТ
         if path.startswith("/api/admin"):
@@ -671,6 +688,33 @@ async def delete_admin_ban(request: Request, telegram_id: int):
     db.unban_user(telegram_id)
     return {"status": "ok"}
 
+
+@app.get("/api/admin/online")
+async def get_admin_online(request: Request):
+    """Список пользователей онлайн (последняя активность < 5 мин). Доступ для владельца."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    now = time.time()
+    online_list = []
+    stale_keys = []
+    for uid, info in _online_users.items():
+        age = now - info.get("last_seen", 0)
+        if age <= ONLINE_TTL:
+            online_list.append({
+                "telegram_id": uid,
+                "username": info.get("username", ""),
+                "first_name": info.get("first_name", ""),
+                "last_seen_sec": int(age)
+            })
+        else:
+            stale_keys.append(uid)
+    for k in stale_keys:
+        _online_users.pop(k, None)
+
+    online_list.sort(key=lambda x: x["last_seen_sec"])
+    return {"status": "ok", "online_users": online_list, "count": len(online_list)}
 
 @app.get("/api/english-alarm")
 async def get_english_alarm(

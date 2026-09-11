@@ -5743,6 +5743,7 @@ window.openAdminModal = function() {
     document.body.style.overflow = 'hidden';
   }
   loadAdminBans();
+  loadAdminOnline();
   updateTelegramBackButton();
 };
 
@@ -5824,7 +5825,6 @@ window.submitAddBan = async function() {
 };
 
 window.unbanUser = async function(telegramId) {
-  if (!confirm(`Разблокировать пользователя ID ${telegramId}?`)) return;
   try {
     const res = await fetchWithTimeout(`${API}/admin/bans/${telegramId}`, { method: 'DELETE' }, 8000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -5833,6 +5833,45 @@ window.unbanUser = async function(telegramId) {
     alert(`Ошибка разблокировки: ${err.message}`);
   }
 };
+
+// ── ONLINE USERS ────────────────────────
+async function loadAdminOnline() {
+  const listEl = document.getElementById('adminOnlineList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="admin-empty-hint">Загрузка...</div>';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/online`, {}, 6000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const users = data.online_users || [];
+    const countEl = document.getElementById('adminOnlineCount');
+    if (countEl) countEl.textContent = users.length;
+
+    if (users.length === 0) {
+      listEl.innerHTML = '<div class="admin-empty-hint">Нет активных пользователей</div>';
+      return;
+    }
+
+    let html = '';
+    users.forEach(u => {
+      const ago = u.last_seen_sec < 60 ? 'только что' : `${Math.floor(u.last_seen_sec / 60)} мин назад`;
+      const name = u.first_name || u.username || '—';
+      const uname = u.username ? `@${esc(u.username)}` : '';
+      html += `
+        <div class="admin-row-item">
+          <div class="admin-row-info">
+            <div class="admin-row-id" style="color:#22c55e;">ID: ${u.telegram_id}</div>
+            <div class="admin-row-reason">${esc(name)} ${uname} · ${ago}</div>
+          </div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = html;
+  } catch (err) {
+    listEl.innerHTML = `<div class="admin-empty-hint" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+}
 
 // ── UTILS ───────────────────────────────
 function esc(str) {
