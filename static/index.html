@@ -86,16 +86,20 @@
       <!-- 1. Часто используемое -->
       <div class="sidebar-section-header" data-section="frequent">Часто используемое</div>
       <div class="sidebar-section-container" data-section="frequent" id="menuSectionFrequent">
-        <!-- Обновить расписание -->
+        <!-- Обновить расписание (Обязательный) -->
         <button class="sidebar-nav-item" data-menu-id="menu-refresh" data-section="frequent" id="sidebarRefresh" type="button">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span>
           <span class="sidebar-nav-label">Обновить расписание</span>
+          <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
         </button>
 
-        <!-- Оформление и темы -->
+        <!-- Оформление и темы (Обязательный) -->
         <button class="sidebar-nav-item" data-menu-id="menu-theme" data-section="frequent" id="sidebarThemeBtn" type="button" title="Оформление и темы">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></span>
           <span class="sidebar-nav-label">Оформление и темы</span>
+          <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
         </button>
       </div>
 
@@ -104,33 +108,52 @@
       <div class="sidebar-section-container" data-section="services" id="menuSectionServices">
         <!-- Дневник 1С -->
         <button class="sidebar-nav-item" data-menu-id="menu-diary" data-section="services" id="sidebarDiaryBtn" type="button" title="Перейти в электронный дневник 1С">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg></span>
           <span class="sidebar-nav-label">Дневник 1С</span>
           <span class="sidebar-external-arrow" title="Открывается в браузере"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
 
         <!-- Статистика пар -->
         <button class="sidebar-nav-item" data-menu-id="menu-stats" data-section="services" data-view="stats" id="sidebarStats" type="button">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
           <span class="sidebar-nav-label">Статистика пар</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
 
         <!-- До выпуска -->
         <button class="sidebar-nav-item" data-menu-id="menu-graduation" data-section="services" id="sidebarGraduationBtn" type="button" title="Дней до окончания колледжа (31.08.2029)">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></span>
           <span class="sidebar-nav-label" id="sidebarGraduationLabel">До выпуска: ...</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
 
-        <!-- Обучение по интерфейсу -->
+        <!-- До английского (СКРЫТ ПО УМОЛЧАНИЮ) -->
+        <button class="sidebar-nav-item sidebar-alarm-nav-item menu-item-hidden menu-color-danger" data-menu-id="menu-english" data-section="services" data-view="english" id="sidebarEnglish" type="button" title="Сигнализация тревоги: обратный отсчёт до английского">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon alarm-icon-flash"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg></span>
+          <span class="sidebar-nav-label">До английского</span>
+          <span class="sidebar-alarm-sos">SOS</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
+        </button>
+
+        <!-- Обучение по интерфейсу (Обязательный) -->
         <button class="sidebar-nav-item" data-menu-id="menu-onboarding" data-section="services" id="sidebarOnboardingBtn" type="button" title="Показать обучающую инструкцию заново">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span>
           <span class="sidebar-nav-label">Обучение по интерфейсу</span>
+          <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
         </button>
 
         <!-- Поддержка -->
         <button class="sidebar-nav-item" data-menu-id="menu-support" data-section="services" id="sidebarSupportBtn" type="button" title="Служба поддержки">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 18.72a9 9 0 1 0-12 0"/><circle cx="12" cy="12" r="1.5"/><path d="M12 2a4.5 4.5 0 0 0-4.5 4.5v1"/><path d="M16.5 7.5v-1A4.5 4.5 0 0 0 12 2"/></svg></span>
           <span class="sidebar-nav-label">Поддержка</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
       </div>
 
@@ -138,8 +161,10 @@
       <div class="sidebar-section-header" data-section="system">Системное</div>
       <div class="sidebar-section-container" data-section="system" id="menuSectionSystem">
         <button class="sidebar-nav-item sidebar-reset-item" data-menu-id="menu-reset-layout" data-section="system" id="sidebarResetLayoutBtn" type="button" title="Сбросить порядок блоков и вернуть исходный вид">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></span>
           <span class="sidebar-nav-label">Сброс интерфейса</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
 
         <!-- Админ-панель (только для владельца) -->
@@ -407,6 +432,12 @@
       <!-- Аварийный сигнал тревоги: Английский язык -->
       <div id="englishView" style="display:none">
         <div class="english-alarm-view-wrap">
+          <div style="margin-bottom: 12px;">
+            <button class="entity-back-btn" id="englishAlarmBackBtn" type="button" onclick="returnToGroupSchedule()" aria-label="Вернуться к расписанию группы">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+              <span>Назад к расписанию</span>
+            </button>
+          </div>
           <div class="alarm-emergency-card">
             <div class="alarm-card-header">
               <div class="alarm-siren-halo">
@@ -1114,6 +1145,6 @@
 
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260906_12"></script>
-  <script src="/static/app.js?v=20260911_v5"></script>
+  <script src="/static/app.js?v=20260911_v6"></script>
 </body>
 </html>

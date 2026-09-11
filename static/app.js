@@ -1478,7 +1478,12 @@ function buildSidebarTabs() {
 // ════════════════════════════════════════
 function setupSidebarNav() {
   document.querySelectorAll('.sidebar-nav-item[data-view]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      if (isLayoutEditingMode) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       setView(btn.dataset.view);
       closeSidebar();
     });
@@ -4160,6 +4165,7 @@ const DEFAULT_MENU_SECTION_MAP = {
   'menu-diary':         'services',
   'menu-stats':         'services',
   'menu-graduation':    'services',
+  'menu-english':       'services',
   'menu-onboarding':    'services',
   'menu-support':       'services',
   'menu-reset-layout':  'system',
@@ -4172,6 +4178,7 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
   { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
   { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
   { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
   { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
   { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
@@ -4185,6 +4192,7 @@ const PRESETS_MENU = {
     { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
     { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
     { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
@@ -4196,6 +4204,7 @@ const PRESETS_MENU = {
     { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
     { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
     { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
@@ -4207,6 +4216,7 @@ const PRESETS_MENU = {
     { id: 'menu-diary',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-graduation',    visible: false, section: 'services', color: 'default' },
+    { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
     { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
     { id: 'menu-support',       visible: false, section: 'services', color: 'default' },
     { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
@@ -5518,23 +5528,41 @@ function initLayoutManager() {
   });
 
   // Переключение видимости пунктов меню по клику на глаз (включая шапку группы и футер)
-  document.querySelectorAll('#sidebar .menu-vis-toggle-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  const handleMenuVisToggle = (btn, e) => {
+    if (e) {
       e.stopPropagation();
       e.preventDefault();
-      const itemEl = btn.closest('.sidebar-nav-item') || btn.closest('[data-menu-id]');
-      if (!itemEl) return;
-      const mid = itemEl.dataset.menuId;
-      if (MANDATORY_MENU_IDS.includes(mid)) return;
+    }
+    const itemEl = btn.closest('.sidebar-nav-item') || btn.closest('[data-menu-id]');
+    if (!itemEl) return;
+    const mid = itemEl.dataset.menuId;
+    if (MANDATORY_MENU_IDS.includes(mid)) return;
 
-      const target = activeMenuConfig.find(m => m.id === mid);
-      if (target) {
-        target.visible = !target.visible;
-        itemEl.classList.toggle('menu-item-hidden', !target.visible);
-        btn.title = target.visible ? 'Скрыть пункт' : 'Показать пункт';
-        updatePresetsUI();
-      }
-    });
+    let target = activeMenuConfig.find(m => m.id === mid);
+    if (!target) {
+      target = {
+        id: mid,
+        visible: !itemEl.classList.contains('menu-item-hidden'),
+        section: itemEl.dataset.section || DEFAULT_MENU_SECTION_MAP[mid] || 'services',
+        color: 'default'
+      };
+      activeMenuConfig.push(target);
+    }
+    target.visible = !target.visible;
+    itemEl.classList.toggle('menu-item-hidden', !target.visible);
+    btn.title = target.visible ? 'Скрыть пункт' : 'Показать пункт';
+    updatePresetsUI();
+  };
+
+  $('sidebar')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.menu-vis-toggle-btn');
+    if (btn) {
+      handleMenuVisToggle(btn, e);
+    }
+  });
+
+  document.querySelectorAll('#sidebar .menu-vis-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => handleMenuVisToggle(btn, e));
   });
 
   // Глобальная блокировка скролла фона при перетаскивании любого элемента
