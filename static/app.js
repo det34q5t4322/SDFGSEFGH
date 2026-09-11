@@ -5777,14 +5777,14 @@ async function loadAdminBans() {
     let html = '';
     bans.forEach(b => {
       html += `
-        <div class="admin-row-item">
-          <div class="admin-row-info">
+        <div class="admin-row-item" style="flex-direction:column;align-items:stretch;gap:4px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <div class="admin-row-id" style="color:#ef4444;">ID: ${b.telegram_id}</div>
-            <div class="admin-row-reason">${esc(b.reason || 'Без причины')}</div>
+            <button type="button" class="admin-unban-btn" onclick="unbanUser(${b.telegram_id})" title="Разблокировать">
+              Разбан
+            </button>
           </div>
-          <button type="button" class="admin-unban-btn" onclick="unbanUser(${b.telegram_id})" title="Разблокировать">
-            Разбан
-          </button>
+          <div class="admin-row-reason" style="font-size:12px;opacity:0.6;">${esc(b.reason || 'Без причины')}</div>
         </div>
       `;
     });
