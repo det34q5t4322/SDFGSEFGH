@@ -30,7 +30,7 @@ def is_admin_user(telegram_id: Optional[int]) -> bool:
 def verify_telegram_init_data(
     init_data: str,
     bot_token: str,
-    max_age_seconds: int = 3600
+    max_age_seconds: int = 86400
 ) -> Optional[Dict[str, Any]]:
     """
     Валидация подписи initData из Telegram WebApp:

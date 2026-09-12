@@ -22,3 +22,7 @@ verify_fix.py
 # OS files
 .DS_Store
 Thumbs.db
+
+# Diagnostic artifacts
+.agents/
+ORIGINAL_REQUEST.md

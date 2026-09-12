@@ -2464,6 +2464,16 @@ async function loadSchedule(force = false) {
       return;
     }
 
+    // 1. Проверка активного защитного шлюза / неавторизованной сессии
+    if (freshData && freshData.gate_active) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      S.data = null;
+      renderSkeleton();
+      return;
+    }
+
+    // 2. Проверка реального отсутствия публикации расписания колледжем
     if (freshData && freshData.published === false) {
       clearTimeout(wakeupTimer);
       hideOfflineBanner();
@@ -2474,7 +2484,7 @@ async function loadSchedule(force = false) {
       return;
     }
 
-    if (freshData && (freshData.gate_active || !freshData.days || (Object.keys(freshData.days).length === 0 && !freshData.schedules))) {
+    if (freshData && (!freshData.days || (Object.keys(freshData.days).length === 0 && !freshData.schedules))) {
       clearTimeout(wakeupTimer);
       hideOfflineBanner();
       S.data = null;
@@ -3906,7 +3916,10 @@ function saveActiveGroup(grp) {
     if (tgUser?.id) {
       fetch('/api/user-group', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
         body: JSON.stringify({
           user_id: Number(tgUser.id),
           group: clean,

@@ -582,16 +582,21 @@ async def get_api_user_group(user_id: Optional[str] = Query(None)):
 
 
 @app.post("/api/user-group")
-async def set_api_user_group(payload: UserGroupPayload):
+async def set_api_user_group(payload: UserGroupPayload, request: Request):
     """Сохранить выбранную группу пользователя Telegram с валидацией и защитой от IDOR."""
+    user = get_verified_user_from_request(request)
     bot_token = os.getenv("BOT_TOKEN", "")
-    if payload.init_data and bot_token:
-        verified_user = verify_telegram_init_data(payload.init_data, bot_token)
-        if not verified_user:
-            raise HTTPException(status_code=401, detail="Неверная подпись данных Telegram (HMAC invalid)")
-        verified_id = verified_user.get("id")
-        if verified_id and int(verified_id) != payload.user_id:
-            raise HTTPException(status_code=403, detail="ID пользователя не совпадает с сессией Telegram (IDOR защита)")
+
+    # Fallback: если заголовок потерялся, но init_data передан в теле JSON
+    if not user and payload.init_data and bot_token:
+        user = verify_telegram_init_data(payload.init_data, bot_token)
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Требуется авторизация Telegram")
+
+    auth_id = user.get("id") or user.get("telegram_id")
+    if auth_id and int(auth_id) != payload.user_id and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="ID пользователя не совпадает с сессией Telegram (IDOR защита)")
 
     clean_group = payload.group.strip()
     if not re.match(r"^[\w\s\-\.\(\)]+$", clean_group, re.UNICODE):
