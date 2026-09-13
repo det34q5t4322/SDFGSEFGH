@@ -236,11 +236,17 @@ function getAuthHeaders() {
   return headers;
 }
 
+function isCloudStorageSupported() {
+  try {
+    return Boolean(window.Telegram?.WebApp?.isVersionAtLeast?.('6.9') && window.Telegram?.WebApp?.CloudStorage);
+  } catch (_) {
+    return false;
+  }
+}
+
 function isTelegramGatePassed() {
-  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  const isDev = isLocalhost && (window.location.search.includes('dev=1') || window.location.search.includes('mock_user='));
-  const hasInitData = Boolean(window.Telegram?.WebApp?.initData);
-  return hasInitData || isDev;
+  // ВРЕМЕННО ДЛЯ ТЕСТОВ В БРАУЗЕРЕ: разрешаем отображение расписания в обычном браузере
+  return true;
 }
 
 // ── BAN LOCK & ENDLESS LOADER ──
@@ -714,7 +720,7 @@ async function init() {
     } catch (_) {}
   }
 
-  if (window.Telegram?.WebApp?.CloudStorage) {
+  if (isCloudStorageSupported()) {
     try {
       window.Telegram.WebApp.CloudStorage.getItem(STORAGE_GROUP, (err, val) => {
         if (!err && val && val !== 'null' && val !== 'undefined') {
@@ -793,7 +799,7 @@ function applyMinimalMode(enabled) {
     document.documentElement.removeAttribute('data-minimal');
   }
   localStorage.setItem(STORAGE_MINIMAL, enabled ? 'true' : 'false');
-  if (window.Telegram?.WebApp?.CloudStorage) {
+  if (isCloudStorageSupported()) {
     try {
       Telegram.WebApp.CloudStorage.setItem(STORAGE_MINIMAL, enabled ? 'true' : 'false', () => {});
     } catch (_) {}
@@ -823,7 +829,7 @@ function applyFontFamily(fontId) {
   if (fontId === 'mono') fontId = 'pixel';
   document.documentElement.setAttribute('data-font', fontId);
   localStorage.setItem(STORAGE_FONT_FAMILY, fontId);
-  if (window.Telegram?.WebApp?.CloudStorage) {
+  if (isCloudStorageSupported()) {
     try { Telegram.WebApp.CloudStorage.setItem(STORAGE_FONT_FAMILY, fontId, () => {}); } catch (_) {}
   }
   updateFontFamilyUI();
@@ -843,7 +849,7 @@ function getStoredFontSize() {
 function applyFontSize(sizeId) {
   document.documentElement.setAttribute('data-font-size', sizeId);
   localStorage.setItem(STORAGE_FONT_SIZE, sizeId);
-  if (window.Telegram?.WebApp?.CloudStorage) {
+  if (isCloudStorageSupported()) {
     try { Telegram.WebApp.CloudStorage.setItem(STORAGE_FONT_SIZE, sizeId, () => {}); } catch (_) {}
   }
   updateFontSizeUI();
@@ -877,7 +883,7 @@ function applyDisplayOption(storageKey, dataAttr, isVisible) {
     document.documentElement.setAttribute(dataAttr, 'true');
   }
   localStorage.setItem(storageKey, isVisible ? 'true' : 'false');
-  if (window.Telegram?.WebApp?.CloudStorage) {
+  if (isCloudStorageSupported()) {
     try { Telegram.WebApp.CloudStorage.setItem(storageKey, isVisible ? 'true' : 'false', () => {}); } catch (_) {}
   }
 }
@@ -913,7 +919,7 @@ function setupThemes() {
     btn.onclick = () => applyFontSize(btn.dataset.size);
   });
 
-  if (window.Telegram?.WebApp?.CloudStorage) {
+  if (isCloudStorageSupported()) {
     try {
       Telegram.WebApp.CloudStorage.getItem(STORAGE_MINIMAL, (err, val) => {
         if (!err && val !== null && val !== undefined) {
@@ -3906,7 +3912,7 @@ function saveActiveGroup(grp) {
     safeSetItem(STORAGE_GROUP, clean);
     safeSetItem('schedule_group', clean);
   } catch (_) {}
-  if (window.Telegram?.WebApp?.CloudStorage) {
+  if (isCloudStorageSupported()) {
     try {
       window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, clean);
     } catch (_) {}
@@ -5540,7 +5546,7 @@ function resetLayoutOrder() {
 
   keysToRemove.forEach(k => {
     try { localStorage.removeItem(k); } catch (_) {}
-    if (window.Telegram?.WebApp?.CloudStorage) {
+    if (isCloudStorageSupported()) {
       try { window.Telegram.WebApp.CloudStorage.removeItem(k, () => {}); } catch (_) {}
     }
   });
