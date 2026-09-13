@@ -216,26 +216,9 @@ async def telegram_gate_middleware(request: Request, call_next):
                 return JSONResponse({"gate_active": True, "published": False, "is_banned": True})
 
         if not user:
-            # Если запрос пришел вне Telegram, подпись невалидна:
-            # Не отдаем данные, не раскрывая статусных кодов (200 OK с пустой структурой, удержание в вечном скелетоне)
-            if path == "/api/schedule":
-                return JSONResponse({
-                    "published": False,
-                    "gate_active": True,
-                    "group": "",
-                    "groups": [],
-                    "courses": [],
-                    "available_tabs": [],
-                    "days": {}
-                })
-            elif path == "/api/tabs":
-                return JSONResponse({"tabs": [], "active_gid": ""})
-            elif path == "/api/groups":
-                return JSONResponse({"groups": [], "courses": []})
-            elif path == "/api/auth-status":
-                return JSONResponse({"authenticated": False, "is_admin": False})
-            else:
-                return JSONResponse({"gate_active": True, "published": False})
+            # ВРЕМЕННО ДЛЯ ТЕСТОВ В БРАУЗЕРЕ: отключаем блокировку входа из обычного браузера
+            # Для эндпоинта сохранения группы не ломаем обработку (пропустит дальше или вернет дефолт)
+            pass
 
     return await call_next(request)
 
