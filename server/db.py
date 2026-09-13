@@ -3,14 +3,14 @@ import sqlite3
 import logging
 import threading
 from typing import Dict, List, Optional, Set
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data.db')
 
-# In-memory кэш для моментальной O(1) проверки без дискового I/O на каждый HTTP-запрос
-_banned_ids_cache: Set[int] = set()
+# In-memory кэш для моментальной O(1) проверки бана: telegram_id -> banned_until (ISO text or None)
+_banned_users_map: Dict[int, Optional[str]] = {}
 _cache_lock = threading.Lock()
 
 
@@ -24,80 +24,441 @@ def init_db() -> None:
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            # Настройка высокой производительности и защиты от блокировок
             cursor.execute('PRAGMA journal_mode = WAL;')
             cursor.execute('PRAGMA busy_timeout = 5000;')
             cursor.execute('PRAGMA synchronous = NORMAL;')
 
+            # 1. Banned Users
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS banned_users (
                     telegram_id INTEGER PRIMARY KEY,
                     username TEXT DEFAULT "",
-                    reason TEXT DEFAULT '',
-                    banned_at TEXT NOT NULL
+                    reason TEXT DEFAULT "",
+                    banned_at TEXT NOT NULL,
+                    banned_until TEXT,
+                    banned_by INTEGER DEFAULT 0
                 )
             ''')
+
+            # Миграция колонок, если таблица была создана ранее без них
+            cursor.execute("PRAGMA table_info(banned_users)")
+            existing_cols = {row['name'] for row in cursor.fetchall()}
+            if 'banned_until' not in existing_cols:
+                cursor.execute("ALTER TABLE banned_users ADD COLUMN banned_until TEXT")
+            if 'banned_by' not in existing_cols:
+                cursor.execute("ALTER TABLE banned_users ADD COLUMN banned_by INTEGER DEFAULT 0")
+
+            # 2. Admin Audit Logs
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    admin_id INTEGER NOT NULL,
+                    target_id INTEGER NOT NULL,
+                    action TEXT NOT NULL,
+                    reason TEXT DEFAULT "",
+                    duration TEXT DEFAULT "",
+                    created_at TEXT NOT NULL
+                )
+            ''')
+
+            # 3. User Activity History
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_activity (
+                    telegram_id INTEGER PRIMARY KEY,
+                    username TEXT DEFAULT "",
+                    selected_group TEXT DEFAULT "",
+                    last_action TEXT DEFAULT "",
+                    ip_address TEXT DEFAULT "",
+                    platform TEXT DEFAULT "",
+                    first_seen TEXT NOT NULL,
+                    last_seen TEXT NOT NULL,
+                    visits_count INTEGER DEFAULT 1
+                )
+            ''')
+
+            # 4. Hourly Statistics
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS hourly_stats (
+                    hour_key TEXT PRIMARY KEY,
+                    requests_count INTEGER DEFAULT 0,
+                    unique_users INTEGER DEFAULT 0
+                )
+            ''')
+
+            # 5. Client Bug Reports
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS client_bug_reports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    telegram_id INTEGER,
+                    group_name TEXT DEFAULT "",
+                    error_message TEXT NOT NULL,
+                    stack_trace TEXT DEFAULT "",
+                    url TEXT DEFAULT "",
+                    created_at TEXT NOT NULL,
+                    status TEXT DEFAULT "open"
+                )
+            ''')
+
             conn.commit()
 
-            # Загрузка списка бана в память
-            cursor.execute('SELECT telegram_id FROM banned_users')
-            banned_set = {int(row[0]) for row in cursor.fetchall()}
+            # Загрузка активных банов в память
+            cursor.execute('SELECT telegram_id, banned_until FROM banned_users')
+            loaded_map = {}
+            now_iso = datetime.now().isoformat()
+            expired_ids = []
+
+            for row in cursor.fetchall():
+                tid = int(row['telegram_id'])
+                b_until = row['banned_until']
+                if b_until and b_until < now_iso:
+                    expired_ids.append(tid)
+                else:
+                    loaded_map[tid] = b_until
+
+            # Удаляем уже истекшие временные баны
+            if expired_ids:
+                cursor.executemany('DELETE FROM banned_users WHERE telegram_id = ?', [(tid,) for tid in expired_ids])
+                conn.commit()
+                logger.info(f'Cleared {len(expired_ids)} expired temporary bans during startup')
 
             with _cache_lock:
-                _banned_ids_cache.clear()
-                _banned_ids_cache.update(banned_set)
+                _banned_users_map.clear()
+                _banned_users_map.update(loaded_map)
 
-            logger.info(f'SQLite DB initialized in WAL mode ({len(banned_set)} banned): {DB_PATH}')
+            logger.info(f'SQLite DB initialized in WAL mode ({len(loaded_map)} active bans): {DB_PATH}')
     except Exception as e:
         logger.error(f'SQLite init error: {e}')
 
 
 def is_user_banned(telegram_id: int) -> bool:
-    """Моментальная проверка статуса бана из памяти (O(1), 0 дисковых обращений)."""
+    """Проверка бана из памяти (O(1)). Если срок бана истёк — снимает бан автоматически."""
     if not telegram_id or telegram_id <= 0:
         return False
+
     with _cache_lock:
-        return telegram_id in _banned_ids_cache
+        if telegram_id not in _banned_users_map:
+            return False
+        banned_until = _banned_users_map[telegram_id]
+
+    if banned_until:
+        if datetime.now().isoformat() >= banned_until:
+            # Срок бана истёк — авторазбан
+            unban_user(telegram_id, admin_id=0, reason="Истечение срока временного бана")
+            return False
+
+    return True
 
 
-def ban_user(telegram_id: int, username: str = "", reason: str = "") -> None:
+def ban_user(
+    telegram_id: int,
+    username: str = "",
+    reason: str = "Нарушение правил",
+    duration_hours: Optional[int] = None,
+    banned_by: int = 0
+) -> None:
     if not telegram_id or telegram_id <= 0:
         return
+
+    now = datetime.now()
+    now_iso = now.isoformat()
+    banned_until = None
+    duration_label = "навсегда"
+
+    if duration_hours and duration_hours > 0:
+        banned_until_dt = now + timedelta(hours=duration_hours)
+        banned_until = banned_until_dt.isoformat()
+        if duration_hours == 1:
+            duration_label = "1 час"
+        elif duration_hours == 24:
+            duration_label = "24 часа"
+        elif duration_hours == 168:
+            duration_label = "7 дней"
+        else:
+            duration_label = f"{duration_hours} ч"
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        now_iso = datetime.now().isoformat()
         cursor.execute('''
-            INSERT INTO banned_users (telegram_id, username, reason, banned_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO banned_users (telegram_id, username, reason, banned_at, banned_until, banned_by)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(telegram_id) DO UPDATE SET
                 username = excluded.username,
                 reason = excluded.reason,
-                banned_at = excluded.banned_at
-        ''', (telegram_id, username or "", reason or "", now_iso))
+                banned_at = excluded.banned_at,
+                banned_until = excluded.banned_until,
+                banned_by = excluded.banned_by
+        ''', (telegram_id, username or "", reason or "Нарушение правил", now_iso, banned_until, banned_by))
+
+        # Логируем в аудит
+        cursor.execute('''
+            INSERT INTO admin_audit_logs (admin_id, target_id, action, reason, duration, created_at)
+            VALUES (?, ?, "ban", ?, ?, ?)
+        ''', (banned_by, telegram_id, reason or "Нарушение правил", duration_label, now_iso))
+
         conn.commit()
+
     with _cache_lock:
-        _banned_ids_cache.add(telegram_id)
+        _banned_users_map[telegram_id] = banned_until
 
 
-def unban_user(telegram_id: int) -> bool:
+def mass_ban_users(
+    telegram_ids: List[int],
+    reason: str = "Массовая блокировка",
+    duration_hours: Optional[int] = None,
+    banned_by: int = 0
+) -> int:
+    count = 0
+    now = datetime.now()
+    now_iso = now.isoformat()
+    banned_until = None
+    duration_label = "навсегда"
+
+    if duration_hours and duration_hours > 0:
+        banned_until = (now + timedelta(hours=duration_hours)).isoformat()
+        duration_label = f"{duration_hours} ч"
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        for tid in telegram_ids:
+            if not tid or tid <= 0:
+                continue
+            cursor.execute('''
+                INSERT INTO banned_users (telegram_id, username, reason, banned_at, banned_until, banned_by)
+                VALUES (?, "", ?, ?, ?, ?)
+                ON CONFLICT(telegram_id) DO UPDATE SET
+                    reason = excluded.reason,
+                    banned_at = excluded.banned_at,
+                    banned_until = excluded.banned_until,
+                    banned_by = excluded.banned_by
+            ''', (tid, reason, now_iso, banned_until, banned_by))
+
+            cursor.execute('''
+                INSERT INTO admin_audit_logs (admin_id, target_id, action, reason, duration, created_at)
+                VALUES (?, ?, "mass_ban", ?, ?, ?)
+            ''', (banned_by, tid, reason, duration_label, now_iso))
+
+            with _cache_lock:
+                _banned_users_map[tid] = banned_until
+            count += 1
+
+        conn.commit()
+    return count
+
+
+def unban_user(telegram_id: int, admin_id: int = 0, reason: str = "") -> bool:
     if not telegram_id or telegram_id <= 0:
         return False
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM banned_users WHERE telegram_id = ?', (telegram_id,))
-        conn.commit()
         success = cursor.rowcount > 0
+        if success:
+            now_iso = datetime.now().isoformat()
+            cursor.execute('''
+                INSERT INTO admin_audit_logs (admin_id, target_id, action, reason, duration, created_at)
+                VALUES (?, ?, "unban", ?, "", ?)
+            ''', (admin_id, telegram_id, reason or "Разблокировка", now_iso))
+        conn.commit()
+
     with _cache_lock:
-        _banned_ids_cache.discard(telegram_id)
+        _banned_users_map.pop(telegram_id, None)
+
     return success
 
 
-def get_banned_users() -> List[Dict]:
+def get_banned_users(query: str = "") -> List[Dict]:
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT telegram_id, username, reason, banned_at FROM banned_users ORDER BY banned_at DESC')
+        if query.strip():
+            pattern = f"%{query.strip()}%"
+            cursor.execute('''
+                SELECT telegram_id, username, reason, banned_at, banned_until, banned_by
+                FROM banned_users
+                WHERE CAST(telegram_id AS TEXT) LIKE ? OR reason LIKE ? OR username LIKE ?
+                ORDER BY banned_at DESC
+            ''', (pattern, pattern, pattern))
+        else:
+            cursor.execute('''
+                SELECT telegram_id, username, reason, banned_at, banned_until, banned_by
+                FROM banned_users
+                ORDER BY banned_at DESC
+            ''')
         return [dict(row) for row in cursor.fetchall()]
 
 
-init_db()
+def get_audit_logs(limit: int = 50) -> List[Dict]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, admin_id, target_id, action, reason, duration, created_at
+            FROM admin_audit_logs
+            ORDER BY id DESC
+            LIMIT ?
+        ''', (limit,))
+        return [dict(row) for row in cursor.fetchall()]
 
+
+def upsert_user_activity(
+    telegram_id: int,
+    username: str = "",
+    group: str = "",
+    action: str = "",
+    ip: str = "",
+    platform: str = ""
+) -> None:
+    if not telegram_id or telegram_id <= 0:
+        return
+    now_iso = datetime.now().isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO user_activity (telegram_id, username, selected_group, last_action, ip_address, platform, first_seen, last_seen, visits_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(telegram_id) DO UPDATE SET
+                username = CASE WHEN excluded.username != "" THEN excluded.username ELSE user_activity.username END,
+                selected_group = CASE WHEN excluded.selected_group != "" THEN excluded.selected_group ELSE user_activity.selected_group END,
+                last_action = excluded.last_action,
+                ip_address = excluded.ip_address,
+                platform = excluded.platform,
+                last_seen = excluded.last_seen,
+                visits_count = user_activity.visits_count + 1
+        ''', (telegram_id, username or "", group or "", action or "", ip or "", platform or "", now_iso, now_iso))
+        conn.commit()
+
+
+def get_user_activity_history(limit: int = 100) -> List[Dict]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT telegram_id, username, selected_group, last_action, ip_address, platform, first_seen, last_seen, visits_count
+            FROM user_activity
+            ORDER BY last_seen DESC
+            LIMIT ?
+        ''', (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def record_hourly_request(telegram_id: Optional[int] = None) -> None:
+    hour_key = datetime.now().strftime("%Y-%m-%d %H:00")
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO hourly_stats (hour_key, requests_count, unique_users)
+                VALUES (?, 1, 1)
+                ON CONFLICT(hour_key) DO UPDATE SET
+                    requests_count = hourly_stats.requests_count + 1
+            ''', (hour_key,))
+            conn.commit()
+    except Exception as e:
+        logger.debug(f"Hourly stats record error: {e}")
+
+
+def get_analytics_summary() -> Dict:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # Почасовая статистика за последние 24 часа
+        cursor.execute('''
+            SELECT hour_key, requests_count
+            FROM hourly_stats
+            ORDER BY hour_key DESC
+            LIMIT 24
+        ''')
+        hourly_rows = [dict(row) for row in cursor.fetchall()]
+        hourly_rows.reverse()
+
+        # Топ групп по активности
+        cursor.execute('''
+            SELECT selected_group, COUNT(*) as user_count, SUM(visits_count) as total_visits
+            FROM user_activity
+            WHERE selected_group IS NOT NULL AND selected_group != ""
+            GROUP BY selected_group
+            ORDER BY total_visits DESC
+            LIMIT 10
+        ''')
+        top_groups = [dict(row) for row in cursor.fetchall()]
+
+        # Общие счетчики
+        cursor.execute('SELECT COUNT(*) as total_users, SUM(visits_count) as total_views FROM user_activity')
+        totals_row = cursor.fetchone()
+        total_users = totals_row['total_users'] if totals_row else 0
+        total_views = totals_row['total_views'] if totals_row and totals_row['total_views'] else 0
+
+        cursor.execute('SELECT COUNT(*) as banned_count FROM banned_users')
+        banned_row = cursor.fetchone()
+        banned_count = banned_row['banned_count'] if banned_row else 0
+
+        cursor.execute('SELECT COUNT(*) as open_reports FROM client_bug_reports WHERE status = "open"')
+        open_rep_row = cursor.fetchone()
+        open_reports_count = open_rep_row['open_reports'] if open_rep_row else 0
+
+        return {
+            "total_users": total_users,
+            "total_views": total_views,
+            "banned_count": banned_count,
+            "open_reports_count": open_reports_count,
+            "hourly_activity": hourly_rows,
+            "top_groups": top_groups
+        }
+
+
+def save_bug_report(
+    telegram_id: Optional[int],
+    group_name: str,
+    error_message: str,
+    stack_trace: str = "",
+    url: str = ""
+) -> int:
+    now_iso = datetime.now().isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO client_bug_reports (telegram_id, group_name, error_message, stack_trace, url, created_at, status)
+            VALUES (?, ?, ?, ?, ?, ?, "open")
+        ''', (telegram_id or 0, group_name or "", error_message, stack_trace or "", url or "", now_iso))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_bug_reports(status: str = "open", limit: int = 50) -> List[Dict]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        if status:
+            cursor.execute('''
+                SELECT id, telegram_id, group_name, error_message, stack_trace, url, created_at, status
+                FROM client_bug_reports
+                WHERE status = ?
+                ORDER BY id DESC
+                LIMIT ?
+            ''', (status, limit))
+        else:
+            cursor.execute('''
+                SELECT id, telegram_id, group_name, error_message, stack_trace, url, created_at, status
+                FROM client_bug_reports
+                ORDER BY id DESC
+                LIMIT ?
+            ''', (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def resolve_bug_report(report_id: int, admin_id: int = 0) -> bool:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE client_bug_reports
+            SET status = "resolved"
+            WHERE id = ?
+        ''', (report_id,))
+        success = cursor.rowcount > 0
+        if success:
+            now_iso = datetime.now().isoformat()
+            cursor.execute('''
+                INSERT INTO admin_audit_logs (admin_id, target_id, action, reason, duration, created_at)
+                VALUES (?, ?, "resolve_report", "Ошибка помечена решенной", "", ?)
+            ''', (admin_id, report_id, now_iso))
+        conn.commit()
+        return success
+
+
+init_db()

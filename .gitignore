@@ -17,6 +17,8 @@ server/schedule_cache.json
 server/bot_users.json
 server/data.db
 *.db
+*.db-shm
+*.db-wal
 verify_fix.py
 
 # OS files

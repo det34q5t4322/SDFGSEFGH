@@ -15,8 +15,8 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260911_v6">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=20260913_v3">
   <script>
     (function() {
       try {
@@ -25,11 +25,15 @@
         }
         var t = localStorage.getItem('college_schedule_theme') || 'obsidian';
         document.documentElement.setAttribute('data-theme', t);
+        var vp = localStorage.getItem('schedule_vibe_preset');
+        if (vp) document.documentElement.setAttribute('data-vibe-preset', vp);
         if (localStorage.getItem('schedule_minimal_mode') === 'true') {
           document.documentElement.setAttribute('data-minimal', 'true');
         }
         var font = localStorage.getItem('schedule_font_family') || 'system';
         document.documentElement.setAttribute('data-font', font);
+        var cstyle = localStorage.getItem('schedule_card_style');
+        if (cstyle) document.documentElement.setAttribute('data-card-style', cstyle);
         var size = localStorage.getItem('schedule_font_size') || 'normal';
         document.documentElement.setAttribute('data-font-size', size);
         document.documentElement.setAttribute('data-nav-position', 'bottom');
@@ -80,8 +84,9 @@
       <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Закрыть меню"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     </div>
 
-    <!-- Информационная плашка текущей группы (статическая, без клика) -->
+    <!-- Информационная плашка текущей группы (в стиле текущей темы) -->
     <div class="sidebar-group-badge" id="sidebarGroupBadge">
+      <div class="sidebar-group-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
       <div class="sidebar-group-info">
         <div class="sidebar-group-label">Текущая группа</div>
         <div class="sidebar-group-name" id="sidebarGroupName">ИСС9-25</div>
@@ -94,6 +99,14 @@
       <!-- 1. Часто используемое -->
       <div class="sidebar-section-header" data-section="frequent">Часто используемое</div>
       <div class="sidebar-section-container" data-section="frequent" id="menuSectionFrequent">
+        <!-- Расписание занятий (Основной раздел) -->
+        <button class="sidebar-nav-item active" data-menu-id="menu-schedule" data-section="frequent" data-view="schedule" id="sidebarScheduleBtn" type="button">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg></span>
+          <span class="sidebar-nav-label">Расписание занятий</span>
+          <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
+        </button>
+
         <!-- Обновить расписание (Обязательный) -->
         <button class="sidebar-nav-item" data-menu-id="menu-refresh" data-section="frequent" id="sidebarRefresh" type="button">
           <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
@@ -102,11 +115,11 @@
           <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
         </button>
 
-        <!-- Оформление и темы (Обязательный) -->
-        <button class="sidebar-nav-item" data-menu-id="menu-theme" data-section="frequent" id="sidebarThemeBtn" type="button" title="Оформление и темы">
+        <!-- Оформление (Обязательный) -->
+        <button class="sidebar-nav-item" data-menu-id="menu-theme" data-section="frequent" id="sidebarThemeBtn" type="button" title="Оформление">
           <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></span>
-          <span class="sidebar-nav-label">Оформление и темы</span>
+          <span class="sidebar-nav-label">Оформление</span>
           <span class="menu-action-col"><span class="menu-lock-icon" title="Обязательный пункт"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
         </button>
       </div>
@@ -198,11 +211,12 @@
 
     <!-- ─── TOP BAR ─── -->
     <header class="topbar">
-      <button class="topbar-title-btn" id="topbarGroupBtn" type="button" aria-label="Сменить группу" title="Нажмите, чтобы сменить группу">
-        <span class="group-btn-icon">👥</span>
+      <button class="topbar-title-btn" id="topbarGroupBtn" type="button" aria-label="Сменить группу">
+        <span class="group-btn-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         <span class="group-btn-name" id="topbarGroupName">ИСС9-25</span>
         <svg class="lucide-icon group-btn-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
       </button>
+
       <div class="topbar-parity" id="topbarParity">
         <!-- даты недели -->
       </div>
@@ -877,14 +891,18 @@
       <div class="modal-sheet-header">
         <h2 class="modal-sheet-title" id="settingsModalTitle">
           <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-          <span>Настройки</span>
+          <span>Оформление</span>
         </h2>
         <button class="modal-close-btn" id="closeSettingsModal" aria-label="Закрыть"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
 
-      <!-- Вкладки (табы) настроек -->
+      <!-- Вкладки (табы) оформления: Пресеты первой точкой входа -->
       <div class="settings-tabs-nav" id="settingsTabsNav">
-        <button class="settings-tab-btn active" data-settings-tab="themes" id="settingsTabThemes" type="button">
+        <button class="settings-tab-btn active" data-settings-tab="presets" id="settingsTabPresets" type="button">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>Пресеты</span>
+        </button>
+        <button class="settings-tab-btn" data-settings-tab="themes" id="settingsTabThemes" type="button">
           <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
           <span>Темы</span>
         </button>
@@ -903,8 +921,22 @@
       </div>
 
       <div class="theme-modal-body settings-modal-body" id="settingsModalBody">
-        <!-- Вкладка 1: Темы и стиль -->
-        <div class="settings-tab-pane active" id="paneThemes" style="display: flex; flex-direction: column; width: 100%;">
+        <!-- Вкладка 0: Готовые стили (Точка входа по умолчанию для 90% пользователей) -->
+        <div class="settings-tab-pane active" id="panePresets" style="display: flex; flex-direction: column; width: 100%;">
+          <div class="theme-section">
+            <div class="theme-section-header">
+              <span class="theme-section-title"><svg class="lucide-icon" viewBox="0 0 24 24" style="width:16px;height:16px;display:inline-block;vertical-align:-2px;margin-right:6px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Готовые стили в 1 тап</span>
+              <span class="theme-section-hint" style="font-size:11px;color:var(--text-muted);">Тема + шрифт + карточка</span>
+            </div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px 0;line-height:1.4;">
+              Выберите атмосферу в один клик. Каждый пресет настраивает цветовую гамму, начертание шрифта и уникальную форму карточек.
+            </p>
+            <div class="vibe-presets-grid" id="vibePresetsGrid"></div>
+          </div>
+        </div>
+
+        <!-- Вкладка 1: Темы и палитры (Ручная настройка) -->
+        <div class="settings-tab-pane" id="paneThemes" style="display: none;">
           <div class="theme-section">
             <div class="theme-section-header">
               <span class="theme-section-title">Цветовая палитра</span>
@@ -954,50 +986,50 @@
             </div>
             <div class="font-selector-grid" id="fontFamilyGrid">
               <button class="font-chip-btn" data-font="system">
-                <span class="font-chip-sample font-sample-system">Аа</span>
+                <span class="font-chip-sample font-sample-system">Aa</span>
                 <div class="font-chip-info">
-                  <span class="font-chip-name">Системный</span>
-                  <span class="font-chip-desc">Интер / Чистый</span>
+                  <span class="font-chip-name">Inter / Manrope</span>
+                  <span class="font-chip-desc">Современный эталон</span>
                 </div>
                 <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
-              <button class="font-chip-btn" data-font="pixel">
-                <span class="font-chip-sample font-sample-pixel">8b</span>
+              <button class="font-chip-btn" data-font="jetbrains">
+                <span class="font-chip-sample font-sample-jetbrains">{;}</span>
                 <div class="font-chip-info">
-                  <span class="font-chip-name">Пиксель</span>
-                  <span class="font-chip-desc">Ретро 8-bit</span>
+                  <span class="font-chip-name">JetBrains Mono</span>
+                  <span class="font-chip-desc">Код / Хакерский</span>
                 </div>
                 <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
-              <button class="font-chip-btn" data-font="comic">
-                <span class="font-chip-sample font-sample-comic">Аа</span>
+              <button class="font-chip-btn" data-font="vt323">
+                <span class="font-chip-sample font-sample-vt323">&gt;_</span>
                 <div class="font-chip-info">
-                  <span class="font-chip-name">Комикс</span>
-                  <span class="font-chip-desc">Мультяшный</span>
+                  <span class="font-chip-name">VT323 / IBM Mono</span>
+                  <span class="font-chip-desc">Ретро-терминал</span>
                 </div>
                 <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
-              <button class="font-chip-btn" data-font="courier">
-                <span class="font-chip-sample font-sample-courier">Аа</span>
+              <button class="font-chip-btn" data-font="chakra">
+                <span class="font-chip-sample font-sample-chakra">01</span>
                 <div class="font-chip-info">
-                  <span class="font-chip-name">Машинопись</span>
-                  <span class="font-chip-desc">Courier New</span>
+                  <span class="font-chip-name">Chakra Petch</span>
+                  <span class="font-chip-desc">Угловатый футуризм</span>
                 </div>
                 <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
-              <button class="font-chip-btn" data-font="gothic">
-                <span class="font-chip-sample font-sample-gothic">𝕬а</span>
+              <button class="font-chip-btn" data-font="typewriter">
+                <span class="font-chip-sample font-sample-typewriter">№1</span>
                 <div class="font-chip-info">
-                  <span class="font-chip-name">Готика</span>
-                  <span class="font-chip-desc">Фрактура</span>
+                  <span class="font-chip-name">Special Elite</span>
+                  <span class="font-chip-desc">Печатная машинка</span>
                 </div>
                 <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
-              <button class="font-chip-btn" data-font="kursive">
-                <span class="font-chip-sample font-sample-kursive">Аа</span>
+              <button class="font-chip-btn" data-font="lexend">
+                <span class="font-chip-sample font-sample-lexend">Уу</span>
                 <div class="font-chip-info">
-                  <span class="font-chip-name">Курсив</span>
-                  <span class="font-chip-desc">Рукописный</span>
+                  <span class="font-chip-name">Lexend</span>
+                  <span class="font-chip-desc">Уютный и мягкий</span>
                 </div>
                 <div class="font-chip-badge"><svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
               </button>
@@ -1019,7 +1051,7 @@
         <!-- Вкладка 3: Конструктор интерфейса (Для продвинутых) -->
         <div class="settings-tab-pane" id="paneConstructor" style="display:none;">
           <div class="advanced-mode-banner" style="background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.35);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
-            <span style="font-size:20px;flex-shrink:0;">⚙️</span>
+            <span style="display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent);"><svg class="lucide-icon" viewBox="0 0 24 24" style="width:20px;height:20px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
             <span style="font-size:13px;color:var(--text);line-height:1.4;"><strong>Раздел для опытных пользователей:</strong> тонкая настройка порядка блоков экрана, пунктов меню и макета карточек.</span>
           </div>
           <div class="theme-section">
@@ -1114,36 +1146,218 @@
       <div class="modal-sheet-handle" onclick="closeAdminModal()"></div>
       <div class="modal-sheet-header">
         <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:20px;">👑</span>
+          <span class="admin-header-crown"><svg class="lucide-icon" viewBox="0 0 24 24" style="width:20px;height:20px;color:#eab308;"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg></span>
           <div class="modal-sheet-title">Панель управления</div>
         </div>
         <button class="modal-close-btn" id="adminModalCloseBtn" onclick="closeAdminModal()" type="button" aria-label="Закрыть">&times;</button>
       </div>
 
+      <!-- Admin Tabs Navigation -->
+      <div class="admin-tabs-nav" role="tablist">
+        <button class="admin-tab-btn active" data-tab="users" onclick="switchAdminTab('users')" type="button">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Пользователи</span>
+        </button>
+        <button class="admin-tab-btn" data-tab="bans" onclick="switchAdminTab('bans')" type="button">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+          <span>Блокировки</span>
+        </button>
+        <button class="admin-tab-btn" data-tab="audit" onclick="switchAdminTab('audit')" type="button">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>Аудит</span>
+        </button>
+        <button class="admin-tab-btn" data-tab="stats" onclick="switchAdminTab('stats')" type="button">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>
+          <span>Статистика</span>
+        </button>
+        <button class="admin-tab-btn" data-tab="reports" onclick="switchAdminTab('reports')" type="button">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>Ошибки</span>
+          <span class="admin-badge-count" id="adminReportsBadge" style="display:none;">0</span>
+        </button>
+      </div>
+
       <div class="admin-sheet-body">
-        <div class="admin-list-header" style="color:#22c55e;">🟢 Онлайн сейчас: <span id="adminOnlineCount">…</span></div>
-        <div class="admin-records-list" id="adminOnlineList"></div>
-
-        <div style="height:16px;"></div>
-
-        <div class="admin-input-card">
-          <div class="admin-card-subtitle">Заблокировать пользователя:</div>
-          <div class="admin-input-row">
-            <input type="number" id="newBanId" class="admin-text-input" placeholder="Telegram ID (число)">
-            <input type="text" id="newBanReason" class="admin-text-input" placeholder="Причина бана">
+        <!-- ── TAB 1: USERS ── -->
+        <div class="admin-tab-pane active" id="adminPaneUsers">
+          <div class="admin-subhead-bar">
+            <div class="admin-status-indicator">
+              <span class="admin-live-dot"></span>
+              <span class="admin-subhead-title">Онлайн сейчас:</span>
+              <strong id="adminOnlineCount" class="admin-count-highlight">0</strong>
+            </div>
+            <button class="admin-refresh-icon-btn" onclick="loadAdminUsers()" type="button" title="Обновить">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+            </button>
           </div>
-          <button class="admin-action-submit-btn ban-color" onclick="submitAddBan()" type="button">
-            🚫 Заблокировать ID
-          </button>
+          <div class="admin-records-list" id="adminOnlineList">
+            <div class="admin-empty-state">Загрузка пользователей онлайн...</div>
+          </div>
+
+          <div class="admin-subhead-bar" style="margin-top:20px;">
+            <div class="admin-status-indicator">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span class="admin-subhead-title">История активности (последние 50):</span>
+            </div>
+          </div>
+          <div class="admin-records-list" id="adminHistoryList">
+            <div class="admin-empty-state">Загрузка истории...</div>
+          </div>
         </div>
-        <div class="admin-list-header">Заблокированные пользователи:</div>
-        <div class="admin-records-list" id="adminBansList"></div>
+
+        <!-- ── TAB 2: BANS ── -->
+        <div class="admin-tab-pane" id="adminPaneBans" style="display:none;">
+          <div class="admin-sub-toggle">
+            <button class="admin-sub-toggle-btn active" id="banModeSingleBtn" onclick="setBanMode('single')" type="button">Одиночный бан</button>
+            <button class="admin-sub-toggle-btn" id="banModeMassBtn" onclick="setBanMode('mass')" type="button">Массовый бан</button>
+          </div>
+
+          <!-- Single Ban Form -->
+          <div class="admin-input-card" id="adminSingleBanCard">
+            <div class="admin-card-subtitle">Заблокировать одного пользователя</div>
+            <div class="admin-input-grid">
+              <div class="admin-input-field">
+                <label class="admin-input-label">Telegram ID *</label>
+                <input type="number" id="newBanId" class="admin-text-input" placeholder="например 123456789" required>
+              </div>
+              <div class="admin-input-field">
+                <label class="admin-input-label">Username (опционально)</label>
+                <input type="text" id="newBanUsername" class="admin-text-input" placeholder="@username">
+              </div>
+            </div>
+            <div class="admin-input-grid" style="margin-top:8px;">
+              <div class="admin-input-field" style="grid-column: 1 / -1;">
+                <label class="admin-input-label">Причина бана * (обязательное поле)</label>
+                <input type="text" id="newBanReason" class="admin-text-input" placeholder="Спам, оскорбления, накрутка..." required>
+              </div>
+              <div class="admin-input-field" style="grid-column: 1 / -1;">
+                <label class="admin-input-label">Срок действия</label>
+                <select id="newBanDuration" class="admin-select-input">
+                  <option value="1h">1 час (временный)</option>
+                  <option value="24h">24 часа (1 сутки)</option>
+                  <option value="7d">7 дней (1 неделя)</option>
+                  <option value="permanent" selected>Навсегда (перманентный)</option>
+                </select>
+              </div>
+            </div>
+            <button class="admin-action-submit-btn ban-color" onclick="submitAddBan()" type="button" style="margin-top:12px;">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+              <span>Заблокировать</span>
+            </button>
+          </div>
+
+          <!-- Mass Ban Form -->
+          <div class="admin-input-card" id="adminMassBanCard" style="display:none;">
+            <div class="admin-card-subtitle">Массовая блокировка списка ID</div>
+            <div class="admin-input-field">
+              <label class="admin-input-label">Список Telegram ID * (через запятую, пробел или с новой строки)</label>
+              <textarea id="massBanIds" class="admin-textarea-input" rows="3" placeholder="123456789, 987654321, 555666777"></textarea>
+            </div>
+            <div class="admin-input-grid" style="margin-top:8px;">
+              <div class="admin-input-field">
+                <label class="admin-input-label">Причина бана *</label>
+                <input type="text" id="massBanReason" class="admin-text-input" placeholder="Спам-атака ботов..." required>
+              </div>
+              <div class="admin-input-field">
+                <label class="admin-input-label">Срок действия</label>
+                <select id="massBanDuration" class="admin-select-input">
+                  <option value="1h">1 час</option>
+                  <option value="24h" selected>24 часа</option>
+                  <option value="7d">7 дней</option>
+                  <option value="permanent">Навсегда</option>
+                </select>
+              </div>
+            </div>
+            <button class="admin-action-submit-btn ban-color" onclick="submitMassBan()" type="button" style="margin-top:12px;">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="23" y2="14"/><line x1="23" y1="8" x2="17" y2="14"/></svg>
+              <span>Заблокировать всех в списке</span>
+            </button>
+          </div>
+
+          <!-- Search & Filter Banned Users -->
+          <div class="admin-subhead-bar" style="margin-top:20px;">
+            <span class="admin-subhead-title">Заблокированные пользователи:</span>
+            <div class="admin-search-wrapper">
+              <svg class="lucide-icon admin-search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="adminBanSearchInput" class="admin-search-input" placeholder="Поиск по ID, причине..." oninput="onBanSearchInput()">
+            </div>
+          </div>
+          <div class="admin-records-list" id="adminBansList">
+            <div class="admin-empty-state">Загрузка списка блокировок...</div>
+          </div>
+        </div>
+
+        <!-- ── TAB 3: AUDIT LOGS ── -->
+        <div class="admin-tab-pane" id="adminPaneAudit" style="display:none;">
+          <div class="admin-subhead-bar">
+            <span class="admin-subhead-title">Журнал действий администраторов:</span>
+            <button class="admin-refresh-icon-btn" onclick="loadAdminAuditLogs()" type="button" title="Обновить">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+            </button>
+          </div>
+          <div class="admin-records-list" id="adminAuditLogsList">
+            <div class="admin-empty-state">Загрузка журнала действий...</div>
+          </div>
+        </div>
+
+        <!-- ── TAB 4: STATS ── -->
+        <div class="admin-tab-pane" id="adminPaneStats" style="display:none;">
+          <div class="admin-kpi-grid">
+            <div class="admin-kpi-card">
+              <div class="admin-kpi-num" id="statTotalUsers">0</div>
+              <div class="admin-kpi-lbl">Всего пользователей</div>
+            </div>
+            <div class="admin-kpi-card">
+              <div class="admin-kpi-num" id="statTotalViews">0</div>
+              <div class="admin-kpi-lbl">Просмотров расписания</div>
+            </div>
+            <div class="admin-kpi-card">
+              <div class="admin-kpi-num" id="statBannedCount">0</div>
+              <div class="admin-kpi-lbl">Активных банов</div>
+            </div>
+            <div class="admin-kpi-card">
+              <div class="admin-kpi-num" id="statOpenReports">0</div>
+              <div class="admin-kpi-lbl">Открытых ошибок</div>
+            </div>
+          </div>
+
+          <div class="admin-subhead-bar" style="margin-top:18px;">
+            <span class="admin-subhead-title">Нагрузка по часам (последние 24 ч):</span>
+          </div>
+          <div class="admin-chart-container" id="adminHourlyChart">
+            <!-- Rendered dynamically -->
+          </div>
+
+          <div class="admin-subhead-bar" style="margin-top:20px;">
+            <span class="admin-subhead-title">Топ активных групп колледжа:</span>
+          </div>
+          <div class="admin-ranking-list" id="adminTopGroupsList">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- ── TAB 5: BUG REPORTS ── -->
+        <div class="admin-tab-pane" id="adminPaneReports" style="display:none;">
+          <div class="admin-subhead-bar">
+            <div class="admin-sub-toggle">
+              <button class="admin-sub-toggle-btn active" id="reportFilterOpenBtn" onclick="setReportStatusFilter('open')" type="button">Открытые</button>
+              <button class="admin-sub-toggle-btn" id="reportFilterResolvedBtn" onclick="setReportStatusFilter('resolved')" type="button">Решенные</button>
+            </div>
+            <button class="admin-refresh-icon-btn" onclick="loadAdminBugReports()" type="button" title="Обновить">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+            </button>
+          </div>
+          <div class="admin-records-list" id="adminBugReportsList">
+            <div class="admin-empty-state">Загрузка ошибок и жалоб...</div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
 
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260906_12"></script>
-  <script src="/static/app.js?v=20260913_v2"></script>
+  <script src="/static/app.js?v=20260913_v3"></script>
 </body>
 </html>

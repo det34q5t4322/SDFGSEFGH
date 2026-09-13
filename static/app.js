@@ -99,7 +99,26 @@ const ICONS = {
   menuIcon: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>',
   tag: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>',
   shieldAlert: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>',
-  settings: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>'
+  settings: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+  sun: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+  flower: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 7.5a4.5 4.5 0 1 1 4.5 4.5M12 7.5A4.5 4.5 0 1 0 7.5 12M12 7.5V9m4.5 3a4.5 4.5 0 1 1-4.5 4.5M16.5 12H15m-3 4.5a4.5 4.5 0 1 1-4.5-4.5M12 16.5V15m-4.5-3A4.5 4.5 0 1 1 12 7.5M7.5 12H9"/><circle cx="12" cy="12" r="2"/></svg>',
+  scroll: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/></svg>',
+  gamepad: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="6"/></svg>',
+  terminal: '<svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>',
+  orbit: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><path d="M10.4 21.9a10 10 0 0 0 9.94-8.4"/><path d="M13.6 2.1a10 10 0 0 0-9.94 8.4"/></svg>',
+  activity: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.48 12H2"/></svg>',
+  laptop: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></svg>',
+  triangle: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 21h18L12 3 3 21z"/></svg>',
+  languages: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>',
+  landmark: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="18"/><line x1="10" x2="10" y1="18" y2="18"/><line x1="14" x2="14" y1="18" y2="18"/><line x1="18" x2="18" y1="18" y2="18"/><polygon points="12 2 20 7 4 7"/></svg>',
+  shield: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  flask: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M10 2v7.31L4.12 18.23A2 2 0 0 0 5.79 21h12.42a2 2 0 0 0 1.67-2.77L14 9.31V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>',
+  barChart: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>',
+  wrench: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+  penTool: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>',
+  trophy: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+  checkCircle: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
+  crown: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>'
 };
 
 // ── CONFIG ──────────────────────────────
@@ -245,8 +264,10 @@ function isCloudStorageSupported() {
 }
 
 function isTelegramGatePassed() {
-  // ВРЕМЕННО ДЛЯ ТЕСТОВ В БРАУЗЕРЕ: разрешаем отображение расписания в обычном браузере
-  return true;
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const isDev = isLocalhost && (window.location.search.includes('dev=1') || window.location.search.includes('mock_user='));
+  const hasInitData = Boolean(window.Telegram?.WebApp?.initData);
+  return hasInitData || isDev;
 }
 
 // ── BAN LOCK & ENDLESS LOADER ──
@@ -608,6 +629,11 @@ window.handleTelegramBackButtonClick = handleTelegramBackButtonClick;
 //  INIT
 // ════════════════════════════════════════
 async function init() {
+  try {
+    ['JetBrains Mono', 'Manrope', 'Inter', 'Orbitron', 'Press Start 2P', 'IBM Plex Mono', 'VT323', 'Special Elite'].forEach(f => {
+      document.fonts.load(`16px "${f}"`);
+    });
+  } catch (_) {}
   if (localStorage.getItem('is_banned_state') === 'true') {
     triggerBanEndlessLoading();
     // Проверяем сервер — если юзер уже разбанен, снимем лок
@@ -744,6 +770,31 @@ async function init() {
     } catch (_) {}
   }
 
+  // Wire bottom live statusbar click
+  document.getElementById('bottomLiveStatusbar')?.addEventListener('click', () => {
+    const goingCard = document.querySelector('.pair-card.going') || document.querySelector('.pair-card');
+    if (goingCard) {
+      goingCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      goingCard.style.outline = '2px solid var(--accent)';
+      setTimeout(() => { goingCard.style.outline = ''; }, 1400);
+    } else {
+      loadSchedule(true);
+    }
+  });
+
+  // Wire topbar live ticker click
+  document.getElementById('topbarLiveTicker')?.addEventListener('click', () => {
+    const goingCard = document.querySelector('.pair-card.going') || document.querySelector('.pair-card');
+    if (goingCard) {
+      goingCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      goingCard.style.outline = '2px solid var(--accent)';
+      setTimeout(() => { goingCard.style.outline = ''; }, 1400);
+    } else {
+      const lc = document.getElementById('liveCard');
+      if (lc) lc.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
+
   // Wire Admin button & Modal backdrop clicks
   document.getElementById('sidebarAdminBtn')?.addEventListener('click', () => {
     closeSidebar();
@@ -783,9 +834,194 @@ const THEMES = [
 ];
 
 const STORAGE_MINIMAL = 'schedule_minimal_mode';
+const STORAGE_CARD_STYLE = 'schedule_card_style';
+const STORAGE_VIBE_PRESET = 'schedule_vibe_preset';
+
+const VIBE_PRESETS = [
+  {
+    id: 'terminal',
+    name: 'Терминал',
+    icon: ICONS.terminal,
+    sub: 'Matrix Neon · Моноширинный · Срез углов · Сканлайны',
+    tags: ['Киберпанк', 'Сканлайны', 'Уголок-срез'],
+    theme: 'matrix',
+    font: 'jetbrains',
+    minimal: false,
+    cardStyle: 'chamfer',
+    accent: '#00ff66',
+    glow: 'rgba(0, 255, 102, 0.45)'
+  },
+  {
+    id: 'minimal',
+    name: 'Уютный минимал',
+    icon: ICONS.coffee,
+    sub: 'Nord Forest · Без лишних рамок · Только чистый текст',
+    tags: ['Чистый воздух', 'Без плашек', 'Интер'],
+    theme: 'forest',
+    font: 'system',
+    minimal: true,
+    cardStyle: 'minimal',
+    accent: '#10b981',
+    glow: 'rgba(16, 185, 129, 0.4)'
+  },
+  {
+    id: 'light_day',
+    name: 'Светлый день',
+    icon: ICONS.sun,
+    sub: 'Nordic Light · Высокий контраст для солнца · Чистая бумага',
+    tags: ['Дневной', 'Контраст', 'Солнце'],
+    theme: 'light',
+    font: 'system',
+    minimal: false,
+    cardStyle: 'light_day',
+    accent: '#2563eb',
+    glow: 'rgba(37, 99, 235, 0.3)'
+  },
+  {
+    id: 'sakura_calm',
+    name: 'Пастельная сакура',
+    icon: ICONS.flower,
+    sub: 'Sakura Pastel · Мягкие скругления · Приятный теплый свет',
+    tags: ['Пастель', 'Нежный', 'Уют'],
+    theme: 'sakura',
+    font: 'lexend',
+    minimal: false,
+    cardStyle: 'sakura_calm',
+    accent: '#ec4899',
+    glow: 'rgba(236, 72, 153, 0.35)'
+  },
+  {
+    id: 'vintage_notes',
+    name: 'Винтажный конспект',
+    icon: ICONS.scroll,
+    sub: 'Warm Mocha · Шрифт печатной машинки · Тёплые крафтовые тона',
+    tags: ['Крафт', 'Машинка', 'Тёплый'],
+    theme: 'mocha',
+    font: 'typewriter',
+    minimal: false,
+    cardStyle: 'vintage_notes',
+    accent: '#f59e0b',
+    glow: 'rgba(245, 158, 11, 0.35)'
+  },
+  {
+    id: 'arcade',
+    name: 'Пиксель-аркада',
+    icon: ICONS.gamepad,
+    sub: 'Amber CRT · Тёплый янтарь · ЭЛТ-виньетка · Ретро монитор',
+    tags: ['Ретро CRT', 'Пиксели', 'Виньетка'],
+    theme: 'terminal',
+    font: 'vt323',
+    minimal: false,
+    cardStyle: 'crt',
+    accent: '#ffb000',
+    glow: 'rgba(255, 176, 0, 0.45)'
+  },
+  {
+    id: 'tokyo',
+    name: 'Кибер Токио',
+    icon: ICONS.zap,
+    sub: 'Neon Glass · Неоновый градиент · Глубокое матовое стекло',
+    tags: ['Неон', 'Стекло', 'Градиент'],
+    theme: 'tokyo',
+    font: 'chakra',
+    minimal: false,
+    cardStyle: 'neon',
+    accent: '#f43f5e',
+    glow: 'rgba(244, 63, 94, 0.45)'
+  },
+  {
+    id: 'midnight_carbon',
+    name: 'Глубокий космос',
+    icon: ICONS.orbit,
+    sub: 'Midnight Carbon · Чистый OLED чернее ночи · Энергосбережение',
+    tags: ['OLED Black', 'Строгий', 'Минимализм'],
+    theme: 'carbon',
+    font: 'system',
+    minimal: false,
+    cardStyle: 'midnight_carbon',
+    accent: '#38bdf8',
+    glow: 'rgba(56, 189, 248, 0.4)'
+  }
+];
 
 function getStoredTheme() {
   return localStorage.getItem(STORAGE_THEME) || 'obsidian';
+}
+
+function getStoredCardStyle() {
+  return localStorage.getItem(STORAGE_CARD_STYLE) || 'default';
+}
+
+function applyCardStyle(styleId) {
+  if (styleId && styleId !== 'default') {
+    document.documentElement.setAttribute('data-card-style', styleId);
+  } else {
+    document.documentElement.removeAttribute('data-card-style');
+  }
+  localStorage.setItem(STORAGE_CARD_STYLE, styleId || 'default');
+}
+
+function getStoredVibePreset() {
+  return localStorage.getItem(STORAGE_VIBE_PRESET) || '';
+}
+
+function applyVibePreset(presetId) {
+  const preset = VIBE_PRESETS.find(p => p.id === presetId);
+  if (!preset) return;
+
+  localStorage.setItem(STORAGE_VIBE_PRESET, presetId);
+  document.documentElement.setAttribute('data-vibe-preset', presetId);
+  if (isCloudStorageSupported()) {
+    try { Telegram.WebApp.CloudStorage.setItem(STORAGE_VIBE_PRESET, presetId, () => {}); } catch (_) {}
+  }
+
+  applyTheme(preset.theme, true);
+  applyFontFamily(preset.font);
+  applyMinimalMode(preset.minimal);
+  applyCardStyle(preset.cardStyle);
+
+  renderVibePresets();
+  renderThemesGrid();
+  updateFontFamilyUI();
+}
+
+function renderVibePresets() {
+  const container = document.getElementById('vibePresetsGrid');
+  if (!container) return;
+
+  const curTheme = getStoredTheme();
+  const curFont = getStoredFontFamily();
+  const curMinimal = isMinimalMode();
+  const savedPreset = getStoredVibePreset();
+
+  container.innerHTML = '';
+
+  VIBE_PRESETS.forEach(p => {
+    const isExactMatch = (curTheme === p.theme && curFont === p.font && curMinimal === p.minimal);
+    const isActive = savedPreset === p.id || isExactMatch;
+
+    const card = document.createElement('div');
+    card.className = 'vibe-preset-card' + (isActive ? ' active' : '');
+    card.style.setProperty('--preset-accent', p.accent);
+    card.style.setProperty('--preset-glow', p.glow);
+
+    card.innerHTML = `
+      <div class="vibe-preset-header">
+        <span class="vibe-preset-icon">${p.icon}</span>
+        <span class="vibe-preset-name">${p.name}</span>
+      </div>
+      <div class="vibe-preset-sub">${p.sub}</div>
+      <div class="vibe-preset-tags">
+        ${p.tags.map(t => `<span class="vibe-preset-tag">${t}</span>`).join('')}
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      applyVibePreset(p.id);
+    });
+
+    container.appendChild(card);
+  });
 }
 
 function isMinimalMode() {
@@ -808,25 +1044,64 @@ function applyMinimalMode(enabled) {
   if (toggle && toggle.checked !== enabled) toggle.checked = enabled;
 }
 
-function applyTheme(themeId) {
+function applyTheme(themeId, fromPreset = false) {
   document.documentElement.setAttribute('data-theme', themeId);
   localStorage.setItem(STORAGE_THEME, themeId);
+
+  // Каждая тема связывается со своим макетом карточки и шрифтом по умолчанию
+  if (!fromPreset) {
+    document.documentElement.removeAttribute('data-vibe-preset');
+    localStorage.removeItem(STORAGE_VIBE_PRESET);
+    if (themeId === 'matrix') {
+      applyCardStyle('chamfer');
+      applyFontFamily('jetbrains');
+    } else if (themeId === 'terminal') {
+      applyCardStyle('crt');
+      applyFontFamily('vt323');
+    } else if (themeId === 'light') {
+      applyCardStyle('light_day');
+      applyFontFamily('system');
+    } else if (themeId === 'tokyo') {
+      applyCardStyle('neon');
+      applyFontFamily('chakra');
+    } else if (themeId === 'sakura') {
+      applyCardStyle('sakura_calm');
+      applyFontFamily('lexend');
+    } else if (themeId === 'mocha') {
+      applyCardStyle('vintage_notes');
+      applyFontFamily('typewriter');
+    } else if (themeId === 'carbon') {
+      applyCardStyle('midnight_carbon');
+      applyFontFamily('system');
+    } else {
+      applyCardStyle('default');
+    }
+  }
+
   renderThemesGrid();
+  renderVibePresets();
 }
 
 // ── FONT FAMILY & SIZE MANAGEMENT ──
 function getStoredFontFamily() {
   let val = localStorage.getItem(STORAGE_FONT_FAMILY) || 'system';
-  if (val === 'rounded') val = 'comic';
-  if (val === 'tech') val = 'courier';
-  if (val === 'mono') val = 'pixel';
+  if (val === 'rounded' || val === 'comic') val = 'lexend';
+  if (val === 'tech' || val === 'courier') val = 'typewriter';
+  if (val === 'mono') val = 'jetbrains';
+  if (val === 'pixel') val = 'vt323';
+  if (val === 'gothic') val = 'chakra';
+  if (val === 'kursive') val = 'lexend';
   return val;
 }
 
 function applyFontFamily(fontId) {
-  if (fontId === 'rounded') fontId = 'comic';
-  if (fontId === 'tech') fontId = 'courier';
-  if (fontId === 'mono') fontId = 'pixel';
+  if (fontId === 'rounded' || fontId === 'comic') fontId = 'lexend';
+  if (fontId === 'tech' || fontId === 'courier') fontId = 'typewriter';
+  if (fontId === 'mono') fontId = 'jetbrains';
+  if (fontId === 'pixel') fontId = 'vt323';
+  if (fontId === 'gothic') fontId = 'chakra';
+  if (fontId === 'kursive') fontId = 'lexend';
+
   document.documentElement.setAttribute('data-font', fontId);
   localStorage.setItem(STORAGE_FONT_FAMILY, fontId);
   if (isCloudStorageSupported()) {
@@ -903,11 +1178,17 @@ function setupDisplayOptions() {
 }
 
 function setupThemes() {
-  applyTheme(getStoredTheme());
+  const savedVibe = getStoredVibePreset();
+  if (savedVibe) {
+    document.documentElement.setAttribute('data-vibe-preset', savedVibe);
+  }
+  applyTheme(getStoredTheme(), true);
+  applyCardStyle(getStoredCardStyle());
   applyMinimalMode(isMinimalMode());
   applyFontFamily(getStoredFontFamily());
   applyFontSize(getStoredFontSize());
   setupDisplayOptions();
+  renderVibePresets();
 
   // Привязка кнопок шрифта
   document.querySelectorAll('#fontFamilyGrid .font-chip-btn').forEach(btn => {
@@ -943,10 +1224,10 @@ function setupThemes() {
     applyMinimalMode(e.target.checked);
   });
 
-  els.topbarThemeBtn?.addEventListener('click', () => openSettingsModal('themes'));
+  els.topbarThemeBtn?.addEventListener('click', () => openSettingsModal('presets'));
   (els.sidebarSettingsBtn || els.sidebarThemeBtn)?.addEventListener('click', () => {
     closeSidebar();
-    openSettingsModal('themes');
+    openSettingsModal('presets');
   });
   (els.closeSettingsModal || els.closeThemeModal)?.addEventListener('click', closeSettingsModal);
   const curModal = els.settingsModal || els.themeModal;
@@ -968,7 +1249,8 @@ function setupThemes() {
   });
 }
 
-function openSettingsModal(initialTab = 'themes') {
+function openSettingsModal(initialTab = 'presets') {
+  renderVibePresets();
   renderThemesGrid();
   updateFontFamilyUI();
   updateFontSizeUI();
@@ -1001,10 +1283,11 @@ const openThemeModal = (tab = 'themes') => openSettingsModal(tab);
 const closeThemeModal = () => closeSettingsModal();
 
 function switchSettingsTab(tabName) {
-  const validTabs = ['themes', 'fonts', 'constructor', 'weeks'];
-  const targetTab = validTabs.includes(tabName) ? tabName : 'themes';
+  const validTabs = ['presets', 'themes', 'fonts', 'constructor', 'weeks'];
+  const targetTab = validTabs.includes(tabName) ? tabName : 'presets';
 
   const paneMap = {
+    presets: $('panePresets'),
     themes: $('paneThemes'),
     fonts: $('paneFonts'),
     constructor: $('paneConstructor'),
@@ -1161,7 +1444,6 @@ function setupSidebar() {
   const topbarTitleWrap = $('topbarGroupBtn') || els.topbarGroupName?.closest('.topbar-title');
   if (topbarTitleWrap) {
     topbarTitleWrap.style.cursor = 'pointer';
-    topbarTitleWrap.title = 'Нажмите для смены группы';
     topbarTitleWrap.addEventListener('click', () => {
       openGroupModal();
     });
@@ -1177,9 +1459,9 @@ function setupSidebar() {
   gradBtn?.addEventListener('click', () => {
     const days = getDaysUntilGraduation();
     if (days < 0) {
-      showToast('🎉 Выпускной состоялся! Поздравляем!');
+      showToast('Выпускной состоялся! Поздравляем!');
     } else if (days === 0) {
-      showToast('🎉 Выпускной сегодня! Поздравляем!');
+      showToast('Выпускной сегодня! Поздравляем!');
     } else {
       const abs = Math.abs(days);
       const mod10 = abs % 10;
@@ -1189,7 +1471,7 @@ function setupSidebar() {
         if (mod10 === 1) word = 'день';
         else if (mod10 >= 2 && mod10 <= 4) word = 'дня';
       }
-      showToast(`🎓 До выпуска (31.08.2029): ${days} ${word}`);
+      showToast(`До выпуска (31.08.2029): ${days} ${word}`);
     }
   });
 
@@ -1524,11 +1806,12 @@ function setupSidebarNav() {
 
 function setView(view) {
   S.view = view;
+  const isSched = (view === 'today' || view === 'week' || view === 'schedule');
   document.querySelectorAll('.sidebar-nav-item[data-view]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === view);
+    const isAct = btn.dataset.view === view || (isSched && btn.dataset.view === 'schedule');
+    btn.classList.toggle('active', isAct);
   });
   updateBottomNavActive(view);
-  const isSched = (view === 'today' || view === 'week' || view === 'schedule');
   if (els.scheduleView) els.scheduleView.style.display = isSched ? 'block' : 'none';
   if (els.teacherView) els.teacherView.style.display = view === 'teacher' ? 'block' : 'none';
   if (els.classroomView) els.classroomView.style.display = view === 'classroom' ? 'block' : 'none';
@@ -1887,11 +2170,42 @@ function buildDayStrip() {
     const isActive = (S.selectedDay === dow);
 
     const dayNum = String(d.getDate()).padStart(2, '0');
+    const dayName = DAYS[dow];
+    let pairCount = 0;
+    try {
+      if (typeof getGroupDayPairs === 'function' && S.data) {
+        const p = getGroupDayPairs(dayName);
+        pairCount = p ? p.length : 0;
+      }
+    } catch (_) {}
+
+    let countClass = 'count-few';
+    if (S.data) {
+      if (pairCount === 0) countClass = 'count-0';
+      else if (pairCount <= 2) countClass = 'count-few';
+      else if (pairCount <= 4) countClass = 'count-mid';
+      else countClass = 'count-high';
+    }
+
+    let tagHtml = '';
+    if (S.data) {
+      if (pairCount === 0) {
+        tagHtml = '<span class="day-chip-count-tag zero">0 пар</span>';
+      } else {
+        const word = pairCount === 1 ? 'пара' : (pairCount >= 2 && pairCount <= 4 ? 'пары' : 'пар');
+        tagHtml = `<span class="day-chip-count-tag">${pairCount} ${word}</span>`;
+      }
+    }
 
     const chip = document.createElement('div');
-    chip.className = 'day-chip' + (isActive ? ' active' : '') + (isToday ? ' today-chip' : '');
+    chip.className = `day-chip ${countClass}` + (isActive ? ' active' : '') + (isToday ? ' today-chip' : '');
     chip.dataset.dow = dow;
-    chip.innerHTML = `<span class="day-chip-name">${DAYS_SHORT[dow]}</span><span class="day-chip-num">${dayNum}</span>`;
+    chip.dataset.count = pairCount;
+    chip.innerHTML = `
+      <span class="day-chip-name">${DAYS_SHORT[dow]}</span>
+      <span class="day-chip-num">${dayNum}</span>
+      ${tagHtml}
+    `;
     chip.addEventListener('click', () => selectDay(dow));
     els.dayStrip.appendChild(chip);
   });
@@ -2054,7 +2368,7 @@ function checkMidnightRollover() {
   const now = new Date();
   const currentDateStr = now.toDateString();
   if (_lastCalendarDate && currentDateStr !== _lastCalendarDate) {
-    console.log('🌙 Смена календарных суток (Midnight Rollover):', _lastCalendarDate, '->', currentDateStr);
+    console.log('[Midnight Rollover] Смена календарных суток:', _lastCalendarDate, '->', currentDateStr);
     _lastCalendarDate = currentDateStr;
 
     // Автоматически переключаем и обновляем расписание на новый день
@@ -2177,32 +2491,35 @@ function updateLiveCard() {
         const totalPct = Math.min(100, Math.max(0, (elapsedSec / (bellEndSec - bellStartSec)) * 100));
         const subj = p.subject ? esc(p.subject.slice(0, 45)) : '';
 
+        updateBottomLiveStatusbar('Расписание синхронизировано', '');
+
         if (elapsedSec < 45 * 60) {
           // Первые 45 минут: два времени (до 5-минутки и до конца всей пары)
           const to5minSec = (45 * 60) - elapsedSec;
           setLiveCard('going', ICONS.book,
             `Идёт ${pn} пара: ${subj}`,
             `До 5-минутки: <b>${fmtSec(to5minSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
-            `<b>${pn} пара</b> • До 5-мин: <b>${fmtSec(to5minSec)}</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`
-          );
+            `<b>${pn} пара</b> • До 5-мин: <b>${fmtSec(to5minSec)}</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`);
         } else if (elapsedSec < 50 * 60) {
           // Пятиминутка внутри пары (45-50 мин)
           const fiveLeftSec = (50 * 60) - elapsedSec;
           setLiveCard('break', ICONS.coffee,
             `Пятиминутка (${pn} пара): ${subj}`,
             `Пятиминутный перерыв: <b>осталось ${fmtSec(fiveLeftSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
-            `<b>5-минутка (${pn} пара)</b>: осталось <b>${fmtSec(fiveLeftSec)}</b> • Конец: <b>${fmtSec(totalLeftSec)}</b>`
+            `<b>5-минутка (${pn} пара)</b>: осталось <b>${fmtSec(fiveLeftSec)}</b> • Конец: <b>${fmtSec(totalLeftSec)}</b>`,
+            fmtDigitalTimer(fiveLeftSec), 'до конца 5-минутки'
           );
         } else {
           // Вторая половина пары (после 5-минутки)
           setLiveCard('going', ICONS.book,
             `Идёт ${pn} пара (2-я часть): ${subj}`,
             `До конца пары: <b>${fmtSec(totalLeftSec)}</b> (до ${fmtTime(bell.e)})`,
-            `<b>${pn} пара (2-я часть)</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`
-          );
+            `<b>${pn} пара (2-я часть)</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`);
         }
 
         if (els.liveCardProgress) els.liveCardProgress.style.width = totalPct.toFixed(1) + '%';
+        const activeCardFill = document.querySelector('.pair-card.going .pair-card-progress-fill, .split-pair-wrap.going .pair-card-progress-fill');
+        if (activeCardFill) activeCardFill.style.width = totalPct.toFixed(1) + '%';
         return;
       }
 
@@ -2219,10 +2536,12 @@ function updateLiveCard() {
               const nextPn = nextPairObj ? (nextPairObj.pair_num || nextPairObj.pair_number) : (pn + 1);
               const leftSec = brkEndSec - nowSec;
               const pct = Math.min(100, Math.max(0, ((nowSec - brkStartSec) / (brk.dur * 60)) * 100));
+              updateBottomLiveStatusbar('Расписание синхронизировано', '');
               setLiveCard('break', brk.dur >= 20 ? ICONS.utensils : ICONS.coffee,
                 `${brk.name} • до ${fmtTime(brk.e)}`,
                 `До начала ${nextPn} пары осталось <b>${fmtSec(leftSec)}</b>`,
-                `<b>${brk.name}</b>: осталось <b>${fmtSec(leftSec)}</b>`
+                `<b>${brk.name}</b>: осталось <b>${fmtSec(leftSec)}</b>`,
+                hudStr, `до ${nextPn} пары`
               );
               if (els.liveCardProgress) els.liveCardProgress.style.width = pct.toFixed(1) + '%';
               return;
@@ -2241,11 +2560,11 @@ function updateLiveCard() {
       if (nowSec < bellStartSec) {
         const leftSec = bellStartSec - nowSec;
         const subj = p.subject ? esc(p.subject.slice(0, 45)) : '';
+        updateBottomLiveStatusbar('Расписание синхронизировано', '');
         setLiveCard('soon', ICONS.clock,
           `Скоро начало занятий • ${pn} пара в ${fmtTime(bell.s)}`,
           `До ${pn} пары осталось <b>${fmtHoursSec(leftSec)}</b> • ${subj}`,
-          `До ${pn} пары: <b>${fmtHoursSec(leftSec)}</b>`
-        );
+          `До ${pn} пары: <b>${fmtHoursSec(leftSec)}</b>`);
         if (els.liveCardProgress) els.liveCardProgress.style.width = Math.max(0, 100 - (leftSec / 3600) * 100).toFixed(1) + '%';
         return;
       }
@@ -2277,11 +2596,11 @@ function updateLiveCard() {
           const subj = firstPair.subject ? esc(firstPair.subject.slice(0, 45)) : '';
           const timeStr = fmtHoursSec(diffSec);
 
+          updateBottomLiveStatusbar('Расписание синхронизировано', '');
           setLiveCard('free', ICONS.moon,
             `${weekendTitle}`,
             `Следующие пары — ${dayLabel} в ${fmtTime(bell.s)} (через ${timeStr})`,
-            `${weekendTitle} • Следующие: ${dayLabel}`
-          );
+            `${weekendTitle} • Следующие: ${dayLabel}`);
           if (els.liveCardProgress) els.liveCardProgress.style.width = '0%';
           return;
         }
@@ -2293,6 +2612,37 @@ function updateLiveCard() {
   setLiveCard('free', ICONS.moon, 'Пар нет', 'Хорошего отдыха!', 'Пар нет');
 }
 
+
+function fmtDigitalTimer(totalSeconds) {
+  if (totalSeconds < 0) totalSeconds = 0;
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  if (h > 0) {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function updateBottomLiveStatusbar(syncText = 'Расписание синхронизировано', dotClass = '') {
+  // Плашка синхронизации отключена по требованию пользователя
+  return;
+}
+
+function updateTopbarLiveTicker(type, label, timeStr) {
+  const ticker = document.getElementById('topbarLiveTicker');
+  const dot = document.getElementById('tickerPulseDot');
+  const lbl = document.getElementById('topbarTickerLabel');
+  const tim = document.getElementById('topbarTickerTime');
+  if (!ticker || !tim) return;
+
+  ticker.style.display = 'inline-flex';
+  if (dot) {
+    dot.className = 'ticker-pulse-dot ' + (type || 'going');
+  }
+  if (lbl) lbl.textContent = label || 'Пара';
+  tim.textContent = timeStr || '--:--';
+}
 function setLiveCard(type, icon, title, sub, restoreText = '') {
   if (!els.liveCard) return;
   els.liveCard.className = 'live-card ' + type;
@@ -2715,7 +3065,7 @@ function renderDay() {
     weekendBanner = `
       <div class="weekend-status-banner">
         <div class="weekend-status-content">
-          <div class="weekend-status-icon">🌴</div>
+          <div class="weekend-status-icon">${ICONS.sun}</div>
           <div class="weekend-status-text">
             <div class="weekend-status-title">Сегодня воскресенье — выходной</div>
             <div class="weekend-status-sub">Показано расписание на завтра (Понедельник). Можно заранее подготовиться к занятиям!</div>
@@ -2854,6 +3204,23 @@ function renderDayPairs(dayName) {
   return html;
 }
 
+function getSubjectIcon(subject) {
+  if (!subject) return ICONS.book;
+  const s = String(subject).toLowerCase();
+  if (/физическ|физра|спорт|культура|лфк/i.test(s)) return ICONS.activity;
+  if (/программир|информат|эвм|веб|web|баз.*данн|алгоритм|мдк|исрпо|сет[иь]|разработк|компьютер|ит|it|основы алгоритм/i.test(s)) return ICONS.laptop;
+  if (/математ|алгебр|геометр|дискретн|вычисл|твимс|статистик/i.test(s)) return ICONS.triangle;
+  if (/физик|электро|схемотех|радио|микроэлектрон/i.test(s)) return ICONS.zap;
+  if (/английск|иностран|немецк|француз|язык|русск|литератур/i.test(s)) return ICONS.languages;
+  if (/истор|общество|прав[оа]|философ|социолог/i.test(s)) return ICONS.landmark;
+  if (/бжд|безопасн|охрана труда/i.test(s)) return ICONS.shield;
+  if (/хим|биолог|эколог/i.test(s)) return ICONS.flask;
+  if (/эконом|менеджмент|маркетинг|бухгалтер|финанс/i.test(s)) return ICONS.barChart;
+  if (/практик|учебн.*практик|производств.*практик/i.test(s)) return ICONS.wrench;
+  if (/черчен|инженерн.*график|дизайн|моделирован/i.test(s)) return ICONS.penTool;
+  return ICONS.book;
+}
+
 function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant, dayName = '') {
   const cfg = getActiveCardTemplateConfig();
   const timeStr = bell ? `${fmtTime(bell.s)}–${fmtTime(bell.e)}` : (p.time || '');
@@ -2881,12 +3248,14 @@ function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelle
       if (!pn && !timeStr) return '';
       const szCls = item.size ? ` field-size-${item.size}` : '';
       const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
-      return `<div class="card-field field-time${szCls}${colCls}">${pn ? `<span class="pair-num-badge">№${pn}</span>` : ''} <span class="pair-time-span">${timeStr}</span></div>`;
+      const liveDot = isGoing ? `<span class="pair-live-dot" title="Пара идёт прямо сейчас"></span>` : '';
+      return `<div class="card-field field-time${szCls}${colCls}">${liveDot}${pn ? `<span class="pair-num-badge">№${pn}</span>` : ''} <span class="pair-time-span">${timeStr}</span></div>`;
     },
     'field-subject': (item) => {
       const szCls = item.size ? ` field-size-${item.size}` : '';
       const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
-      return `<div class="card-field field-subject pair-subject${cancelled ? ' cancelled-text' : ''}${szCls}${colCls}">${esc(p.subject || '')}</div>`;
+      const icon = getSubjectIcon(p.subject);
+      return `<div class="card-field field-subject pair-subject${cancelled ? ' cancelled-text' : ''}${szCls}${colCls}"><span class="pair-subject-icon">${icon}</span>${esc(p.subject || '')}</div>`;
     },
     'field-teacher': (item) => {
       if (!teacherHtml) return '';
@@ -2974,8 +3343,21 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
 
   const content = renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant, dayName);
 
+  let progressHtml = '';
+  if (isGoing && bell && bell.s && bell.e) {
+    const now = new Date();
+    const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    const sSec = bell.s * 60;
+    const eSec = bell.e * 60;
+    const pct = (eSec > sSec && nowSec >= sSec && nowSec <= eSec)
+      ? Math.min(100, Math.max(0, Math.round(((nowSec - sSec) / (eSec - sSec)) * 100)))
+      : (nowSec > eSec ? 100 : 0);
+    progressHtml = `<div class="pair-card-progress-bar"><div class="pair-card-progress-fill" style="width:${pct}%"></div></div>`;
+  }
+
   return `<div class="${cardClass}" style="--card-index:${cardIndex}">
     ${content}
+    ${progressHtml}
   </div>`;
 }
 
@@ -2998,7 +3380,23 @@ function renderSplitCard(num, den, pn, bell, isGoing, cardIndex = 0, dayName = '
   const denRow = mkRow(den, 'den', 'II Знам.');
 
   if (!numRow && !denRow) return '';
-  return `<div class="split-pair-wrap${isGoing ? ' going' : ''}" style="--card-index:${cardIndex}">${numRow}${denRow}</div>`;
+
+  let progressHtml = '';
+  if (isGoing && bell && bell.s && bell.e) {
+    const now = new Date();
+    const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    const sSec = bell.s * 60;
+    const eSec = bell.e * 60;
+    const pct = (eSec > sSec && nowSec >= sSec && nowSec <= eSec)
+      ? Math.min(100, Math.max(0, Math.round(((nowSec - sSec) / (eSec - sSec)) * 100)))
+      : (nowSec > eSec ? 100 : 0);
+    progressHtml = `<div class="pair-card-progress-bar"><div class="pair-card-progress-fill" style="width:${pct}%"></div></div>`;
+  }
+
+  return `<div class="split-pair-wrap${isGoing ? ' going' : ''}" style="--card-index:${cardIndex}">
+    ${numRow}${denRow}
+    ${progressHtml}
+  </div>`;
 }
 
 // ════════════════════════════════════════
@@ -3322,7 +3720,7 @@ function setupSearchInputs() {
 }
 
 // ════════════════════════════════════════
-//  EMERGENCY ENGLISH DEADLINE ALARM (💀🚨)
+//  EMERGENCY ENGLISH DEADLINE ALARM
 // ════════════════════════════════════════
 let englishCountdownInterval = null;
 let currentEnglishTargetDate = null;
@@ -3786,28 +4184,28 @@ async function renderStatsView() {
       <div class="stats-kpi-card hero-kpi">
         <div class="stats-kpi-top">
           <span class="stats-kpi-label">Прошло пар с 1 сентября</span>
-          <span class="stats-kpi-icon">🏆</span>
+          <span class="stats-kpi-icon">${ICONS.trophy}</span>
         </div>
         <div class="stats-kpi-value">${stats.totalPassed}</div>
       </div>
       <div class="stats-kpi-card ${stats.totalCancelled > 0 ? 'cancelled-kpi' : ''}">
         <div class="stats-kpi-top">
           <span class="stats-kpi-label">Отменено пар</span>
-          <span class="stats-kpi-icon">${stats.totalCancelled > 0 ? '⚠️' : '✅'}</span>
+          <span class="stats-kpi-icon">${stats.totalCancelled > 0 ? ICONS.alert : ICONS.checkCircle}</span>
         </div>
         <div class="stats-kpi-value">${stats.totalCancelled}</div>
       </div>
       <div class="stats-kpi-card">
         <div class="stats-kpi-top">
           <span class="stats-kpi-label">Предметов проведено</span>
-          <span class="stats-kpi-icon">📚</span>
+          <span class="stats-kpi-icon">${ICONS.book}</span>
         </div>
         <div class="stats-kpi-value">${stats.subjectList.length}</div>
       </div>
       <div class="stats-kpi-card">
         <div class="stats-kpi-top">
           <span class="stats-kpi-label">Учебных дней с парами</span>
-          <span class="stats-kpi-icon">📅</span>
+          <span class="stats-kpi-icon">${ICONS.calendar}</span>
         </div>
         <div class="stats-kpi-value">${stats.uniqueDaysCount}</div>
       </div>
@@ -3817,14 +4215,14 @@ async function renderStatsView() {
       <!-- Отмененные пары колледжа -->
       <div class="stats-cancelled-block">
         <div class="stats-block-header">
-          <span class="stats-block-title" style="color:#ef4444">⚠️ Отменённые пары колледжа (${stats.cancelledPairsList.length})</span>
+          <span class="stats-block-title" style="color:#ef4444;display:flex;align-items:center;gap:6px;">${ICONS.alert} Отменённые пары колледжа (${stats.cancelledPairsList.length})</span>
         </div>
         <div class="stats-cancelled-list">
           ${stats.cancelledPairsList.map(c => `
             <div class="stats-cancelled-card">
               <div class="stats-cancelled-info">
                 <span class="stats-cancelled-name">${esc(c.subject)}</span>
-                <span class="stats-cancelled-meta">📅 ${esc(c.dayName)} ${esc(c.date)} • ${c.num} пара ${c.teacher ? `• 👨‍🏫 ${esc(c.teacher)}` : ''}</span>
+                <span class="stats-cancelled-meta">${ICONS.calendar} ${esc(c.dayName)} ${esc(c.date)} • ${c.num} пара ${c.teacher ? `• ${ICONS.user} ${esc(c.teacher)}` : ''}</span>
               </div>
               <span class="stats-cancelled-badge">Отменена</span>
             </div>
@@ -3853,7 +4251,7 @@ async function renderStatsView() {
           });
           const sessionTags = Object.entries(sessionsByDate).map(([date, nums]) => {
             nums.sort((a, b) => a - b);
-            return `<span class="stats-session-chip">📅 ${date} (${nums.join(', ')} пара)</span>`;
+            return `<span class="stats-session-chip">${ICONS.calendar} ${date} (${nums.join(', ')} пара)</span>`;
           }).join('');
 
           return `
@@ -3866,7 +4264,7 @@ async function renderStatsView() {
                 ${sessionTags}
               </div>
               <div class="stats-passed-meta">
-                <span class="stats-passed-teacher">${item.teacher ? `👨‍🏫 ${esc(item.teacher)}` : 'Преподаватель не указан'}</span>
+                <span class="stats-passed-teacher">${item.teacher ? `${ICONS.user} ${esc(item.teacher)}` : 'Преподаватель не указан'}</span>
                 <span class="stats-passed-room">${item.room ? `ауд. ${esc(item.room)}` : ''}</span>
               </div>
             </div>
@@ -4726,7 +5124,7 @@ function renderBlueprintTiles() {
       </div>
     `;
 
-    // Кнопка Глаз 👁 (видимость)
+    // Кнопка Глаз (видимость)
     tile.querySelector('[data-action="vis"]')?.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
@@ -5757,6 +6155,90 @@ async function checkAuthStatus() {
   }
 }
 
+// ── CLIENT ACTIVITY TRACKER & ERROR MONITORING ──
+let _lastReportedError = '';
+let _lastActivityPingTime = 0;
+
+function sendClientActivity(actionName) {
+  try {
+    const now = Date.now();
+    // Не чаще 1 раза в 5 секунд, если это повторные вызовы
+    if (actionName && now - _lastActivityPingTime < 5000) return;
+    _lastActivityPingTime = now;
+
+    const group = (typeof S !== 'undefined' && S.group) ? S.group : '';
+    let act = actionName;
+    if (!act) {
+      act = group ? `Смотрит расписание ${group}` : 'На главном экране';
+    }
+
+    const platform = (navigator.userAgentData && navigator.userAgentData.platform) 
+      ? navigator.userAgentData.platform 
+      : (navigator.platform || 'Web');
+
+    const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (typeof S !== 'undefined' && S.initData) {
+      headers['x-telegram-init-data'] = S.initData;
+    }
+
+    fetch(`${API}/activity${devParam}`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        group: group,
+        action: act,
+        platform: `${platform} / ${navigator.userAgent.slice(0, 30)}`
+      })
+    }).catch(() => {});
+  } catch (_) {}
+}
+
+function reportClientBug(errorMessage, stackTrace, groupName, url) {
+  try {
+    if (!errorMessage || errorMessage === _lastReportedError) return;
+    _lastReportedError = errorMessage;
+
+    const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (typeof S !== 'undefined' && S.initData) {
+      headers['x-telegram-init-data'] = S.initData;
+    }
+
+    fetch(`${API}/report-bug${devParam}`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        error_message: String(errorMessage).slice(0, 300),
+        stack_trace: String(stackTrace || '').slice(0, 1000),
+        group_name: groupName || (typeof S !== 'undefined' ? S.group : ''),
+        url: url || window.location.href
+      })
+    }).catch(() => {});
+  } catch (_) {}
+}
+
+// Глобальный перехват ошибок фронтенда
+window.addEventListener('error', function(e) {
+  reportClientBug(e.message, `${e.filename}:${e.lineno}:${e.colno}`, (typeof S !== 'undefined' ? S.group : ''), window.location.href);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  reportClientBug(e.reason?.message || String(e.reason), e.reason?.stack, (typeof S !== 'undefined' ? S.group : ''), window.location.href);
+});
+
+// Периодический heartbeat раз в 45 сек
+setInterval(function() {
+  sendClientActivity();
+}, 45000);
+
+
+// ── АДМИН-ПАНЕЛЬ (УПРАВЛЕНИЕ, БАНЫ, АУДИТ, СТАТИСТИКА, МОНИТОРИНГ) ──
+let currentAdminTab = 'users';
+let currentBanMode = 'single';
+let currentReportStatus = 'open';
+let banSearchDebounceTimer = null;
+let allLoadedBans = [];
+
 window.openAdminModal = function() {
   if (!S.isAdmin) return;
   const backdrop = document.getElementById('adminModalBackdrop');
@@ -5766,9 +6248,9 @@ window.openAdminModal = function() {
     modal.classList.add('open');
     document.body.style.overflow = 'hidden';
   }
-  loadAdminBans();
-  loadAdminOnline();
+  switchAdminTab(currentAdminTab || 'users');
   updateTelegramBackButton();
+  sendClientActivity('Открыл панель управления');
 };
 
 window.closeAdminModal = function() {
@@ -5782,51 +6264,247 @@ window.closeAdminModal = function() {
   updateTelegramBackButton();
 };
 
-async function loadAdminBans() {
-  const listEl = document.getElementById('adminBansList');
-  if (!listEl) return;
-  listEl.innerHTML = '<div class="admin-empty-hint">Загрузка черного списка...</div>';
+window.switchAdminTab = function(tabName) {
+  currentAdminTab = tabName;
+  const tabs = document.querySelectorAll('.admin-tab-btn');
+  tabs.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
 
+  const panes = {
+    users: document.getElementById('adminPaneUsers'),
+    bans: document.getElementById('adminPaneBans'),
+    audit: document.getElementById('adminPaneAudit'),
+    stats: document.getElementById('adminPaneStats'),
+    reports: document.getElementById('adminPaneReports')
+  };
+
+  Object.keys(panes).forEach(k => {
+    if (panes[k]) panes[k].style.display = (k === tabName ? 'block' : 'none');
+  });
+
+  if (tabName === 'users') loadAdminUsers();
+  else if (tabName === 'bans') loadAdminBans();
+  else if (tabName === 'audit') loadAdminAuditLogs();
+  else if (tabName === 'stats') loadAdminStats();
+  else if (tabName === 'reports') loadAdminBugReports();
+};
+
+// ── 1. Вкладка ПОЛЬЗОВАТЕЛИ (ОНЛАЙН + ИСТОРИЯ) ──
+function formatDuration(sec) {
+  if (!sec || sec <= 0) return 'только что';
+  if (sec < 60) return `${sec} сек`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return `${m} мин ${s} сек`;
+  const h = Math.floor(m / 60);
+  return `${h} ч ${m % 60} мин`;
+}
+
+function formatIsoTime(isoStr) {
+  if (!isoStr) return '—';
   try {
-    const res = await fetchWithTimeout(`${API}/admin/bans`, {}, 6000);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const bans = data.banned_users || [];
-
-    if (bans.length === 0) {
-      listEl.innerHTML = '<div class="admin-empty-hint">Черный список пуст</div>';
-      return;
-    }
-
-    let html = '';
-    bans.forEach(b => {
-      html += `
-        <div class="admin-row-item" style="flex-direction:column;align-items:stretch;gap:4px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <div class="admin-row-id" style="color:#ef4444;">ID: ${b.telegram_id}</div>
-            <button type="button" class="admin-unban-btn" onclick="unbanUser(${b.telegram_id})" title="Разблокировать">
-              Разбан
-            </button>
-          </div>
-          <div class="admin-row-reason" style="font-size:12px;opacity:0.6;">${esc(b.reason || 'Без причины')}</div>
-        </div>
-      `;
-    });
-    listEl.innerHTML = html;
-  } catch (err) {
-    listEl.innerHTML = `<div class="admin-empty-hint" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+    const d = new Date(isoStr);
+    return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch (_) {
+    return isoStr;
   }
 }
 
+window.loadAdminUsers = async function() {
+  const onlineListEl = document.getElementById('adminOnlineList');
+  const historyListEl = document.getElementById('adminHistoryList');
+  const countEl = document.getElementById('adminOnlineCount');
+
+  if (onlineListEl) onlineListEl.innerHTML = '<div class="admin-empty-state">Загрузка пользователей онлайн...</div>';
+  if (historyListEl) historyListEl.innerHTML = '<div class="admin-empty-state">Загрузка истории...</div>';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/users`, {}, 6000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const onlineUsers = data.online_users || [];
+    const history = data.history || [];
+
+    if (countEl) countEl.textContent = onlineUsers.length;
+
+    // Рендер онлайн
+    if (onlineListEl) {
+      if (onlineUsers.length === 0) {
+        onlineListEl.innerHTML = '<div class="admin-empty-state">Сейчас нет активных пользователей онлайн</div>';
+      } else {
+        let h = '';
+        onlineUsers.forEach(u => {
+          const name = u.first_name || u.username || 'Студент';
+          const uname = u.username ? `@${esc(u.username)}` : '';
+          const groupBadge = u.group 
+            ? `<span class="admin-tag tag-group"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg> ${esc(u.group)}</span>`
+            : '<span class="admin-tag tag-muted">Группа не выбрана</span>';
+
+          h += `
+            <div class="admin-user-card">
+              <div class="admin-user-card-header">
+                <div class="admin-user-main-info">
+                  <span class="admin-user-name">${esc(name)} ${uname}</span>
+                  <span class="admin-user-id">ID: ${u.telegram_id}</span>
+                </div>
+                <button class="admin-quick-ban-btn" onclick="quickBanUser(${u.telegram_id}, '${esc(u.username || '')}')" type="button" title="Заблокировать пользователя">
+                  <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+                  <span>Бан</span>
+                </button>
+              </div>
+              <div class="admin-user-tags">
+                ${groupBadge}
+                <span class="admin-tag tag-action"><svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> ${esc(u.last_action || 'Активен')}</span>
+                <span class="admin-tag tag-time"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${formatDuration(u.session_duration_sec)} в приложении</span>
+                <span class="admin-tag tag-ip"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> ${esc(u.ip)} · ${esc(u.platform)}</span>
+              </div>
+            </div>
+          `;
+        });
+        onlineListEl.innerHTML = h;
+      }
+    }
+
+    // Рендер истории
+    if (historyListEl) {
+      if (history.length === 0) {
+        historyListEl.innerHTML = '<div class="admin-empty-state">История активности пока пуста</div>';
+      } else {
+        let h = '';
+        history.forEach(row => {
+          const name = row.username ? `@${esc(row.username)}` : `ID: ${row.telegram_id}`;
+          h += `
+            <div class="admin-history-item">
+              <div class="admin-history-left">
+                <div class="admin-history-user">${name} <span class="admin-history-visits">(${row.visits_count} визитов)</span></div>
+                <div class="admin-history-meta">
+                  Группа: <strong>${esc(row.selected_group || '—')}</strong> · Действие: ${esc(row.last_action || '—')}
+                </div>
+              </div>
+              <div class="admin-history-right">
+                <div class="admin-history-time">${formatIsoTime(row.last_seen)}</div>
+                <div class="admin-history-ip">${esc(row.ip_address || 'unknown')}</div>
+              </div>
+            </div>
+          `;
+        });
+        historyListEl.innerHTML = h;
+      }
+    }
+  } catch (err) {
+    if (onlineListEl) onlineListEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка загрузки: ${esc(err.message)}</div>`;
+  }
+};
+
+window.quickBanUser = function(tgId, username) {
+  switchAdminTab('bans');
+  setBanMode('single');
+  const idInput = document.getElementById('newBanId');
+  const userinput = document.getElementById('newBanUsername');
+  const reasonInput = document.getElementById('newBanReason');
+  if (idInput) idInput.value = tgId;
+  if (userinput) userinput.value = username || '';
+  if (reasonInput) {
+    reasonInput.value = 'Нарушение правил';
+    reasonInput.focus();
+  }
+};
+
+
+// ── 2. Вкладка БЛОКИРОВКИ (ОДИНОЧНЫЙ, МАССОВЫЙ, ПОИСК, АВТОРАЗБАН) ──
+window.setBanMode = function(mode) {
+  currentBanMode = mode;
+  const singleBtn = document.getElementById('banModeSingleBtn');
+  const massBtn = document.getElementById('banModeMassBtn');
+  const singleCard = document.getElementById('adminSingleBanCard');
+  const massCard = document.getElementById('adminMassBanCard');
+
+  if (singleBtn) singleBtn.classList.toggle('active', mode === 'single');
+  if (massBtn) massBtn.classList.toggle('active', mode === 'mass');
+  if (singleCard) singleCard.style.display = (mode === 'single' ? 'block' : 'none');
+  if (massCard) massCard.style.display = (mode === 'mass' ? 'block' : 'none');
+};
+
+window.loadAdminBans = async function(query = '') {
+  const listEl = document.getElementById('adminBansList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="admin-empty-state">Загрузка списка блокировок...</div>';
+
+  try {
+    const url = `${API}/admin/bans${query ? `?search=${encodeURIComponent(query)}` : ''}`;
+    const res = await fetchWithTimeout(url, {}, 6000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const bans = data.banned_users || [];
+    allLoadedBans = bans;
+
+    if (bans.length === 0) {
+      listEl.innerHTML = '<div class="admin-empty-state">Список блокировок пуст</div>';
+      return;
+    }
+
+    let h = '';
+    bans.forEach(b => {
+      const isExp = b.banned_until ? `До: ${formatIsoTime(b.banned_until)}` : 'Бессрочно (навсегда)';
+      const durationBadge = b.banned_until 
+        ? `<span class="admin-tag tag-action"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${isExp}</span>`
+        : '<span class="admin-tag tag-ban"><svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg> Навсегда</span>';
+
+      h += `
+        <div class="admin-ban-card">
+          <div class="admin-ban-card-top">
+            <div class="admin-ban-main">
+              <span class="admin-ban-id">ID: ${b.telegram_id}</span>
+              ${b.username ? `<span class="admin-ban-user">@${esc(b.username)}</span>` : ''}
+            </div>
+            <button class="admin-unban-btn" onclick="unbanUser(${b.telegram_id})" type="button" title="Снять блокировку">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+              <span>Разблокировать</span>
+            </button>
+          </div>
+          <div class="admin-ban-reason">
+            <strong>Причина:</strong> ${esc(b.reason || 'Не указана')}
+          </div>
+          <div class="admin-ban-meta">
+            ${durationBadge}
+            <span class="admin-tag tag-time">Забанен: ${formatIsoTime(b.banned_at)}</span>
+          </div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = h;
+  } catch (err) {
+    listEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+};
+
+window.onBanSearchInput = function() {
+  clearTimeout(banSearchDebounceTimer);
+  banSearchDebounceTimer = setTimeout(() => {
+    const query = document.getElementById('adminBanSearchInput')?.value || '';
+    loadAdminBans(query);
+  }, 300);
+};
+
 window.submitAddBan = async function() {
   const idInput = document.getElementById('newBanId');
+  const userinput = document.getElementById('newBanUsername');
   const reasonInput = document.getElementById('newBanReason');
-  const idVal = (idInput?.value || '').trim();
-  const reasonVal = (reasonInput?.value || '').trim();
-  const tgId = parseInt(idVal, 10);
+  const durInput = document.getElementById('newBanDuration');
 
-  if (!tgId || isNaN(tgId)) {
-    alert('Введите корректный числовой Telegram ID');
+  const tgId = parseInt((idInput?.value || '').trim(), 10);
+  const username = (userinput?.value || '').trim();
+  const reason = (reasonInput?.value || '').trim();
+  const duration = durInput?.value || 'permanent';
+
+  if (!tgId || isNaN(tgId) || tgId <= 0) {
+    alert('Пожалуйста, введите корректный числовой Telegram ID');
+    return;
+  }
+  if (!reason) {
+    alert('Причина бана обязательна для заполнения!');
+    reasonInput?.focus();
     return;
   }
 
@@ -5834,17 +6512,83 @@ window.submitAddBan = async function() {
     const res = await fetchWithTimeout(`${API}/admin/bans`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ telegram_id: tgId, reason: reasonVal })
+      body: JSON.stringify({
+        telegram_id: tgId,
+        username: username,
+        reason: reason,
+        duration: duration
+      })
     }, 8000);
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || `HTTP ${res.status}`);
     }
+
     if (idInput) idInput.value = '';
+    if (userinput) userinput.value = '';
     if (reasonInput) reasonInput.value = '';
+
     await loadAdminBans();
   } catch (err) {
     alert(`Ошибка блокировки: ${err.message}`);
+  }
+};
+
+window.submitMassBan = async function() {
+  const idsInput = document.getElementById('massBanIds');
+  const reasonInput = document.getElementById('massBanReason');
+  const durInput = document.getElementById('massBanDuration');
+
+  const rawIds = (idsInput?.value || '').trim();
+  const reason = (reasonInput?.value || '').trim();
+  const duration = durInput?.value || '24h';
+
+  if (!rawIds) {
+    alert('Введите хотя бы один Telegram ID');
+    return;
+  }
+  if (!reason) {
+    alert('Причина бана обязательна для заполнения!');
+    reasonInput?.focus();
+    return;
+  }
+
+  const ids = rawIds
+    .split(/[\s,;\n]+/)
+    .map(x => parseInt(x.trim(), 10))
+    .filter(x => x && !isNaN(x) && x > 0);
+
+  if (ids.length === 0) {
+    alert('Не удалось извлечь ни одного корректного ID');
+    return;
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/bans/mass`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        telegram_ids: ids,
+        reason: reason,
+        duration: duration
+      })
+    }, 10000);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    alert(`Успешно заблокировано пользователей: ${data.banned_count}`);
+
+    if (idsInput) idsInput.value = '';
+    if (reasonInput) reasonInput.value = '';
+
+    await loadAdminBans();
+  } catch (err) {
+    alert(`Ошибка массовой блокировки: ${err.message}`);
   }
 };
 
@@ -5858,44 +6602,222 @@ window.unbanUser = async function(telegramId) {
   }
 };
 
-// ── ONLINE USERS ────────────────────────
-async function loadAdminOnline() {
-  const listEl = document.getElementById('adminOnlineList');
+
+// ── 3. Вкладка АУДИТ (ЖУРНАЛ ДЕЙСТВИЙ АДМИНОВ) ──
+window.loadAdminAuditLogs = async function() {
+  const listEl = document.getElementById('adminAuditLogsList');
   if (!listEl) return;
-  listEl.innerHTML = '<div class="admin-empty-hint">Загрузка...</div>';
+  listEl.innerHTML = '<div class="admin-empty-state">Загрузка журнала действий...</div>';
 
   try {
-    const res = await fetchWithTimeout(`${API}/admin/online`, {}, 6000);
+    const res = await fetchWithTimeout(`${API}/admin/audit-logs`, {}, 6000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const users = data.online_users || [];
-    const countEl = document.getElementById('adminOnlineCount');
-    if (countEl) countEl.textContent = users.length;
+    const logs = data.logs || [];
 
-    if (users.length === 0) {
-      listEl.innerHTML = '<div class="admin-empty-hint">Нет активных пользователей</div>';
+    if (logs.length === 0) {
+      listEl.innerHTML = '<div class="admin-empty-state">В журнале пока нет записей</div>';
       return;
     }
 
-    let html = '';
-    users.forEach(u => {
-      const ago = u.last_seen_sec < 60 ? 'только что' : `${Math.floor(u.last_seen_sec / 60)} мин назад`;
-      const name = u.first_name || u.username || '—';
-      const uname = u.username ? `@${esc(u.username)}` : '';
-      html += `
-        <div class="admin-row-item">
-          <div class="admin-row-info">
-            <div class="admin-row-id" style="color:#22c55e;">ID: ${u.telegram_id}</div>
-            <div class="admin-row-reason">${esc(name)} ${uname} · ${ago}</div>
+    let h = '';
+    logs.forEach(l => {
+      let actionClass = 'tag-muted';
+      let actionTitle = l.action;
+      if (l.action === 'ban') { actionClass = 'tag-ban'; actionTitle = 'Бан пользователя'; }
+      else if (l.action === 'mass_ban') { actionClass = 'tag-ban'; actionTitle = 'Массовый бан'; }
+      else if (l.action === 'unban') { actionClass = 'tag-group'; actionTitle = 'Разблокировка'; }
+      else if (l.action === 'resolve_report') { actionClass = 'tag-group'; actionTitle = 'Решение бага'; }
+
+      h += `
+        <div class="admin-audit-row">
+          <div class="admin-audit-header">
+            <span class="admin-tag ${actionClass}">${actionTitle}</span>
+            <span class="admin-audit-time">${formatIsoTime(l.created_at)}</span>
+          </div>
+          <div class="admin-audit-details">
+            Целевой объект / ID: <strong>${l.target_id}</strong>
+            ${l.reason ? ` · Причина: <span class="admin-audit-reason">«${esc(l.reason)}»</span>` : ''}
+            ${l.duration ? ` · Срок: <strong>${esc(l.duration)}</strong>` : ''}
           </div>
         </div>
       `;
     });
-    listEl.innerHTML = html;
+    listEl.innerHTML = h;
   } catch (err) {
-    listEl.innerHTML = `<div class="admin-empty-hint" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+    listEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
   }
-}
+};
+
+
+// ── 4. Вкладка СТАТИСТИКА (KPI, ГРАФИК ПО ЧАСАМ, ТОП ГРУПП) ──
+window.loadAdminStats = async function() {
+  const chartEl = document.getElementById('adminHourlyChart');
+  const topGroupsEl = document.getElementById('adminTopGroupsList');
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/stats`, {}, 6000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const stats = data.stats || {};
+
+    // Заполнение KPI
+    const totalUsersEl = document.getElementById('statTotalUsers');
+    const totalViewsEl = document.getElementById('statTotalViews');
+    const bannedCountEl = document.getElementById('statBannedCount');
+    const openReportsEl = document.getElementById('statOpenReports');
+
+    if (totalUsersEl) totalUsersEl.textContent = stats.total_users || 0;
+    if (totalViewsEl) totalViewsEl.textContent = stats.total_views || 0;
+    if (bannedCountEl) bannedCountEl.textContent = stats.banned_count || 0;
+    if (openReportsEl) openReportsEl.textContent = stats.open_reports_count || 0;
+
+    // Рендер почасового графика
+    if (chartEl) {
+      const hourly = stats.hourly_activity || [];
+      if (hourly.length === 0) {
+        chartEl.innerHTML = '<div class="admin-empty-state">Нет данных о нагрузке за последние 24 часа</div>';
+      } else {
+        const maxReq = Math.max(...hourly.map(x => x.requests_count || 0), 1);
+        let barsHtml = '<div class="admin-chart-bars">';
+        hourly.forEach(item => {
+          const count = item.requests_count || 0;
+          const pct = Math.max(8, Math.round((count / maxReq) * 100));
+          const hourLabel = item.hour_key ? item.hour_key.slice(11, 16) : '';
+          const isPeak = count >= maxReq * 0.75;
+
+          barsHtml += `
+            <div class="admin-chart-col" title="${item.hour_key}: ${count} запросов">
+              <div class="admin-bar-val">${count}</div>
+              <div class="admin-chart-bar ${isPeak ? 'peak-bar' : ''}" style="height: ${pct}%;"></div>
+              <div class="admin-bar-label">${hourLabel}</div>
+            </div>
+          `;
+        });
+        barsHtml += '</div>';
+        chartEl.innerHTML = barsHtml;
+      }
+    }
+
+    // Рендер топ групп
+    if (topGroupsEl) {
+      const topGroups = stats.top_groups || [];
+      if (topGroups.length === 0) {
+        topGroupsEl.innerHTML = '<div class="admin-empty-state">Активность групп еще не зафиксирована</div>';
+      } else {
+        const maxVisits = Math.max(...topGroups.map(g => g.total_visits || 0), 1);
+        let gHtml = '';
+        topGroups.forEach((g, idx) => {
+          const visits = g.total_visits || 0;
+          const pct = Math.round((visits / maxVisits) * 100);
+          gHtml += `
+            <div class="admin-ranking-row">
+              <div class="admin-ranking-rank">#${idx + 1}</div>
+              <div class="admin-ranking-info">
+                <div class="admin-ranking-title-row">
+                  <span class="admin-ranking-name">${esc(g.selected_group)}</span>
+                  <span class="admin-ranking-count">${visits} просмотров (${g.user_count} студ.)</span>
+                </div>
+                <div class="admin-ranking-meter">
+                  <div class="admin-ranking-meter-bar" style="width: ${pct}%;"></div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        topGroupsEl.innerHTML = gHtml;
+      }
+    }
+  } catch (err) {
+    if (chartEl) chartEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+};
+
+
+// ── 5. Вкладка МОНИТОРИНГ ОШИБОК И ЖАЛОБ ──
+window.setReportStatusFilter = function(status) {
+  currentReportStatus = status;
+  const openBtn = document.getElementById('reportFilterOpenBtn');
+  const resBtn = document.getElementById('reportFilterResolvedBtn');
+  if (openBtn) openBtn.classList.toggle('active', status === 'open');
+  if (resBtn) resBtn.classList.toggle('active', status === 'resolved');
+  loadAdminBugReports();
+};
+
+window.loadAdminBugReports = async function() {
+  const listEl = document.getElementById('adminBugReportsList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="admin-empty-state">Загрузка ошибок и жалоб...</div>';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/reports?status=${currentReportStatus}`, {}, 6000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const reports = data.reports || [];
+
+    // Обновляем бейдж открытых
+    const badgeEl = document.getElementById('adminReportsBadge');
+    if (badgeEl) {
+      if (currentReportStatus === 'open' && reports.length > 0) {
+        badgeEl.textContent = reports.length;
+        badgeEl.style.display = 'inline-block';
+      } else if (currentReportStatus === 'open') {
+        badgeEl.style.display = 'none';
+      }
+    }
+
+    if (reports.length === 0) {
+      listEl.innerHTML = `<div class="admin-empty-state">Нет ${currentReportStatus === 'open' ? 'активных' : 'решенных'} ошибок</div>`;
+      return;
+    }
+
+    let h = '';
+    reports.forEach(r => {
+      const isResolved = r.status === 'resolved';
+      h += `
+        <div class="admin-report-card ${isResolved ? 'is-resolved' : ''}">
+          <div class="admin-report-header">
+            <div class="admin-report-title">
+              <svg class="lucide-icon" viewBox="0 0 24 24" style="color:${isResolved ? '#22c55e' : '#ef4444'};"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+              <span>#${r.id} · ${esc(r.error_message)}</span>
+            </div>
+            ${!isResolved ? `
+              <button class="admin-resolve-btn" onclick="resolveBugReport(${r.id})" type="button">
+                <svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Решено</span>
+              </button>
+            ` : '<span class="admin-tag tag-group">Решено</span>'}
+          </div>
+          ${r.stack_trace ? `
+            <details class="admin-report-stack">
+              <summary>Технические детали / Стек вызова</summary>
+              <pre>${esc(r.stack_trace)}</pre>
+            </details>
+          ` : ''}
+          <div class="admin-report-meta">
+            <span>Группа: <strong>${esc(r.group_name || '—')}</strong></span>
+            <span>Пользователь: <strong>${r.telegram_id || 'Аноним'}</strong></span>
+            <span>Время: <strong>${formatIsoTime(r.created_at)}</strong></span>
+          </div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = h;
+  } catch (err) {
+    listEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+};
+
+window.resolveBugReport = async function(reportId) {
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/reports/${reportId}/resolve`, { method: 'POST' }, 8000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await loadAdminBugReports();
+  } catch (err) {
+    alert(`Ошибка обновления отчета: ${err.message}`);
+  }
+};
+
 
 // ── UTILS ───────────────────────────────
 function esc(str) {

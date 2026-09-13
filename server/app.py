@@ -6,7 +6,7 @@ import logging
 import re
 import urllib.request
 from collections import defaultdict
-from typing import Optional
+from typing import Optional, List, Dict
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -127,7 +127,7 @@ async def rate_limiting_middleware(request: Request, call_next):
                     _ip_request_timestamps.pop(ip, None)
     return await call_next(request)
 
-PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm"}
+PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm", "/api/activity", "/api/report-bug"}
 
 def get_verified_user_from_request(request: Request) -> Optional[dict]:
     """Извлекает и валидирует Telegram WebApp initData с кэшированием сессии в request.state."""
@@ -180,10 +180,18 @@ async def telegram_gate_middleware(request: Request, call_next):
             try:
                 uid = user.get("id") or user.get("telegram_id")
                 if uid:
-                    _online_users[int(uid)] = {
-                        "username": user.get("username", ""),
-                        "first_name": user.get("first_name", ""),
-                        "last_seen": time.time()
+                    uid = int(uid)
+                    db.record_hourly_request(uid)
+                    prev = _online_users.get(uid, {})
+                    _online_users[uid] = {
+                        "username": user.get("username", "") or prev.get("username", ""),
+                        "first_name": user.get("first_name", "") or prev.get("first_name", ""),
+                        "last_seen": time.time(),
+                        "connected_at": prev.get("connected_at", time.time()),
+                        "ip": get_real_client_ip(request),
+                        "group": prev.get("group", ""),
+                        "last_action": prev.get("last_action", "Просмотр расписания"),
+                        "platform": prev.get("platform", "WebApp")
                     }
             except Exception:
                 pass
@@ -216,9 +224,26 @@ async def telegram_gate_middleware(request: Request, call_next):
                 return JSONResponse({"gate_active": True, "published": False, "is_banned": True})
 
         if not user:
-            # ВРЕМЕННО ДЛЯ ТЕСТОВ В БРАУЗЕРЕ: отключаем блокировку входа из обычного браузера
-            # Для эндпоинта сохранения группы не ломаем обработку (пропустит дальше или вернет дефолт)
-            pass
+            # Если запрос пришел вне Telegram или подпись невалидна:
+            # Не отдаем данные, не раскрывая статусных кодов (200 OK с пустой структурой, удержание в вечном скелетоне)
+            if path == "/api/schedule":
+                return JSONResponse({
+                    "published": False,
+                    "gate_active": True,
+                    "group": "",
+                    "groups": [],
+                    "courses": [],
+                    "available_tabs": [],
+                    "days": {}
+                })
+            elif path == "/api/tabs":
+                return JSONResponse({"tabs": [], "active_gid": ""})
+            elif path == "/api/groups":
+                return JSONResponse({"groups": [], "courses": []})
+            elif path == "/api/auth-status":
+                return JSONResponse({"authenticated": False, "is_admin": False})
+            else:
+                return JSONResponse({"gate_active": True, "published": False})
 
     return await call_next(request)
 
@@ -596,13 +621,106 @@ async def set_api_user_group(payload: UserGroupPayload, request: Request):
         raise HTTPException(status_code=500, detail="Внутренняя ошибка при сохранении группы")
 
 
-# ── СИСТЕМА АВТОРИЗАЦИИ И АДМИН-ПАНЕЛЬ (БАН-ЛИСТ) ──
+# ── СИСТЕМА АВТОРИЗАЦИИ И АДМИН-ПАНЕЛЬ (БАН-ЛИСТ, АУДИТ, СТАТИСТИКА, МОНИТОРИНГ) ──
 
 class AdminBanPayload(BaseModel):
     telegram_id: int = Field(..., gt=0)
     username: Optional[str] = ""
-    reason: Optional[str] = ""
+    reason: str = Field(..., min_length=1, description="Причина бана обязательна")
+    duration: Optional[str] = "permanent"  # "1h", "24h", "7d", "permanent"
     action: Optional[str] = "ban"
+
+
+class AdminMassBanPayload(BaseModel):
+    telegram_ids: List[int] = Field(..., min_items=1)
+    reason: str = Field(..., min_length=1, description="Причина бана обязательна")
+    duration: Optional[str] = "permanent"
+
+
+class ClientActivityPayload(BaseModel):
+    group: Optional[str] = ""
+    action: Optional[str] = ""
+    platform: Optional[str] = ""
+
+
+class ClientBugReportPayload(BaseModel):
+    error_message: str = Field(..., min_length=1)
+    stack_trace: Optional[str] = ""
+    group_name: Optional[str] = ""
+    url: Optional[str] = ""
+
+
+def _parse_duration_to_hours(duration: Optional[str]) -> Optional[int]:
+    if not duration or duration == "permanent":
+        return None
+    d = str(duration).lower().strip()
+    if d in ("1h", "1"):
+        return 1
+    if d in ("24h", "24", "1d"):
+        return 24
+    if d in ("7d", "168h", "168"):
+        return 168
+    try:
+        val = int(re.sub(r"[^\d]", "", d))
+        return val if val > 0 else None
+    except ValueError:
+        return None
+
+
+@app.post("/api/activity")
+async def record_client_activity(request: Request, payload: ClientActivityPayload):
+    """Прием heartbeat и событий активности от фронтенда (без блокировки неавторизованных)."""
+    user = get_verified_user_from_request(request)
+    client_ip = get_real_client_ip(request)
+    now = time.time()
+    uid = None
+    username = ""
+    first_name = ""
+
+    if user:
+        uid = int(user.get("id") or user.get("telegram_id") or 0)
+        username = user.get("username", "")
+        first_name = user.get("first_name", "")
+
+    if uid and uid > 0:
+        prev = _online_users.get(uid, {})
+        _online_users[uid] = {
+            "username": username or prev.get("username", ""),
+            "first_name": first_name or prev.get("first_name", ""),
+            "last_seen": now,
+            "connected_at": prev.get("connected_at", now),
+            "ip": client_ip,
+            "group": payload.group or prev.get("group", ""),
+            "last_action": payload.action or prev.get("last_action", "Активность"),
+            "platform": payload.platform or prev.get("platform", "WebApp")
+        }
+        db.record_hourly_request(uid)
+        db.upsert_user_activity(
+            telegram_id=uid,
+            username=username,
+            group=payload.group or "",
+            action=payload.action or "Активность",
+            ip=client_ip,
+            platform=payload.platform or "WebApp"
+        )
+    return {"status": "ok"}
+
+
+@app.post("/api/report-bug")
+async def report_client_bug(request: Request, payload: ClientBugReportPayload):
+    """Регистрация ошибки или сбоя от клиента."""
+    user = get_verified_user_from_request(request)
+    uid = None
+    if user:
+        uid = int(user.get("id") or user.get("telegram_id") or 0)
+    report_id = db.save_bug_report(
+        telegram_id=uid,
+        group_name=payload.group_name or "",
+        error_message=payload.error_message,
+        stack_trace=payload.stack_trace or "",
+        url=payload.url or str(request.url)
+    )
+    return {"status": "ok", "report_id": report_id}
 
 
 @app.get("/api/auth-status")
@@ -630,57 +748,24 @@ async def get_auth_status(request: Request):
 
 @app.get("/api/admin/info")
 async def get_admin_info(request: Request):
-    """Данные админ-панели (статистика, баны). Доступ строго для владельца."""
+    """Данные админ-панели (сводка). Доступ строго для владельца."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
         raise HTTPException(status_code=404, detail="Not Found")
 
     banned = db.get_banned_users()
+    stats = db.get_analytics_summary()
     return {
         "admin_id": user["id"],
         "banned_users": banned,
-        "banned": banned,
         "total_banned": len(banned),
+        "stats": stats,
     }
 
 
-@app.get("/api/admin/bans")
-async def get_admin_bans(request: Request):
-    """Список заблокированных пользователей. Доступ для владельца."""
-    user = get_verified_user_from_request(request)
-    if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=404, detail="Not Found")
-    return {"status": "ok", "banned_users": db.get_banned_users()}
-
-
-@app.post("/api/admin/bans")
-async def manage_admin_bans(request: Request, payload: AdminBanPayload):
-    """Управление списком забаненных Telegram ID. Доступ строго для владельца."""
-    user = get_verified_user_from_request(request)
-    if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=404, detail="Not Found")
-
-    if payload.action == "unban":
-        db.unban_user(payload.telegram_id)
-    else:
-        db.ban_user(payload.telegram_id, payload.username or "", payload.reason or "")
-
-    return {"status": "ok", "banned_users": db.get_banned_users()}
-
-
-@app.delete("/api/admin/bans/{telegram_id}")
-async def delete_admin_ban(request: Request, telegram_id: int):
-    """Разблокировка пользователя по ID."""
-    user = get_verified_user_from_request(request)
-    if not user or not user.get("is_admin") or user.get("is_banned"):
-        raise HTTPException(status_code=404, detail="Not Found")
-    db.unban_user(telegram_id)
-    return {"status": "ok"}
-
-
-@app.get("/api/admin/online")
-async def get_admin_online(request: Request):
-    """Список пользователей онлайн (последняя активность < 5 мин). Доступ для владельца."""
+@app.get("/api/admin/users")
+async def get_admin_users(request: Request):
+    """Детальная информация о пользователях: онлайн + история активности."""
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
         raise HTTPException(status_code=404, detail="Not Found")
@@ -691,19 +776,136 @@ async def get_admin_online(request: Request):
     for uid, info in _online_users.items():
         age = now - info.get("last_seen", 0)
         if age <= ONLINE_TTL:
+            conn_time = info.get("connected_at", info.get("last_seen", now))
             online_list.append({
                 "telegram_id": uid,
                 "username": info.get("username", ""),
                 "first_name": info.get("first_name", ""),
+                "group": info.get("group", ""),
+                "last_action": info.get("last_action", "Активен"),
+                "ip": info.get("ip", "unknown"),
+                "platform": info.get("platform", "WebApp"),
+                "session_duration_sec": max(0, int(now - conn_time)),
                 "last_seen_sec": int(age)
             })
         else:
             stale_keys.append(uid)
+
     for k in stale_keys:
         _online_users.pop(k, None)
 
     online_list.sort(key=lambda x: x["last_seen_sec"])
-    return {"status": "ok", "online_users": online_list, "count": len(online_list)}
+    history = db.get_user_activity_history(limit=50)
+
+    return {
+        "status": "ok",
+        "online_users": online_list,
+        "history": history,
+        "total_online": len(online_list)
+    }
+
+
+@app.get("/api/admin/bans")
+async def get_admin_bans(request: Request, search: Optional[str] = Query("", description="Поиск")):
+    """Список заблокированных пользователей с фильтрацией."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"status": "ok", "banned_users": db.get_banned_users(query=search or "")}
+
+
+@app.post("/api/admin/bans")
+async def manage_admin_bans(request: Request, payload: AdminBanPayload):
+    """Блокировка или разблокировка пользователя с обязательной причиной и длительностью."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    if payload.action == "unban":
+        db.unban_user(payload.telegram_id, admin_id=user["id"], reason=payload.reason or "Разблокировка")
+    else:
+        duration_hours = _parse_duration_to_hours(payload.duration)
+        db.ban_user(
+            telegram_id=payload.telegram_id,
+            username=payload.username or "",
+            reason=payload.reason,
+            duration_hours=duration_hours,
+            banned_by=user["id"]
+        )
+
+    return {"status": "ok", "banned_users": db.get_banned_users()}
+
+
+@app.post("/api/admin/bans/mass")
+async def mass_ban_admin(request: Request, payload: AdminMassBanPayload):
+    """Массовая блокировка списка Telegram ID."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    duration_hours = _parse_duration_to_hours(payload.duration)
+    banned_count = db.mass_ban_users(
+        telegram_ids=payload.telegram_ids,
+        reason=payload.reason,
+        duration_hours=duration_hours,
+        banned_by=user["id"]
+    )
+    return {"status": "ok", "banned_count": banned_count, "banned_users": db.get_banned_users()}
+
+
+@app.delete("/api/admin/bans/{telegram_id}")
+async def delete_admin_ban(
+    request: Request,
+    telegram_id: int,
+    reason: Optional[str] = Query("Разблокировка администратором", description="Причина")
+):
+    """Быстрая разблокировка пользователя по ID."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    db.unban_user(telegram_id, admin_id=user["id"], reason=reason)
+    return {"status": "ok"}
+
+
+@app.get("/api/admin/audit-logs")
+async def get_admin_audit(request: Request, limit: int = Query(50, ge=1, le=200)):
+    """Журнал действий администраторов."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"status": "ok", "logs": db.get_audit_logs(limit=limit)}
+
+
+@app.get("/api/admin/stats")
+async def get_admin_stats(request: Request):
+    """Почасовая активность (24ч) и популярность групп."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"status": "ok", "stats": db.get_analytics_summary()}
+
+
+@app.get("/api/admin/reports")
+async def get_admin_reports(request: Request, status: Optional[str] = Query("open", description="open, resolved или пусто")):
+    """Список клиентских сообщений об ошибках и сбоях."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"status": "ok", "reports": db.get_bug_reports(status=status)}
+
+
+@app.post("/api/admin/reports/{report_id}/resolve")
+async def resolve_admin_report(request: Request, report_id: int):
+    """Отметка ошибки как решенной."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    success = db.resolve_bug_report(report_id, admin_id=user["id"])
+    if not success:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return {"status": "ok"}
+
 
 @app.get("/api/english-alarm")
 async def get_english_alarm(

@@ -11,25 +11,25 @@
   const STEPS = [
     {
       id: 'group',
-      title: '👥 Ваша группа',
-      body: 'Здесь отображается ваша текущая учебная группа. Нажмите прямо на название группы или откройте боковое меню (кнопка ☰), чтобы выбрать любую другую группу колледжа.',
+      title: 'Ваша группа',
+      body: 'Здесь отображается ваша текущая учебная группа. Нажмите прямо на название группы или откройте боковое меню, чтобы выбрать любую другую группу колледжа.',
       getTarget: () => document.querySelector('.topbar-title') || document.getElementById('topbarGroupName'),
       preferredPosition: 'bottom'
     },
     {
       id: 'calendar',
-      title: '📅 Дни, недели и жесты',
-      body: 'Переключайтесь между днями недели в один клик или <b>свайпами влево/вправо</b> прямо по расписанию! Стрелками <b>◀ ▶</b> можно листать недели. Текущий день и числитель/знаменатель определяются автоматически!',
+      title: 'Дни, недели и жесты',
+      body: 'Переключайтесь между днями недели в один клик или <b>свайпами влево/вправо</b> прямо по расписанию! Стрелками можно листать недели. Текущий день и числитель/знаменатель определяются автоматически!',
       getTarget: () => document.getElementById('dayStripWrap') || document.getElementById('weekNavWrap'),
       preferredPosition: 'bottom'
     },
     {
       id: 'badges',
-      title: '⚡ Метки «Замена» и «Отмена»',
+      title: 'Метки «Замена» и «Отмена»',
       body: `Актуальные изменения выделяются наглядными метками:<br>
         <div class="onboarding-badges-demo">
-          <span class="onboarding-demo-badge badge-swap">⇄ Замена</span>
-          <span class="onboarding-demo-badge badge-cancel">✕ Отмена</span>
+          <span class="onboarding-demo-badge badge-swap">Замена</span>
+          <span class="onboarding-demo-badge badge-cancel">Отмена</span>
         </div>
         • <b>Замена</b> — пара перенесена или заменён преподаватель/аудитория.<br>
         • <b>Отмена</b> — пары не будет.<br>
@@ -42,15 +42,15 @@
     },
     {
       id: 'themes',
-      title: '🎨 Оформление и темы',
-      body: 'В меню (кнопка <b>☰ Ещё</b> внизу) доступен раздел <b>«Оформление и темы»</b>: выбирайте темы по вкусу (тёмные, светлые, киберпанк), настраивайте шрифт или включайте <b>«Минимальный режим»</b> без лишних рамок.',
+      title: 'Оформление и темы',
+      body: 'В меню доступен раздел <b>«Оформление»</b>: выбирайте темы по вкусу (тёмные, светлые, киберпанк), настраивайте шрифт или включайте <b>«Минимальный режим»</b> без лишних рамок.',
       getTarget: () => document.getElementById('bottomNavMore') || document.getElementById('bottomNavSettings'),
       preferredPosition: 'top'
     },
     {
       id: 'constructor',
-      title: '🛠 Настройки интерфейса',
-      body: 'Настройте интерфейс под себя! В разделе <b>«Настройки → Продвинутые»</b> можно менять порядок блоков на экране, скрывать ненужные виджеты и настраивать отображение карточек пар.',
+      title: 'Настройки интерфейса',
+      body: 'Настройте интерфейс под себя! В разделе <b>«Оформление → Продвинутые»</b> можно менять порядок блоков на экране, скрывать ненужные виджеты и настраивать отображение карточек пар.',
       getTarget: () => document.getElementById('bottomNavSettings') || document.getElementById('bottomNavMore'),
       preferredPosition: 'top'
     }
@@ -142,7 +142,7 @@
     cardEl.innerHTML = `
       <div class="onboarding-card-header">
         <div class="onboarding-step-badge">Шаг ${activeStep + 1} из ${total}</div>
-        <button type="button" class="onboarding-btn-close" id="onboardingCloseBtn" aria-label="Закрыть обучение">✕</button>
+        <button type="button" class="onboarding-btn-close" id="onboardingCloseBtn" aria-label="Закрыть обучение"><svg class="lucide-icon" viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
 
       <div class="onboarding-card-content">
@@ -155,9 +155,9 @@
         <div class="onboarding-actions-row">
           <button type="button" class="onboarding-btn onboarding-btn-skip" id="onboardingSkipBtn">Пропустить</button>
           <div class="onboarding-actions-nav">
-            ${!isFirst ? '<button type="button" class="onboarding-btn onboarding-btn-prev" id="onboardingPrevBtn">◀ Назад</button>' : ''}
+            ${!isFirst ? '<button type="button" class="onboarding-btn onboarding-btn-prev" id="onboardingPrevBtn">Назад</button>' : ''}
             <button type="button" class="onboarding-btn onboarding-btn-next ${isLast ? 'onboarding-btn-finish' : ''}" id="onboardingNextBtn">
-              ${isLast ? 'Завершить 🎉' : 'Далее →'}
+              ${isLast ? 'Завершить' : 'Далее'}
             </button>
           </div>
         </div>
