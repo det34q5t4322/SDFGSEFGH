@@ -809,6 +809,7 @@ async function init() {
   // 4. Загружаем данные расписания
   loadSchedule();
   startAutoRefresh();
+  try { sendClientActivity('Запуск приложения'); } catch (_) {}
 }
 
 // ════════════════════════════════════════
@@ -3221,6 +3222,36 @@ function getSubjectIcon(subject) {
   return ICONS.book;
 }
 
+window.toggleCardExpand = function(el, ev) {
+  if (ev) {
+    if (ev.target.closest('button.pair-room-btn, button.pair-teacher-btn, a, input, select, textarea, .admin-quick-ban-btn, .admin-resolve-btn, .admin-unban-btn')) {
+      return;
+    }
+  }
+  const card = el.closest('.expandable-card') || el;
+  card.classList.toggle('is-expanded');
+};
+
+function parseUserAgent(ua) {
+  if (!ua) return 'Неизвестно';
+  let browser = 'Браузер';
+  let os = 'Устройство';
+
+  if (/android/i.test(ua)) os = 'Android';
+  else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+  else if (/windows/i.test(ua)) os = 'Windows';
+  else if (/macintosh|mac os x/i.test(ua)) os = 'macOS';
+  else if (/linux/i.test(ua)) os = 'Linux';
+
+  if (/telegram/i.test(ua)) browser = 'Telegram';
+  else if (/edg/i.test(ua)) browser = 'Edge';
+  else if (/chrome|crios/i.test(ua)) browser = 'Chrome';
+  else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+  else if (/safari/i.test(ua)) browser = 'Safari';
+
+  return `${browser} · ${os}`;
+}
+
 function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant, dayName = '') {
   const cfg = getActiveCardTemplateConfig();
   const timeStr = bell ? `${fmtTime(bell.s)}–${fmtTime(bell.e)}` : (p.time || '');
@@ -3236,11 +3267,11 @@ function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelle
   ].filter(Boolean).join('');
 
   const teacherHtml = teacher
-    ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(teacher)}</span></button>`
+    ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="event.stopPropagation(); openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(teacher)}</span></button>`
     : '';
   const roomHtml = classroom
-    ? `<button class="pair-room-btn" data-room="${esc(classroom)}" onclick="openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(classroom)}</span></button>`
-    : '';
+    ? `<button class="pair-room-btn" data-room="${esc(classroom)}" onclick="event.stopPropagation(); openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(classroom)}</span></button>`
+    : `<span class="pair-room-btn pair-room-unspecified" title="Аудитория не указана в расписании">${ICONS.mapPin} <span>Не указана</span></span>`;
 
   // Зональный рендеринг полей с поддержкой сеток, размеров и цветов
   const FIELD_MAP = {
@@ -3319,11 +3350,28 @@ function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelle
   if (zones['bottom-left'].length > 0 || zones['bottom-right'].length > 0) {
     content += `<div class="card-zone-row zone-row-bottom">
       <div class="card-zone-col col-left">${zones['bottom-left'].join('')}</div>
-      <div class="card-zone-col col-right">${zones['bottom-right'].join('')}</div>
+      <div class="card-zone-col col-right">${zones['bottom-right'].join('')}<button class="card-expand-btn" type="button" aria-label="Детали"><svg class="card-expand-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button></div>
     </div>`;
   }
 
   return content;
+}
+
+function formatLessonType(p, cancelled, replacement, distant) {
+  if (cancelled) return 'Отменено';
+  if (distant) return 'Дистанционный формат';
+  const raw = String(p.lesson_type || p.type || '').toLowerCase();
+  if (!raw || raw === 'regular') {
+    if (/лаб/i.test(p.subject || '')) return 'Лабораторная работа';
+    if (/практ/i.test(p.subject || '')) return 'Практическое занятие';
+    if (/лекц/i.test(p.subject || '')) return 'Лекция';
+    if (/зачет|экзамен|диф/i.test(p.subject || '')) return 'Контроль знаний';
+    return 'Обычное занятие';
+  }
+  if (raw === 'lecture' || raw.includes('лекц')) return 'Лекция';
+  if (raw === 'practice' || raw.includes('практ')) return 'Практическое занятие';
+  if (raw === 'lab' || raw.includes('лаб')) return 'Лабораторная работа';
+  return p.lesson_type || p.type;
 }
 
 function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0, dayName = '') {
@@ -3335,6 +3383,7 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
 
   const cardClass = [
     'pair-card',
+    'expandable-card',
     isCustom ? 'custom-template' : '',
     isGoing ? 'going' : '',
     cancelled ? 'cancelled' : '',
@@ -3342,6 +3391,43 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
   ].filter(Boolean).join(' ');
 
   const content = renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant, dayName);
+
+  const teacher = p.teacher || '';
+  const teacherBtn = teacher
+    ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="event.stopPropagation(); openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(teacher)}</span></button>`
+    : '<span style="color:var(--text-tertiary)">Не указан</span>';
+
+  const lessonType = formatLessonType(p, cancelled, replacement, distant);
+  const notes = p.notes || p.comment || (cancelled ? 'Занятие отменено' : (replacement ? 'Замена в расписании' : (distant ? 'Дистанционный формат' : '')));
+
+  const expandedDetails = `
+    <div class="card-expanded-view">
+      <div class="pair-card-details-grid">
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Преподаватель:</span>
+          <span class="pair-detail-val">${teacherBtn}</span>
+        </div>
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Аудитория:</span>
+          <span class="pair-detail-val">${esc(classroom) || 'Не указана'}</span>
+        </div>
+        ${p.subgroup ? `
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Подгруппа:</span>
+          <span class="pair-detail-val">${esc(p.subgroup)}</span>
+        </div>` : ''}
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Тип занятия:</span>
+          <span class="pair-detail-val">${esc(lessonType)}</span>
+        </div>
+        ${notes ? `
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Заметки:</span>
+          <span class="pair-detail-val">${esc(notes)}</span>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
 
   let progressHtml = '';
   if (isGoing && bell && bell.s && bell.e) {
@@ -3355,8 +3441,9 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
     progressHtml = `<div class="pair-card-progress-bar"><div class="pair-card-progress-fill" style="width:${pct}%"></div></div>`;
   }
 
-  return `<div class="${cardClass}" style="--card-index:${cardIndex}">
+  return `<div class="${cardClass}" style="--card-index:${cardIndex}" onclick="toggleCardExpand(this, event)">
     ${content}
+    ${expandedDetails}
     ${progressHtml}
   </div>`;
 }
@@ -3371,8 +3458,45 @@ function renderSplitCard(num, den, pn, bell, isGoing, cardIndex = 0, dayName = '
     const distant = p.is_distant || /дист/i.test(classroom);
     const content = renderCardContentByTemplate(p, pn, bell, isGoing, label, cancelled, replacement, distant, dayName);
 
-    return `<div class="split-row ${type}-row${isCustom ? ' custom-template' : ''}">
+    const teacher = p.teacher || '';
+    const teacherBtn = teacher
+      ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="event.stopPropagation(); openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(teacher)}</span></button>`
+      : '<span style="color:var(--text-tertiary)">Не указан</span>';
+    const lessonType = formatLessonType(p, cancelled, replacement, distant);
+    const notes = p.notes || p.comment || (cancelled ? 'Занятие отменено' : (replacement ? 'Замена в расписании' : (distant ? 'Дистанционный формат' : '')));
+
+    const expandedDetails = `
+      <div class="card-expanded-view">
+        <div class="pair-card-details-grid">
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Преподаватель:</span>
+            <span class="pair-detail-val">${teacherBtn}</span>
+          </div>
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Аудитория:</span>
+            <span class="pair-detail-val">${esc(classroom) || 'Не указана'}</span>
+          </div>
+          ${p.subgroup ? `
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Подгруппа:</span>
+            <span class="pair-detail-val">${esc(p.subgroup)}</span>
+          </div>` : ''}
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Тип занятия:</span>
+            <span class="pair-detail-val">${esc(lessonType)}</span>
+          </div>
+          ${notes ? `
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Заметки:</span>
+            <span class="pair-detail-val">${esc(notes)}</span>
+          </div>` : ''}
+        </div>
+      </div>
+    `;
+
+    return `<div class="split-row ${type}-row expandable-card${isCustom ? ' custom-template' : ''}" onclick="toggleCardExpand(this, event)">
       ${content}
+      ${expandedDetails}
     </div>`;
   };
 
@@ -6210,6 +6334,12 @@ function sendClientActivity(actionName) {
     _lastActivityPingTime = now;
     activeSecondsAccumulator = 0; // optimistic reset
 
+    // Сессия: 30 минут бездействия (Task 1)
+    const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+    const lastSessionTs = parseInt(localStorage.getItem('schedule_last_session_ts') || '0', 10);
+    const isNewSession = !lastSessionTs || (now - lastSessionTs > SESSION_TIMEOUT_MS);
+    localStorage.setItem('schedule_last_session_ts', String(now));
+
     const group = (typeof S !== 'undefined' && S.group) ? S.group : '';
     let act = actionName;
     if (!act) {
@@ -6236,7 +6366,8 @@ function sendClientActivity(actionName) {
         platform: `${platform} / ${navigator.userAgent.slice(0, 30)}`,
         time_delta_seconds: timeDelta,
         photo_url: photoUrl,
-        leaderboard_opt_in: optIn
+        leaderboard_opt_in: optIn,
+        is_new_session: isNewSession
       })
     }).catch(() => {
       activeSecondsAccumulator += timeDelta;
@@ -6258,19 +6389,16 @@ if (typeof window !== 'undefined') {
     tickActiveTime();
     if (activeSecondsAccumulator > 0) {
       try {
-        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-        const payload = JSON.stringify({
-          group: (typeof S !== 'undefined' && S.group) ? S.group : '',
-          action: 'Закрытие приложения',
-          platform: navigator.platform || 'Web',
-          time_delta_seconds: activeSecondsAccumulator,
-          photo_url: tgUser?.photo_url || '',
-          leaderboard_opt_in: localStorage.getItem('leaderboard_opt_in') === 'true'
-        });
         const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
+        const data = JSON.stringify({
+          group: (typeof S !== 'undefined' && S.group) ? S.group : '',
+          action: 'Выход из приложения',
+          platform: 'Web',
+          time_delta_seconds: activeSecondsAccumulator,
+          is_new_session: false
+        });
         if (navigator.sendBeacon) {
-          const blob = new Blob([payload], { type: 'application/json' });
-          navigator.sendBeacon(`${API}/activity${devParam}`, blob);
+          navigator.sendBeacon(`${API}/activity${devParam}`, new Blob([data], { type: 'application/json' }));
         }
       } catch (_) {}
     }
@@ -6279,16 +6407,9 @@ if (typeof window !== 'undefined') {
 
 function reportClientBug(errorMessage, stackTrace, groupName, url) {
   try {
-    if (!errorMessage || errorMessage === _lastReportedError) return;
-    _lastReportedError = errorMessage;
-
     const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
-    const headers = { 'Content-Type': 'application/json' };
-    if (typeof S !== 'undefined' && S.initData) {
-      headers['x-telegram-init-data'] = S.initData;
-    }
-
-    fetch(`${API}/report-bug${devParam}`, {
+    const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() };
+    fetch(`${API}/bug-reports${devParam}`, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify({
@@ -6321,6 +6442,8 @@ let currentBanMode = 'single';
 let currentReportStatus = 'open';
 let banSearchDebounceTimer = null;
 let allLoadedBans = [];
+let allLoadedOnlineUsers = [];
+let allLoadedHistoryUsers = [];
 
 window.openAdminModal = function() {
   if (!S.isAdmin) return;
@@ -6408,76 +6531,166 @@ window.loadAdminUsers = async function() {
     const data = await res.json();
     const onlineUsers = data.online_users || [];
     const history = data.history || [];
+    allLoadedOnlineUsers = onlineUsers;
+    allLoadedHistoryUsers = history;
 
     if (countEl) countEl.textContent = onlineUsers.length;
 
-    // Рендер онлайн
-    if (onlineListEl) {
-      if (onlineUsers.length === 0) {
-        onlineListEl.innerHTML = '<div class="admin-empty-state">Сейчас нет активных пользователей онлайн</div>';
-      } else {
-        let h = '';
-        onlineUsers.forEach(u => {
-          const name = u.first_name || u.username || 'Студент';
-          const uname = u.username ? `@${esc(u.username)}` : '';
-          const groupBadge = u.group 
-            ? `<span class="admin-tag tag-group"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg> ${esc(u.group)}</span>`
-            : '<span class="admin-tag tag-muted">Группа не выбрана</span>';
-
-          h += `
-            <div class="admin-user-card">
-              <div class="admin-user-card-header">
-                <div class="admin-user-main-info">
-                  <span class="admin-user-name">${esc(name)} ${uname}</span>
-                  <span class="admin-user-id">ID: ${u.telegram_id}</span>
-                </div>
-                <button class="admin-quick-ban-btn" onclick="quickBanUser(${u.telegram_id}, '${esc(u.username || '')}')" type="button" title="Заблокировать пользователя">
-                  <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
-                  <span>Бан</span>
-                </button>
-              </div>
-              <div class="admin-user-tags">
-                ${groupBadge}
-                <span class="admin-tag tag-action"><svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> ${esc(u.last_action || 'Активен')}</span>
-                <span class="admin-tag tag-time"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${formatDuration(u.session_duration_sec)} в приложении</span>
-                <span class="admin-tag tag-ip"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> ${esc(u.ip)} · ${esc(u.platform)}</span>
-              </div>
-            </div>
-          `;
-        });
-        onlineListEl.innerHTML = h;
-      }
-    }
-
-    // Рендер истории
-    if (historyListEl) {
-      if (history.length === 0) {
-        historyListEl.innerHTML = '<div class="admin-empty-state">История активности пока пуста</div>';
-      } else {
-        let h = '';
-        history.forEach(row => {
-          const name = row.username ? `@${esc(row.username)}` : `ID: ${row.telegram_id}`;
-          h += `
-            <div class="admin-history-item">
-              <div class="admin-history-left">
-                <div class="admin-history-user">${name} <span class="admin-history-visits">(${row.visits_count} визитов)</span></div>
-                <div class="admin-history-meta">
-                  Группа: <strong>${esc(row.selected_group || '—')}</strong> · Действие: ${esc(row.last_action || '—')}
-                </div>
-              </div>
-              <div class="admin-history-right">
-                <div class="admin-history-time">${formatIsoTime(row.last_seen)}</div>
-                <div class="admin-history-ip">${esc(row.ip_address || 'unknown')}</div>
-              </div>
-            </div>
-          `;
-        });
-        historyListEl.innerHTML = h;
-      }
-    }
+    renderAdminOnlineUsersList(onlineUsers);
+    renderAdminHistoryList(history);
   } catch (err) {
     if (onlineListEl) onlineListEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка загрузки: ${esc(err.message)}</div>`;
   }
+};
+
+window.renderAdminOnlineUsersList = function(onlineUsers) {
+  const onlineListEl = document.getElementById('adminOnlineList');
+  if (!onlineListEl) return;
+  if (!onlineUsers || onlineUsers.length === 0) {
+    onlineListEl.innerHTML = '<div class="admin-empty-state">Сейчас нет активных пользователей онлайн</div>';
+    return;
+  }
+  let h = '';
+  onlineUsers.forEach(u => {
+    const name = u.first_name || u.username || 'Студент';
+    const uname = u.username ? `@${esc(u.username)}` : '';
+    const initials = (u.first_name ? u.first_name[0] : (u.username ? u.username[0] : 'U')).toUpperCase();
+    const avatarHtml = u.photo_url 
+      ? `<img src="${esc(u.photo_url)}" class="admin-user-avatar" alt="Avatar" onerror="this.outerHTML='<div class=\\'admin-user-avatar-placeholder\\'>${initials}</div>'"/>`
+      : `<div class="admin-user-avatar-placeholder">${initials}</div>`;
+
+    h += `
+      <div class="admin-user-card expandable-card" onclick="toggleCardExpand(this, event)">
+        <div class="admin-user-compact">
+          <div class="admin-user-compact-left">
+            ${avatarHtml}
+            <div class="admin-user-compact-meta">
+              <div class="admin-user-compact-name">
+                <span>${esc(name)}</span>
+                ${uname ? `<span style="color:var(--text-tertiary); font-weight:normal; font-size:12px;">${uname}</span>` : ''}
+              </div>
+              <div class="admin-user-compact-sub">
+                <span class="admin-user-status-dot online" title="Онлайн"></span>
+                <span>${formatDuration(u.session_duration_sec)} в приложении</span>
+              </div>
+            </div>
+          </div>
+          <div class="admin-user-compact-actions">
+            <button class="card-expand-btn" type="button" aria-label="Детали">
+              <svg class="card-expand-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="card-expanded-view">
+          <div class="admin-user-expanded-body">
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Telegram ID:</span>
+              <span class="admin-user-expanded-val">${u.telegram_id}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Группа:</span>
+              <span class="admin-user-expanded-val">${esc(u.group || 'Не выбрана')}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Последнее действие:</span>
+              <span class="admin-user-expanded-val">${esc(u.last_action || 'Активен')}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Устройство:</span>
+              <span class="admin-user-expanded-val">${parseUserAgent(u.platform)}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">IP адрес:</span>
+              <span class="admin-user-expanded-val">${esc(u.ip)}</span>
+            </div>
+            <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+              <button class="admin-btn-neutral" onclick="event.stopPropagation(); quickBanUser(${u.telegram_id}, '${esc(u.username || '')}')" type="button" title="Заблокировать пользователя">
+                <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+                <span>Заблокировать</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  onlineListEl.innerHTML = h;
+};
+
+window.renderAdminHistoryList = function(history) {
+  const historyListEl = document.getElementById('adminHistoryList');
+  if (!historyListEl) return;
+  if (!history || history.length === 0) {
+    historyListEl.innerHTML = '<div class="admin-empty-state">История активности пока пуста</div>';
+    return;
+  }
+  let h = '';
+  history.forEach(row => {
+    const name = row.username ? `@${esc(row.username)}` : `ID: ${row.telegram_id}`;
+    h += `
+      <div class="admin-history-item expandable-card" onclick="toggleCardExpand(this, event)">
+        <div class="card-compact-view">
+          <div class="admin-history-left">
+            <div class="admin-history-user">${name} <span class="admin-history-visits">(${row.visits_count} визитов)</span></div>
+            <div class="admin-history-meta">
+              Группа: <strong>${esc(row.selected_group || '—')}</strong>
+            </div>
+          </div>
+          <div class="admin-history-right" style="display:flex; align-items:center; gap:6px;">
+            <div class="admin-history-time">${formatIsoTime(row.last_seen)}</div>
+            <button class="card-expand-btn" type="button" aria-label="Детали">
+              <svg class="card-expand-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="card-expanded-view">
+          <div class="admin-user-expanded-body">
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Telegram ID:</span>
+              <span class="admin-user-expanded-val">${row.telegram_id}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Действие:</span>
+              <span class="admin-user-expanded-val">${esc(row.last_action || '—')}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Устройство:</span>
+              <span class="admin-user-expanded-val">${parseUserAgent(row.platform)}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">IP адрес:</span>
+              <span class="admin-user-expanded-val">${esc(row.ip_address || 'unknown')}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  historyListEl.innerHTML = h;
+};
+
+window.filterAdminOnlineUsers = function(query) {
+  const q = (query || '').toLowerCase().trim();
+  const filtered = !q ? allLoadedOnlineUsers : allLoadedOnlineUsers.filter(u => {
+    const name = (u.first_name || '').toLowerCase();
+    const uname = (u.username || '').toLowerCase();
+    const tid = String(u.telegram_id || '');
+    const grp = (u.group || '').toLowerCase();
+    return name.includes(q) || uname.includes(q) || tid.includes(q) || grp.includes(q);
+  });
+  renderAdminOnlineUsersList(filtered);
+};
+
+window.filterAdminHistoryUsers = function(query) {
+  const q = (query || '').toLowerCase().trim();
+  const filtered = !q ? allLoadedHistoryUsers : allLoadedHistoryUsers.filter(row => {
+    const uname = (row.username || '').toLowerCase();
+    const tid = String(row.telegram_id || '');
+    const grp = (row.selected_group || '').toLowerCase();
+    const act = (row.last_action || '').toLowerCase();
+    return uname.includes(q) || tid.includes(q) || grp.includes(q) || act.includes(q);
+  });
+  renderAdminHistoryList(filtered);
 };
 
 window.quickBanUser = function(tgId, username) {
@@ -6747,11 +6960,13 @@ window.loadAdminStats = async function() {
     // Заполнение KPI
     const totalUsersEl = document.getElementById('statTotalUsers');
     const totalViewsEl = document.getElementById('statTotalViews');
+    const totalRequestsEl = document.getElementById('statTotalRequests');
     const bannedCountEl = document.getElementById('statBannedCount');
     const openReportsEl = document.getElementById('statOpenReports');
 
     if (totalUsersEl) totalUsersEl.textContent = stats.total_users || 0;
-    if (totalViewsEl) totalViewsEl.textContent = stats.total_views || 0;
+    if (totalViewsEl) totalViewsEl.textContent = stats.total_sessions || stats.total_views || 0;
+    if (totalRequestsEl) totalRequestsEl.textContent = stats.total_api_requests_24h || 0;
     if (bannedCountEl) bannedCountEl.textContent = stats.banned_count || 0;
     if (openReportsEl) openReportsEl.textContent = stats.open_reports_count || 0;
 
@@ -6856,33 +7071,80 @@ window.loadAdminBugReports = async function() {
       return;
     }
 
-    let h = '';
+    // Схлопывание дубликатов ошибок со счётчиком (×N)
+    const grouped = [];
+    const groupMap = new Map();
     reports.forEach(r => {
-      const isResolved = r.status === 'resolved';
+      const key = r.error_message || 'Неизвестная ошибка';
+      if (!groupMap.has(key)) {
+        const item = {
+          primaryId: r.id,
+          ids: [r.id],
+          error_message: key,
+          status: r.status,
+          count: 1,
+          occurrences: [r],
+          stack_trace: r.stack_trace
+        };
+        groupMap.set(key, item);
+        grouped.push(item);
+      } else {
+        const item = groupMap.get(key);
+        item.ids.push(r.id);
+        item.count += 1;
+        item.occurrences.push(r);
+        if (!item.stack_trace && r.stack_trace) {
+          item.stack_trace = r.stack_trace;
+        }
+      }
+    });
+
+    let h = '';
+    grouped.forEach(item => {
+      const isResolved = item.status === 'resolved';
+      const countBadge = item.count > 1 ? `<span class="admin-report-count-badge">×${item.count}</span>` : '';
+      const idsParam = JSON.stringify(item.ids);
+
+      const occurrencesHtml = item.occurrences.map(occ => `
+        <div style="padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display:flex; justify-content:space-between; gap:6px;">
+          <span>${formatIsoTime(occ.created_at)} · ID: ${occ.telegram_id || 'Аноним'}</span>
+          <span>Группа: <strong>${esc(occ.group_name || '—')}</strong></span>
+        </div>
+      `).join('');
+
       h += `
-        <div class="admin-report-card ${isResolved ? 'is-resolved' : ''}">
+        <div class="admin-report-card expandable-card ${isResolved ? 'is-resolved' : ''}" onclick="toggleCardExpand(this, event)">
           <div class="admin-report-header">
-            <div class="admin-report-title">
-              <svg class="lucide-icon" viewBox="0 0 24 24" style="color:${isResolved ? '#22c55e' : '#ef4444'};"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
-              <span>#${r.id} · ${esc(r.error_message)}</span>
+            <div class="admin-report-title" style="min-width:0; overflow:hidden;">
+              <svg class="lucide-icon" viewBox="0 0 24 24" style="color:${isResolved ? '#22c55e' : '#ef4444'}; flex-shrink:0;"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${item.primaryId} · ${esc(item.error_message)}</span>
+              ${countBadge}
             </div>
-            ${!isResolved ? `
-              <button class="admin-resolve-btn" onclick="resolveBugReport(${r.id})" type="button">
-                <svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>Решено</span>
+            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+              ${!isResolved ? `
+                <button class="admin-resolve-btn" onclick="event.stopPropagation(); resolveMultipleReports(${idsParam})" type="button">
+                  <svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Решено</span>
+                </button>
+              ` : '<span class="admin-tag tag-group">Решено</span>'}
+              <button class="card-expand-btn" type="button" aria-label="Детали">
+                <svg class="card-expand-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-            ` : '<span class="admin-tag tag-group">Решено</span>'}
+            </div>
           </div>
-          ${r.stack_trace ? `
-            <details class="admin-report-stack">
-              <summary>Технические детали / Стек вызова</summary>
-              <pre>${esc(r.stack_trace)}</pre>
-            </details>
-          ` : ''}
-          <div class="admin-report-meta">
-            <span>Группа: <strong>${esc(r.group_name || '—')}</strong></span>
-            <span>Пользователь: <strong>${r.telegram_id || 'Аноним'}</strong></span>
-            <span>Время: <strong>${formatIsoTime(r.created_at)}</strong></span>
+          <div class="card-expanded-view">
+            <div class="admin-user-expanded-body">
+              <div style="font-weight:600; color:var(--text-primary); margin-bottom:4px;">Повторения ошибки (${item.count}):</div>
+              <div style="max-height: 120px; overflow-y: auto; font-size: 11px; margin-bottom: 6px;">
+                ${occurrencesHtml}
+              </div>
+              ${item.stack_trace ? `
+                <details class="admin-report-stack" open>
+                  <summary>Стек вызова / Детали</summary>
+                  <pre>${esc(item.stack_trace)}</pre>
+                </details>
+              ` : ''}
+            </div>
           </div>
         </div>
       `;
@@ -6900,6 +7162,17 @@ window.resolveBugReport = async function(reportId) {
     await loadAdminBugReports();
   } catch (err) {
     alert(`Ошибка обновления отчета: ${err.message}`);
+  }
+};
+
+window.resolveMultipleReports = async function(ids) {
+  try {
+    for (const id of ids) {
+      await fetchWithTimeout(`${API}/admin/reports/${id}/resolve`, { method: 'POST' }, 8000);
+    }
+    await loadAdminBugReports();
+  } catch (err) {
+    alert(`Ошибка обновления отчетов: ${err.message}`);
   }
 };
 

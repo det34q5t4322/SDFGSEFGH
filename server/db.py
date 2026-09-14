@@ -92,6 +92,18 @@ def init_db() -> None:
             if 'leaderboard_opt_in' not in act_cols:
                 cursor.execute("ALTER TABLE user_activity ADD COLUMN leaderboard_opt_in INTEGER DEFAULT 0")
 
+            # Одноразовая нормализация завышенных счетчиков визитов
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version TEXT PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                )
+            ''')
+            cursor.execute("SELECT 1 FROM schema_migrations WHERE version = 'reset_inflated_visits_v1'")
+            if not cursor.fetchone():
+                cursor.execute("UPDATE user_activity SET visits_count = 1 WHERE visits_count > 1")
+                cursor.execute("INSERT INTO schema_migrations (version, applied_at) VALUES ('reset_inflated_visits_v1', ?)", (datetime.now().isoformat(),))
+
             # 4. Hourly Statistics
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS hourly_stats (
@@ -324,14 +336,21 @@ def upsert_user_activity(
     ip: str = "",
     platform: str = "",
     time_delta_seconds: int = 0,
-    leaderboard_opt_in: Optional[bool] = None
+    leaderboard_opt_in: Optional[bool] = None,
+    is_new_session: bool = False
 ) -> None:
+    """
+    Запись активности пользователя:
+    - visits_count инкрементируется СТРОГО при новой сессии (открытие приложения / тайм-аут > 30 мин).
+    - Обычные heartbeats (каждые 15 сек) обновляют только last_seen, last_action и total_time_seconds.
+    """
     if not telegram_id or telegram_id <= 0:
         return
     now_iso = datetime.now().isoformat()
     # Anti-cheat: максимум 90 секунд за один батч-heartbeat
     valid_time_delta = min(max(0, int(time_delta_seconds or 0)), 90)
     opt_in_val = 1 if leaderboard_opt_in is True else (0 if leaderboard_opt_in is False else None)
+    visit_inc = 1 if is_new_session else 0
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -351,13 +370,14 @@ def upsert_user_activity(
                 ip_address = excluded.ip_address,
                 platform = excluded.platform,
                 last_seen = excluded.last_seen,
-                visits_count = user_activity.visits_count + 1,
+                visits_count = user_activity.visits_count + ?,
                 total_time_seconds = user_activity.total_time_seconds + excluded.total_time_seconds,
                 leaderboard_opt_in = CASE WHEN ? IS NOT NULL THEN ? ELSE user_activity.leaderboard_opt_in END
         ''', (
             telegram_id, username or "", first_name or "", photo_url or "", group or "",
             action or "", ip or "", platform or "", now_iso, now_iso,
-            valid_time_delta, opt_in_val, opt_in_val, opt_in_val
+            valid_time_delta, opt_in_val,
+            visit_inc, opt_in_val, opt_in_val
         ))
         conn.commit()
 
@@ -471,10 +491,15 @@ def get_analytics_summary() -> Dict:
         top_groups = [dict(row) for row in cursor.fetchall()]
 
         # Общие счетчики
-        cursor.execute('SELECT COUNT(*) as total_users, SUM(visits_count) as total_views FROM user_activity')
+        cursor.execute('SELECT COUNT(*) as total_users, COALESCE(SUM(visits_count), 0) as total_views FROM user_activity')
         totals_row = cursor.fetchone()
         total_users = totals_row['total_users'] if totals_row else 0
-        total_views = totals_row['total_views'] if totals_row and totals_row['total_views'] else 0
+        total_sessions = totals_row['total_views'] if totals_row else 0
+
+        # Сумма технических запросов к API за последние 24 часа
+        cursor.execute('SELECT COALESCE(SUM(requests_count), 0) as total_reqs FROM hourly_stats')
+        req_row = cursor.fetchone()
+        total_api_requests = req_row['total_reqs'] if req_row else 0
 
         cursor.execute('SELECT COUNT(*) as banned_count FROM banned_users')
         banned_row = cursor.fetchone()
@@ -486,7 +511,9 @@ def get_analytics_summary() -> Dict:
 
         return {
             "total_users": total_users,
-            "total_views": total_views,
+            "total_views": total_sessions,  # Совместимость с фронтендом
+            "total_sessions": total_sessions,  # Четкое разделение: сессии / визиты
+            "total_api_requests_24h": total_api_requests,  # Техническая метрика API-нагрузки
             "banned_count": banned_count,
             "open_reports_count": open_reports_count,
             "hourly_activity": hourly_rows,

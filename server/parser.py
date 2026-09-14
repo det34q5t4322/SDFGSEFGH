@@ -6,11 +6,15 @@ import logging
 import os
 import re
 import socket
+import threading
 import time
+import httpx
 import urllib.request
 import urllib.error
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+_cache_save_lock = threading.Lock()
 
 try:
     import zoneinfo
@@ -195,8 +199,8 @@ def get_sync_errors() -> List[dict]:
 # ─────────────────────────────────────────────
 #  Retry с экспоненциальным backoff и логированием причин сбоев
 # ─────────────────────────────────────────────
-def fetch_with_retry(url: str, retries: int = 3, timeout: int = 20) -> bytes:
-    """Загружает URL с повторными попытками при сбое (backoff: 2с → 4с → 8с).
+def fetch_with_retry(url: str, retries: int = 2, timeout: int = 5) -> bytes:
+    """Загружает URL с повторными попытками при сбое через httpx с таймаутом 5 сек.
     Уважает CircuitBreaker: если OPEN — сразу бросает исключение.
     Логирует точные причины отвала (таймаут, 403, 429, пустой ответ, сброс сети).
     """
@@ -213,85 +217,59 @@ def fetch_with_retry(url: str, retries: int = 3, timeout: int = 20) -> bytes:
         )
     }
     last_exc: Exception = RuntimeError("No attempts made")
-    for attempt in range(1, retries + 1):
-        try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                data = resp.read()
+    with httpx.Client(timeout=float(timeout), follow_redirects=True) as client:
+        for attempt in range(1, retries + 1):
+            try:
+                resp = client.get(url, headers=headers)
+                if resp.status_code != 200:
+                    category = f"HTTP_{resp.status_code}"
+                    if resp.status_code in (401, 403):
+                        category = "HTTP_403_FORBIDDEN"
+                        msg = f"Доступ закрыт или отозван (HTTP {resp.status_code}). Проверьте публичные права таблицы."
+                        record_sync_error(category, msg, url=url, http_status=resp.status_code, attempt=attempt)
+                        logger.critical(f"КРИТИЧЕСКАЯ ОШИБКА ДОСТУПА: {msg} {url[:80]}")
+                        break
+                    elif resp.status_code in (404, 410):
+                        category = "HTTP_404_NOT_FOUND"
+                        msg = f"Таблица не найдена (HTTP {resp.status_code}). Проверьте ID таблицы."
+                        record_sync_error(category, msg, url=url, http_status=resp.status_code, attempt=attempt)
+                        logger.critical(f"КРИТИЧЕСКАЯ ОШИБКА: {msg} {url[:80]}")
+                        break
+                    elif resp.status_code == 429:
+                        category = "HTTP_429_RATE_LIMIT"
+                        msg = "Превышен лимит запросов к Google Sheets (HTTP 429 Rate Limit)."
+                        record_sync_error(category, msg, url=url, http_status=resp.status_code, attempt=attempt)
+                    else:
+                        record_sync_error(category, f"HTTP ошибка {resp.status_code}", url=url, http_status=resp.status_code, attempt=attempt)
 
-            if not data or len(data.strip()) == 0:
-                empty_err = f"Пустой ответ от Google Sheets (0 байт) при экспорте: {url[:80]}"
-                record_sync_error("EMPTY_RESPONSE", empty_err, url=url, attempt=attempt)
-                raise ValueError(empty_err)
+                    if attempt < retries:
+                        time.sleep(1)
+                    continue
 
-            _circuit_breaker.record_success()
-            if attempt > 1:
-                logger.info(f"Успешная загрузка Google Sheets на попытке {attempt}: {url[:80]}")
-            return data
+                data = resp.content
+                if not data or len(data.strip()) == 0:
+                    empty_err = f"Пустой ответ от Google Sheets (0 байт) при экспорте: {url[:80]}"
+                    record_sync_error("EMPTY_RESPONSE", empty_err, url=url, attempt=attempt)
+                    raise ValueError(empty_err)
 
-        except urllib.error.HTTPError as http_err:
-            last_exc = http_err
-            category = f"HTTP_{http_err.code}"
+                _circuit_breaker.record_success()
+                if attempt > 1:
+                    logger.info(f"Успешная загрузка Google Sheets на попытке {attempt}: {url[:80]}")
+                return data
 
-            if http_err.code in (401, 403):
-                category = "HTTP_403_FORBIDDEN"
-                msg = f"Доступ закрыт или отозван (HTTP {http_err.code}). Проверьте публичные права таблицы."
-                record_sync_error(category, msg, url=url, http_status=http_err.code, attempt=attempt)
-                logger.critical(f"🚨 КРИТИЧЕСКАЯ ОШИБКА ДОСТУПА: {msg} {url[:80]}")
-                break  # Бесполезно ретраить при 401/403
-            elif http_err.code in (404, 410):
-                category = "HTTP_404_NOT_FOUND"
-                msg = f"Таблица не найдена (HTTP {http_err.code}). Проверьте ID таблицы."
-                record_sync_error(category, msg, url=url, http_status=http_err.code, attempt=attempt)
-                logger.critical(f"🚨 КРИТИЧЕСКАЯ ОШИБКА: {msg} {url[:80]}")
-                break  # Бесполезно ретраить при 404
-            elif http_err.code == 429:
-                category = "HTTP_429_RATE_LIMIT"
-                msg = f"Превышен лимит запросов к Google Sheets (HTTP 429 Rate Limit)."
-                record_sync_error(category, msg, url=url, http_status=http_err.code, attempt=attempt)
-                logger.warning(f"⚠️ {msg} Попытка {attempt}/{retries}")
-            elif http_err.code >= 500:
-                category = f"HTTP_{http_err.code}_SERVER_ERROR"
-                msg = f"Серверная ошибка Google Sheets (HTTP {http_err.code})."
-                record_sync_error(category, msg, url=url, http_status=http_err.code, attempt=attempt)
-            else:
-                record_sync_error(category, f"HTTP ошибка {http_err.code}: {http_err.reason}", url=url, http_status=http_err.code, attempt=attempt)
-
-            wait = 2 ** attempt
-            if attempt < retries:
-                logger.warning(f"HTTP {http_err.code} на попытке {attempt}/{retries}, повтор через {wait}с")
-                time.sleep(wait)
-
-        except Exception as exc:
-            last_exc = exc
-            exc_str = str(exc)
-            category = "NETWORK_ERROR"
-
-            if isinstance(exc, (TimeoutError, socket.timeout)) or "timed out" in exc_str.lower():
-                category = "TIMEOUT"
-                msg = f"Таймаут ожидания ответа от Google Sheets ({timeout} сек): {exc_str}"
-            elif "getaddrinfo failed" in exc_str or "name or service not known" in exc_str.lower():
-                category = "DNS_FAILURE"
-                msg = f"Сбой разрешения доменного имени Google: {exc_str}"
-            elif "connection reset" in exc_str.lower() or "connection refused" in exc_str.lower():
-                category = "CONNECTION_RESET"
-                msg = f"Сброс соединения удалённым сервером: {exc_str}"
-            elif isinstance(exc, ValueError) and "Пустой ответ" in exc_str:
-                category = "EMPTY_RESPONSE"
-                msg = exc_str
-            else:
-                msg = f"Сбой сетевого подключения: {exc_str}"
-
-            record_sync_error(category, msg, url=url, attempt=attempt)
-            wait = 2 ** attempt
-            if attempt < retries:
-                logger.warning(f"Попытка {attempt}/{retries} не удалась [{category}] ({msg}), повтор через {wait}с: {url[:80]}")
-                time.sleep(wait)
-            else:
-                logger.error(f"Все {retries} попытки исчерпаны [{category}]: {url[:80]} — {msg}")
+            except Exception as exc:
+                last_exc = exc
+                exc_str = str(exc)
+                category = "TIMEOUT" if "timeout" in exc_str.lower() or "timed out" in exc_str.lower() else "NETWORK_ERROR"
+                record_sync_error(category, f"Сбой сетевого подключения: {exc_str}", url=url, attempt=attempt)
+                if attempt < retries:
+                    time.sleep(1)
+                else:
+                    logger.error(f"Все {retries} попытки исчерпаны [{category}]: {url[:80]} — {exc_str}")
 
     _circuit_breaker.record_failure()
     raise last_exc
+
 
 
 # ─────────────────────────────────────────────
@@ -744,18 +722,22 @@ KNOWN_FALLBACK_SHEETS = [
 def _discover_via_htmlview(spreadsheet_id: str) -> List[Dict[str, Any]]:
     """Метод 1: обнаружение вкладок через htmlview (парсинг HTML)."""
     html_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/htmlview"
-    req = urllib.request.Request(
-        html_url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/120.0.0.0"
-            )
-        },
-    )
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/120.0.0.0"
+        )
+    }
     sheets = []
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        html = resp.read().decode("utf-8", errors="ignore")
+    try:
+        with httpx.Client(timeout=5.0, follow_redirects=True) as client:
+            resp = client.get(html_url, headers=headers)
+            if resp.status_code != 200:
+                return []
+            html = resp.text
+    except Exception as e:
+        logger.warning(f"Ошибка htmlview: {e}")
+        return []
     # Попытка 1: items.push({name:"...", gid:"..."})
     pattern = r'items\.push\(\{\s*name:\s*"([^"]+)"[^}]+gid:\s*"([^"]+)"'
     raw_matches = re.findall(pattern, html)
@@ -1549,31 +1531,33 @@ class ScheduleParser:
         return result
 
     def save_cache(self) -> None:
-        """Сохранение кэша всех вкладок в файл (исключая тестовые) атомарно через временный файл."""
-        try:
-            clean_tabs = [t for t in self.available_tabs if not is_test_tab(t.get("name"))]
-            clean_sheets = {}
-            for g, s in self.sheets_cache.items():
-                if is_test_tab(s.get("tab_name")):
-                    continue
-                s_copy = dict(s)
-                if "available_tabs" in s_copy:
-                    s_copy["available_tabs"] = [t for t in s_copy["available_tabs"] if not is_test_tab(t.get("name"))]
-                clean_sheets[g] = s_copy
+        """Сохранение кэша всех вкладок в файл (исключая тестовые) атомарно через временный файл и thread lock."""
+        with _cache_save_lock:
+            try:
+                clean_tabs = [t for t in self.available_tabs if not is_test_tab(t.get("name"))]
+                clean_sheets = {}
+                for g, s in self.sheets_cache.items():
+                    if is_test_tab(s.get("tab_name")):
+                        continue
+                    s_copy = dict(s)
+                    if "available_tabs" in s_copy:
+                        s_copy["available_tabs"] = [t for t in s_copy["available_tabs"] if not is_test_tab(t.get("name"))]
+                    clean_sheets[g] = s_copy
 
-            payload = {
-                "available_tabs": clean_tabs,
-                "active_gid": self.active_gid,
-                "last_updated": self.last_updated,
-                "sheets": clean_sheets,
-            }
-            tmp_file = f"{self.cache_file}.tmp"
-            with open(tmp_file, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False)
-            os.replace(tmp_file, self.cache_file)
-            logger.info(f"Кэш сохранён в {self.cache_file} ({len(clean_sheets)} вкладок)")
-        except Exception as e:
-            logger.error(f"Ошибка сохранения кэша: {e}")
+                payload = {
+                    "available_tabs": clean_tabs,
+                    "active_gid": self.active_gid,
+                    "last_updated": self.last_updated,
+                    "sheets": clean_sheets,
+                }
+                tmp_file = f"{self.cache_file}.tmp"
+                with open(tmp_file, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, ensure_ascii=False)
+                os.replace(tmp_file, self.cache_file)
+                logger.info(f"Кэш сохранён в {self.cache_file} ({len(clean_sheets)} вкладок)")
+            except Exception as e:
+                logger.error(f"Ошибка сохранения кэша: {e}")
+
 
     def load_cache(self) -> Optional[Dict[str, Any]]:
         """Загрузка кэша из файла (исключая тестовые вкладки)."""
@@ -1691,7 +1675,14 @@ class ScheduleParser:
 
         for gid in tabs_to_check:
             try:
-                sheet_data = self.get_data(gid=gid)
+                sheet_data = self.sheets_cache.get(gid)
+                if not sheet_data:
+                    # Если вкладка не закэширована, подгружаем онлайн ТОЛЬКО для active_gid,
+                    # чтобы не блокировать worker синхронным скачиванием всех вкладок подряд
+                    if gid == self.active_gid:
+                        sheet_data = self.get_data(gid=gid)
+                    else:
+                        continue
             except Exception as ex:
                 logger.debug(f"Ошибка загрузки вкладки {gid} для будильника: {ex}")
                 continue

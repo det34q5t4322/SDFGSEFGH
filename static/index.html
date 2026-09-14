@@ -1273,6 +1273,10 @@
               <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
             </button>
           </div>
+          <div class="admin-search-wrap">
+            <svg class="lucide-icon admin-search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="adminOnlineSearchInput" class="admin-search-input" placeholder="Поиск пользователя онлайн..." oninput="filterAdminOnlineUsers(this.value)">
+          </div>
           <div class="admin-records-list" id="adminOnlineList">
             <div class="admin-empty-state">Загрузка пользователей онлайн...</div>
           </div>
@@ -1282,6 +1286,10 @@
               <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <span class="admin-subhead-title">История активности (последние 50):</span>
             </div>
+          </div>
+          <div class="admin-search-wrap">
+            <svg class="lucide-icon admin-search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="adminHistorySearchInput" class="admin-search-input" placeholder="Поиск в истории активности..." oninput="filterAdminHistoryUsers(this.value)">
           </div>
           <div class="admin-records-list" id="adminHistoryList">
             <div class="admin-empty-state">Загрузка истории...</div>
@@ -1386,13 +1394,17 @@
         <!-- ── TAB 4: STATS ── -->
         <div class="admin-tab-pane" id="adminPaneStats" style="display:none;">
           <div class="admin-kpi-grid">
-            <div class="admin-kpi-card">
+            <div class="admin-kpi-card" title="Уникальные пользователи Telegram, когда-либо открывавшие приложение">
               <div class="admin-kpi-num" id="statTotalUsers">0</div>
-              <div class="admin-kpi-lbl">Всего пользователей</div>
+              <div class="admin-kpi-lbl">Уникальных пользователей</div>
             </div>
-            <div class="admin-kpi-card">
+            <div class="admin-kpi-card" title="Визит = одно открытие приложения, не считается повторно в течение 30 минут активности">
               <div class="admin-kpi-num" id="statTotalViews">0</div>
-              <div class="admin-kpi-lbl">Просмотров расписания</div>
+              <div class="admin-kpi-lbl">Сессий / Визитов</div>
+            </div>
+            <div class="admin-kpi-card" title="Технические запросы к API бэкенда за последние 24 часа">
+              <div class="admin-kpi-num" id="statTotalRequests">0</div>
+              <div class="admin-kpi-lbl">Запросов к API</div>
             </div>
             <div class="admin-kpi-card">
               <div class="admin-kpi-num" id="statBannedCount">0</div>

@@ -27,6 +27,9 @@
   --text:             #f0f2fa;
   --text-sub:         #949cb8;
   --text-muted:       #596280;
+  --text-primary:     var(--text, #f0f2fa);
+  --text-secondary:   var(--text-sub, #949cb8);
+  --text-tertiary:    var(--text-muted, #596280);
   --radius:           10px;
   --radius-sm:        7px;
   --radius-xs:        4px;
@@ -1726,14 +1729,15 @@ input {
 
 @keyframes breakGlowPulse {
   0%, 100% {
-    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3), inset 0 0 8px rgba(245, 158, 11, 0.1);
-    border-color: rgba(245, 158, 11, 0.4);
+    opacity: 0.82;
+    transform: scale(0.99);
   }
   50% {
-    box-shadow: 0 0 22px rgba(245, 158, 11, 0.65), inset 0 0 14px rgba(245, 158, 11, 0.25);
-    border-color: rgba(245, 158, 11, 0.9);
+    opacity: 1;
+    transform: scale(1.01);
   }
 }
+
 @keyframes badgeBlink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }
@@ -2017,18 +2021,21 @@ input {
 }
 .pair-card.going::before {
   background: var(--green, #22c55e) !important;
+  box-shadow: 0 0 10px var(--green, #22c55e) !important;
+  will-change: opacity, transform;
   animation: pairGoingPulse 2s ease-in-out infinite !important;
 }
 @keyframes pairGoingPulse {
   0%, 100% {
     opacity: 1;
-    box-shadow: 0 0 6px var(--green, #22c55e);
+    transform: scaleY(1);
   }
   50% {
-    opacity: 0.45;
-    box-shadow: 0 0 16px var(--green, #22c55e);
+    opacity: 0.50;
+    transform: scaleY(0.98);
   }
 }
+
 .pair-card-progress-bar {
   position: absolute;
   bottom: 0;
@@ -3753,12 +3760,13 @@ input {
 .ambient-blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(100px);
-  -webkit-filter: blur(100px);
+  filter: blur(80px);
+  -webkit-filter: blur(80px);
   opacity: 0.55;
   transition: background 0.8s ease, transform 0.8s ease;
-  will-change: transform, background;
+  will-change: transform, opacity;
   animation: blobFloat 20s infinite alternate ease-in-out;
+  contain: strict;
 }
 .blob-1 {
   width: 520px;
@@ -3787,29 +3795,33 @@ input {
 }
 
 @keyframes blobFloat {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(45px, 35px, 0) scale(1.06); }
-  100% { transform: translate3d(-35px, -25px, 0) scale(0.96); }
+  0%   { transform: scale(1); opacity: 0.48; }
+  50%  { transform: scale(1.05); opacity: 0.60; }
+  100% { transform: scale(0.97); opacity: 0.50; }
 }
 
-@media (max-width: 600px) {
-  .ambient-glow-wrap { opacity: 0.52; }
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
+  .ambient-glow-wrap,
   .ambient-blob {
-    filter: blur(65px);
-    -webkit-filter: blur(65px);
-    opacity: 0.48;
+    display: none !important;
+    animation: none !important;
+    filter: none !important;
   }
-  .blob-1 { width: 340px; height: 340px; }
-  .blob-2 { width: 370px; height: 370px; }
-  .blob-3 { width: 300px; height: 300px; }
+
+  /* Аппаратная оптимизация: отключение real-time blur на мобильных для 60-120 FPS */
+  .pair-card,
+  .topbar,
+  .sidebar,
+  .modal-sheet,
+  .layout-editor-bar,
+  .statusbar-glass,
+  .preview-live-card,
+  [data-vibe-preset] .pair-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ambient-blob {
-    animation: none;
-    transform: none;
-  }
-}
 
 .texture-overlay {
   position: fixed;
@@ -8738,12 +8750,16 @@ body.menu-editing-active .sidebar-footer.menu-item-hidden {
   line-height: 1.2;
 }
 
-/* Hourly Load Chart with Horizontal Touch-Scroll */
+/* ══════════════════════════════════════════════════════════════
+   HOURLY LOAD CHART (RESPONSIVE & TOUCH-SCROLL)
+   ВАЖНО: ширина должна быть responsive (100%/auto), НЕ фиксированный px —
+   баг с обрезкой на мобильных уже случался дважды, см. историю.
+   ══════════════════════════════════════════════════════════════ */
 .admin-chart-container {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 14px 10px 10px;
+  padding: 14px 8px 10px;
   height: 165px;
   width: 100%;
   box-sizing: border-box;
@@ -8764,9 +8780,9 @@ body.menu-editing-active .sidebar-footer.menu-item-hidden {
   align-items: flex-end;
   justify-content: space-between;
   width: 100%;
-  min-width: 460px;
+  min-width: 0;
   height: 100%;
-  gap: 4px;
+  gap: 2px;
   box-sizing: border-box;
 }
 .admin-chart-col {
@@ -8777,13 +8793,13 @@ body.menu-editing-active .sidebar-footer.menu-item-hidden {
   flex: 1 1 0;
   min-width: 0;
   height: 100%;
-  gap: 3px;
+  gap: 2px;
   box-sizing: border-box;
 }
 .admin-chart-bar {
   width: 100%;
-  max-width: 15px;
-  border-radius: 4px 4px 0 0;
+  max-width: 12px;
+  border-radius: 3px 3px 0 0;
   background: var(--accent-subtle, rgba(99, 102, 241, 0.35));
   transition: height 0.3s ease;
   box-sizing: border-box;
@@ -8793,13 +8809,13 @@ body.menu-editing-active .sidebar-footer.menu-item-hidden {
   box-shadow: 0 0 8px var(--accent-subtle, rgba(99, 102, 241, 0.5));
 }
 .admin-bar-val {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   color: var(--text-muted);
   line-height: 1;
 }
 .admin-bar-label {
-  font-size: 9px;
+  font-size: 8px;
   color: var(--text-muted);
   line-height: 1;
   white-space: nowrap;
@@ -9167,7 +9183,7 @@ html.banned-lock #endlessBanLoader {
   --bg-color: #0a0515;
   --bg: #0a0515;
 
-  --anim-pulse: tokyoNeonGlowPulse 4s infinite ease-in-out;
+  --anim-pulse: none;
 
   --card-bar-width: 3px;
   --card-bar-radius: 20px 0 0 20px;
@@ -9188,13 +9204,24 @@ html.banned-lock #endlessBanLoader {
   letter-spacing: 0.05em;
 }
 
+/* Аппаратное свечение через opacity псевдоэлемента (0 repaints на GPU) */
+[data-vibe-preset="tokyo"] .pair-card::after,
+[data-theme="cyber-tokyo"] .pair-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 8px 32px rgba(217, 70, 239, 0.35), 0 0 28px rgba(139, 92, 246, 0.55);
+  pointer-events: none;
+  opacity: 0.35;
+  will-change: opacity;
+  animation: tokyoNeonGlowPulse 4s infinite ease-in-out;
+  display: block;
+}
+
 @keyframes tokyoNeonGlowPulse {
-  0%, 100% {
-    box-shadow: 0 8px 32px rgba(217, 70, 239, 0.20), 0 0 16px rgba(244, 63, 94, 0.35);
-  }
-  50% {
-    box-shadow: 0 8px 32px rgba(217, 70, 239, 0.35), 0 0 28px rgba(139, 92, 246, 0.55);
-  }
+  0%, 100% { opacity: 0.20; }
+  50%      { opacity: 0.85; }
 }
 
 [data-vibe-preset="tokyo"] .pair-card::before,
@@ -9227,7 +9254,7 @@ html.banned-lock #endlessBanLoader {
   --bg-color: #050401;
   --bg: #050401;
 
-  --anim-pulse: crtPhosphorBreathe 4s infinite ease-in-out;
+  --anim-pulse: none;
 
   --card-bar-display: none;
   --card-after-display: none;
@@ -9247,16 +9274,26 @@ html.banned-lock #endlessBanLoader {
   font-size: 20px;
 }
 
-@keyframes crtPhosphorBreathe {
-  0%, 100% {
-    border-color: #ffb000;
-    box-shadow: 5px 5px 0px #ffb000;
-  }
-  50% {
-    border-color: #ffd000;
-    box-shadow: 6px 6px 0px #ffd000;
-  }
+/* Аппаратная CRT пульсация через opacity (0 repaints на GPU) */
+[data-vibe-preset="arcade"] .pair-card::after,
+[data-theme="arcade"] .pair-card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 6px 6px 0px #ffd000;
+  pointer-events: none;
+  opacity: 0.15;
+  will-change: opacity;
+  animation: crtPhosphorBreathe 4s infinite ease-in-out;
+  display: block;
 }
+
+@keyframes crtPhosphorBreathe {
+  0%, 100% { opacity: 0.10; }
+  50%      { opacity: 0.75; }
+}
+
 
 [data-vibe-preset="arcade"] .pair-num-badge::before,
 [data-theme="arcade"] .pair-num-badge::before {
@@ -9738,12 +9775,11 @@ html.banned-lock #endlessBanLoader {
   text-shadow: none !important;
 }
 
-/* Чистка правой колонки карточки (исключение наслоений/мусора) */
+/* Адаптивная правая колонка: не обрезает номер аудитории и статусные бейджи */
 .card-zone-col.col-right {
   justify-content: flex-end;
   margin-left: auto;
-  max-width: 50%;
-  overflow: hidden;
+  flex-shrink: 0;
   white-space: nowrap;
 }
 
@@ -10286,4 +10322,297 @@ html.banned-lock #endlessBanLoader {
   height: 12px;
   color: var(--accent, #6366f1);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   TASK 2 & 4: COMPACT + EXPANDABLE CARD PATTERN & AUDITORIUM FIX
+   ══════════════════════════════════════════════════════════════ */
+
+/* Нижняя зона карточки пары: гарантия видимости аудитории и преподавателя */
+.card-zone-row.zone-row-bottom {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  width: 100% !important;
+  margin-top: 4px;
+}
+.card-zone-row.zone-row-bottom .card-zone-col.col-left {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.card-zone-row.zone-row-bottom .card-zone-col.col-right {
+  flex: 0 0 auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+  margin-left: auto !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pair-room-btn {
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  white-space: nowrap !important;
+}
+
+/* Заглушка, когда аудитория не указана в таблице */
+.pair-room-unspecified {
+  opacity: 0.65;
+  border-style: dashed !important;
+  cursor: default !important;
+}
+.pair-room-unspecified:hover {
+  background: rgba(255, 255, 255, 0.03) !important;
+  color: var(--text-sub) !important;
+}
+
+/* ─── ПЕРЕИСПОЛЬЗУЕМЫЙ ПАТТЕРН EXPANDABLE CARD ─── */
+.expandable-card {
+  transition: background var(--transition), border-color var(--transition);
+  position: relative;
+}
+
+.card-compact-view {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.card-expand-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 6px;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+.card-expand-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+.card-expand-chevron {
+  width: 13px;
+  height: 13px;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.expandable-card.is-expanded .card-expand-chevron {
+  transform: rotate(180deg);
+}
+
+/* Уровень 2: Раскрывающаяся секция с плавной CSS-анимацией */
+.card-expanded-view {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease, margin 0.2s ease, padding 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+.expandable-card.is-expanded .card-expanded-view {
+  max-height: 500px;
+  opacity: 1;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+/* Детали внутри раскрытой карточки пары */
+.pair-card-details-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.pair-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pair-detail-label {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  min-width: 90px;
+}
+.pair-detail-val {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ─── КАРТОЧКА ПОЛЬЗОВАТЕЛЯ В АДМИНКЕ (COMPACT + EXPANDABLE) ─── */
+.admin-user-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+.admin-user-compact-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.admin-user-compact-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-user-compact-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-user-compact-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-user-compact-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.admin-user-expanded-body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.admin-user-expanded-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+.admin-user-expanded-label {
+  color: var(--text-tertiary);
+}
+.admin-user-expanded-val {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-family: var(--font-jetbrains, monospace);
+  font-size: 11px;
+}
+
+/* ─── НЕЙТРАЛЬНАЯ КНОПКА ДЕЙСТВИЯ (ЗАБАНИТЬ) ─── */
+.admin-btn-neutral {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 7px !important;
+  padding: 4px 9px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  transition: all 0.18s ease !important;
+}
+.admin-btn-neutral:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+.admin-btn-neutral.is-banned {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+/* ─── КАРТОЧКА ОШИБКИ (ГРУППИРОВАННАЯ ×N + COMPACT + EXPANDABLE) ─── */
+.admin-report-count-badge {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 1px 6px;
+  line-height: 1.3;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.admin-report-occurrences-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0;
+  max-height: 120px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.admin-occurrence-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+/* ─── ПОИСК ПО СПИСКАМ АДМИНКИ ─── */
+.admin-search-wrap {
+  width: 100%;
+  margin-bottom: 10px;
+  position: relative;
+  box-sizing: border-box;
+}
+.admin-search-input {
+  width: 100%;
+  background: var(--bg-card2, #191b2c);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 10px 7px 30px;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.18s ease;
+}
+.admin-search-input:focus {
+  border-color: var(--accent, #6366f1);
+}
+.admin-search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
 

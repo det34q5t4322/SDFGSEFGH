@@ -79,11 +79,23 @@ app.add_middleware(
 
 STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
 
-# Скользящее окно для ограничения частоты запросов (защита бесплатного инстанса Render)
-RATE_LIMIT_WINDOW = 60  # сек
-MAX_REQUESTS_PER_WINDOW = 120  # запросов в минуту с одного IP
+# Настройки интеллектуального составного Rate Limiting (IP + Telegram User ID)
+RATE_LIMIT_WINDOW = 60  # секунд
+MAX_REQUESTS_USER = 600  # запросов в минуту для авторизованных Telegram-пользователей
+MAX_REQUESTS_IP = 300    # запросов в минуту для неавторизованных запросов по IP
 
-_ip_request_timestamps = defaultdict(list)
+_rate_limit_timestamps = defaultdict(list)
+
+RATE_LIMIT_LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(RATE_LIMIT_LOG_DIR, exist_ok=True)
+RATE_LIMIT_LOG_PATH = os.path.join(RATE_LIMIT_LOG_DIR, "rate_limit.log")
+
+rate_limit_logger = logging.getLogger("rate_limit")
+if not rate_limit_logger.handlers:
+    rl_handler = logging.FileHandler(RATE_LIMIT_LOG_PATH, encoding="utf-8")
+    rl_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    rate_limit_logger.addHandler(rl_handler)
+    rate_limit_logger.setLevel(logging.INFO)
 
 # Онлайн-трекинг активных пользователей (TTL 5 минут)
 ONLINE_TTL = 300  # секунд
@@ -102,30 +114,6 @@ def get_real_client_ip(request: Request) -> str:
         return x_real.strip()
     return request.client.host if request.client else "unknown"
 
-
-@app.middleware("http")
-async def rate_limiting_middleware(request: Request, call_next):
-    if request.url.path.startswith("/api/") and not request.url.path.startswith("/api/ping"):
-        client_ip = get_real_client_ip(request)
-        now = time.time()
-        timestamps = _ip_request_timestamps[client_ip]
-        # Очищаем устаревшие метки
-        valid = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
-        if len(valid) >= MAX_REQUESTS_PER_WINDOW:
-            _ip_request_timestamps[client_ip] = valid
-            logger.warning(f"Превышен лимит запросов с IP: {client_ip} на {request.url.path}")
-            return JSONResponse(
-                status_code=429,
-                content={"detail": "Слишком много запросов. Пожалуйста, подождите минуту."},
-                headers={"Retry-After": "60"},
-            )
-        valid.append(now)
-        _ip_request_timestamps[client_ip] = valid
-        if len(_ip_request_timestamps) > 500:
-            for ip in list(_ip_request_timestamps.keys()):
-                if not _ip_request_timestamps[ip] or now - _ip_request_timestamps[ip][-1] > RATE_LIMIT_WINDOW:
-                    _ip_request_timestamps.pop(ip, None)
-    return await call_next(request)
 
 PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm", "/api/activity", "/api/report-bug", "/api/leaderboard", "/api/auth/telegram-widget"}
 
@@ -167,6 +155,56 @@ def get_verified_user_from_request(request: Request) -> Optional[dict]:
     user = verify_telegram_init_data(init_data, bot_token)
     request.state.verified_user = user
     return user
+
+
+@app.middleware("http")
+async def rate_limiting_middleware(request: Request, call_next):
+    path = request.url.path
+    # Полностью исключаем статику, служебные файлы и health-check из-под лимитера
+    if path.startswith("/api/") and path not in ("/api/ping", "/api/health"):
+        client_ip = get_real_client_ip(request)
+        user = get_verified_user_from_request(request)
+
+        if user and user.get("id"):
+            key = f"user:{user['id']}"
+            max_requests = MAX_REQUESTS_USER
+            user_id = user["id"]
+        else:
+            key = f"ip:{client_ip}"
+            max_requests = MAX_REQUESTS_IP
+            user_id = None
+
+        now = time.time()
+        timestamps = _rate_limit_timestamps[key]
+        valid = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+
+        if len(valid) >= max_requests:
+            _rate_limit_timestamps[key] = valid
+            oldest = valid[0]
+            retry_after = max(1, int(RATE_LIMIT_WINDOW - (now - oldest)))
+
+            rate_limit_logger.warning(
+                f"RATE_LIMIT_TRIGGERED | key={key} | ip={client_ip} | user_id={user_id} | "
+                f"path={path} | count={len(valid)} | max={max_requests} | retry_after={retry_after}s"
+            )
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": "Слишком много запросов. Пожалуйста, подождите.",
+                    "retry_after": retry_after
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        valid.append(now)
+        _rate_limit_timestamps[key] = valid
+
+        if len(_rate_limit_timestamps) > 1000:
+            for k in list(_rate_limit_timestamps.keys()):
+                if not _rate_limit_timestamps[k] or now - _rate_limit_timestamps[k][-1] > RATE_LIMIT_WINDOW:
+                    _rate_limit_timestamps.pop(k, None)
+
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -367,7 +405,7 @@ async def ping():
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    return JSONResponse(status_code=204, content=None)
+    return Response(status_code=204)
 
 
 @app.get("/sw.js", include_in_schema=False)
@@ -644,6 +682,7 @@ class ClientActivityPayload(BaseModel):
     time_delta_seconds: Optional[int] = 0
     photo_url: Optional[str] = ""
     leaderboard_opt_in: Optional[bool] = None
+    is_new_session: Optional[bool] = False
 
 
 class LeaderboardOptInPayload(BaseModel):
@@ -725,7 +764,8 @@ async def record_client_activity(request: Request, payload: ClientActivityPayloa
             ip=client_ip,
             platform=payload.platform or "WebApp",
             time_delta_seconds=payload.time_delta_seconds or 0,
-            leaderboard_opt_in=payload.leaderboard_opt_in
+            leaderboard_opt_in=payload.leaderboard_opt_in,
+            is_new_session=bool(payload.is_new_session)
         )
     return {"status": "ok"}
 
