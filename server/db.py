@@ -66,15 +66,31 @@ def init_db() -> None:
                 CREATE TABLE IF NOT EXISTS user_activity (
                     telegram_id INTEGER PRIMARY KEY,
                     username TEXT DEFAULT "",
+                    first_name TEXT DEFAULT "",
+                    photo_url TEXT DEFAULT "",
                     selected_group TEXT DEFAULT "",
                     last_action TEXT DEFAULT "",
                     ip_address TEXT DEFAULT "",
                     platform TEXT DEFAULT "",
                     first_seen TEXT NOT NULL,
                     last_seen TEXT NOT NULL,
-                    visits_count INTEGER DEFAULT 1
+                    visits_count INTEGER DEFAULT 1,
+                    total_time_seconds INTEGER DEFAULT 0,
+                    leaderboard_opt_in INTEGER DEFAULT 0
                 )
             ''')
+
+            # Миграция колонок для user_activity
+            cursor.execute("PRAGMA table_info(user_activity)")
+            act_cols = {row['name'] for row in cursor.fetchall()}
+            if 'first_name' not in act_cols:
+                cursor.execute("ALTER TABLE user_activity ADD COLUMN first_name TEXT DEFAULT ''")
+            if 'photo_url' not in act_cols:
+                cursor.execute("ALTER TABLE user_activity ADD COLUMN photo_url TEXT DEFAULT ''")
+            if 'total_time_seconds' not in act_cols:
+                cursor.execute("ALTER TABLE user_activity ADD COLUMN total_time_seconds INTEGER DEFAULT 0")
+            if 'leaderboard_opt_in' not in act_cols:
+                cursor.execute("ALTER TABLE user_activity ADD COLUMN leaderboard_opt_in INTEGER DEFAULT 0")
 
             # 4. Hourly Statistics
             cursor.execute('''
@@ -301,36 +317,111 @@ def get_audit_logs(limit: int = 50) -> List[Dict]:
 def upsert_user_activity(
     telegram_id: int,
     username: str = "",
+    first_name: str = "",
+    photo_url: str = "",
     group: str = "",
     action: str = "",
     ip: str = "",
-    platform: str = ""
+    platform: str = "",
+    time_delta_seconds: int = 0,
+    leaderboard_opt_in: Optional[bool] = None
 ) -> None:
     if not telegram_id or telegram_id <= 0:
         return
     now_iso = datetime.now().isoformat()
+    # Anti-cheat: максимум 90 секунд за один батч-heartbeat
+    valid_time_delta = min(max(0, int(time_delta_seconds or 0)), 90)
+    opt_in_val = 1 if leaderboard_opt_in is True else (0 if leaderboard_opt_in is False else None)
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO user_activity (telegram_id, username, selected_group, last_action, ip_address, platform, first_seen, last_seen, visits_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            INSERT INTO user_activity (
+                telegram_id, username, first_name, photo_url, selected_group,
+                last_action, ip_address, platform, first_seen, last_seen,
+                visits_count, total_time_seconds, leaderboard_opt_in
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, COALESCE(?, 0))
             ON CONFLICT(telegram_id) DO UPDATE SET
                 username = CASE WHEN excluded.username != "" THEN excluded.username ELSE user_activity.username END,
+                first_name = CASE WHEN excluded.first_name != "" THEN excluded.first_name ELSE user_activity.first_name END,
+                photo_url = CASE WHEN excluded.photo_url != "" THEN excluded.photo_url ELSE user_activity.photo_url END,
                 selected_group = CASE WHEN excluded.selected_group != "" THEN excluded.selected_group ELSE user_activity.selected_group END,
                 last_action = excluded.last_action,
                 ip_address = excluded.ip_address,
                 platform = excluded.platform,
                 last_seen = excluded.last_seen,
-                visits_count = user_activity.visits_count + 1
-        ''', (telegram_id, username or "", group or "", action or "", ip or "", platform or "", now_iso, now_iso))
+                visits_count = user_activity.visits_count + 1,
+                total_time_seconds = user_activity.total_time_seconds + excluded.total_time_seconds,
+                leaderboard_opt_in = CASE WHEN ? IS NOT NULL THEN ? ELSE user_activity.leaderboard_opt_in END
+        ''', (
+            telegram_id, username or "", first_name or "", photo_url or "", group or "",
+            action or "", ip or "", platform or "", now_iso, now_iso,
+            valid_time_delta, opt_in_val, opt_in_val, opt_in_val
+        ))
         conn.commit()
+
+
+def set_leaderboard_opt_in(telegram_id: int, enabled: bool) -> bool:
+    if not telegram_id or telegram_id <= 0:
+        return False
+    val = 1 if enabled else 0
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE user_activity
+            SET leaderboard_opt_in = ?
+            WHERE telegram_id = ?
+        ''', (val, telegram_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_leaderboard(limit: int = 20, requesting_user_id: Optional[int] = None) -> Dict:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT telegram_id, username, first_name, photo_url, selected_group, total_time_seconds
+            FROM user_activity
+            WHERE leaderboard_opt_in = 1 AND total_time_seconds > 0
+            ORDER BY total_time_seconds DESC, last_seen DESC
+            LIMIT ?
+        ''', (limit,))
+        top_users = [dict(row) for row in cursor.fetchall()]
+
+        user_stats = None
+        if requesting_user_id and requesting_user_id > 0:
+            cursor.execute('''
+                SELECT telegram_id, username, first_name, photo_url, selected_group, total_time_seconds, leaderboard_opt_in
+                FROM user_activity
+                WHERE telegram_id = ?
+            ''', (requesting_user_id,))
+            u_row = cursor.fetchone()
+            if u_row:
+                user_dict = dict(u_row)
+                if user_dict.get('leaderboard_opt_in'):
+                    cursor.execute('''
+                        SELECT COUNT(*) + 1 as rank
+                        FROM user_activity
+                        WHERE leaderboard_opt_in = 1 AND total_time_seconds > ?
+                    ''', (user_dict.get('total_time_seconds', 0),))
+                    rank_row = cursor.fetchone()
+                    user_dict['rank'] = rank_row['rank'] if rank_row else 1
+                else:
+                    user_dict['rank'] = None
+                user_stats = user_dict
+
+        return {
+            "top_users": top_users,
+            "user_stats": user_stats
+        }
 
 
 def get_user_activity_history(limit: int = 100) -> List[Dict]:
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT telegram_id, username, selected_group, last_action, ip_address, platform, first_seen, last_seen, visits_count
+            SELECT telegram_id, username, first_name, photo_url, selected_group, last_action, ip_address, platform, first_seen, last_seen, visits_count, total_time_seconds, leaderboard_opt_in
             FROM user_activity
             ORDER BY last_seen DESC
             LIMIT ?

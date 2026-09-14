@@ -127,7 +127,7 @@ async def rate_limiting_middleware(request: Request, call_next):
                     _ip_request_timestamps.pop(ip, None)
     return await call_next(request)
 
-PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm", "/api/activity", "/api/report-bug"}
+PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm", "/api/activity", "/api/report-bug", "/api/leaderboard", "/api/auth/telegram-widget"}
 
 def get_verified_user_from_request(request: Request) -> Optional[dict]:
     """Извлекает и валидирует Telegram WebApp initData с кэшированием сессии в request.state."""
@@ -641,6 +641,23 @@ class ClientActivityPayload(BaseModel):
     group: Optional[str] = ""
     action: Optional[str] = ""
     platform: Optional[str] = ""
+    time_delta_seconds: Optional[int] = 0
+    photo_url: Optional[str] = ""
+    leaderboard_opt_in: Optional[bool] = None
+
+
+class LeaderboardOptInPayload(BaseModel):
+    enabled: bool
+
+
+class TelegramWidgetAuthPayload(BaseModel):
+    id: int
+    first_name: Optional[str] = ""
+    last_name: Optional[str] = ""
+    username: Optional[str] = ""
+    photo_url: Optional[str] = ""
+    auth_date: int
+    hash: str
 
 
 class ClientBugReportPayload(BaseModel):
@@ -676,17 +693,20 @@ async def record_client_activity(request: Request, payload: ClientActivityPayloa
     uid = None
     username = ""
     first_name = ""
+    photo_url = payload.photo_url or ""
 
     if user:
         uid = int(user.get("id") or user.get("telegram_id") or 0)
         username = user.get("username", "")
         first_name = user.get("first_name", "")
+        photo_url = photo_url or user.get("photo_url", "")
 
     if uid and uid > 0:
         prev = _online_users.get(uid, {})
         _online_users[uid] = {
             "username": username or prev.get("username", ""),
             "first_name": first_name or prev.get("first_name", ""),
+            "photo_url": photo_url or prev.get("photo_url", ""),
             "last_seen": now,
             "connected_at": prev.get("connected_at", now),
             "ip": client_ip,
@@ -698,12 +718,87 @@ async def record_client_activity(request: Request, payload: ClientActivityPayloa
         db.upsert_user_activity(
             telegram_id=uid,
             username=username,
+            first_name=first_name,
+            photo_url=photo_url,
             group=payload.group or "",
             action=payload.action or "Активность",
             ip=client_ip,
-            platform=payload.platform or "WebApp"
+            platform=payload.platform or "WebApp",
+            time_delta_seconds=payload.time_delta_seconds or 0,
+            leaderboard_opt_in=payload.leaderboard_opt_in
         )
     return {"status": "ok"}
+
+
+@app.get("/api/leaderboard")
+async def get_public_leaderboard(request: Request):
+    """Таблица лидеров активности студентов колледжа."""
+    user = get_verified_user_from_request(request)
+    uid = None
+    if user and not user.get("is_banned"):
+        uid = int(user.get("id") or user.get("telegram_id") or 0)
+    data = db.get_leaderboard(limit=20, requesting_user_id=uid)
+    return {"status": "ok", "leaderboard": data}
+
+
+@app.post("/api/leaderboard/opt-in")
+async def set_leaderboard_opt_in_route(request: Request, payload: LeaderboardOptInPayload):
+    """Включение/выключение участия в публичной таблице лидеров."""
+    user = get_verified_user_from_request(request)
+    if not user or user.get("is_banned"):
+        raise HTTPException(status_code=401, detail="Требуется авторизация Telegram")
+    uid = int(user.get("id") or user.get("telegram_id") or 0)
+    db.set_leaderboard_opt_in(uid, payload.enabled)
+    return {"status": "ok", "enabled": payload.enabled}
+
+
+@app.post("/api/auth/telegram-widget")
+async def auth_telegram_widget(payload: TelegramWidgetAuthPayload, request: Request):
+    """Аутентификация через Telegram Login Widget для браузеров."""
+    bot_token = os.getenv("BOT_TOKEN", "")
+    if not bot_token:
+        raise HTTPException(status_code=500, detail="BOT_TOKEN не настроен на сервере")
+
+    secret_key = hashlib.sha256(bot_token.encode("utf-8")).digest()
+    data_dict = {
+        "id": str(payload.id),
+        "auth_date": str(payload.auth_date),
+    }
+    if payload.first_name:
+        data_dict["first_name"] = payload.first_name
+    if payload.last_name:
+        data_dict["last_name"] = payload.last_name
+    if payload.username:
+        data_dict["username"] = payload.username
+    if payload.photo_url:
+        data_dict["photo_url"] = payload.photo_url
+
+    check_items = [f"{k}={v}" for k, v in sorted(data_dict.items())]
+    check_str = "\n".join(check_items)
+    calc_hash = hmac.new(secret_key, check_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(calc_hash, payload.hash):
+        raise HTTPException(status_code=403, detail="Неверная подпись Telegram Login Widget")
+
+    client_ip = get_real_client_ip(request)
+    db.upsert_user_activity(
+        telegram_id=payload.id,
+        username=payload.username or "",
+        first_name=payload.first_name or "",
+        photo_url=payload.photo_url or "",
+        action="Вход через Telegram Widget",
+        ip=client_ip,
+        platform="Web Browser"
+    )
+    return {
+        "status": "ok",
+        "user": {
+            "id": payload.id,
+            "first_name": payload.first_name,
+            "username": payload.username,
+            "photo_url": payload.photo_url,
+            "is_admin": is_admin_user(payload.id)
+        }
+    }
 
 
 @app.post("/api/report-bug")

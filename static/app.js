@@ -6155,16 +6155,60 @@ async function checkAuthStatus() {
   }
 }
 
-// ── CLIENT ACTIVITY TRACKER & ERROR MONITORING ──
+// ── CLIENT ACTIVITY & ACTIVE TIME TRACKER (ANTI-IDLE HEARTBEAT) ──
 let _lastReportedError = '';
 let _lastActivityPingTime = 0;
+let activeSecondsAccumulator = 0;
+let lastTickTimestamp = Date.now();
+let isPageActive = (typeof document !== 'undefined' && document.visibilityState === 'visible');
+
+function tickActiveTime() {
+  const now = Date.now();
+  const delta = Math.round((now - lastTickTimestamp) / 1000);
+  lastTickTimestamp = now;
+  if (isPageActive && delta > 0 && delta <= 5) {
+    activeSecondsAccumulator += delta;
+  }
+}
+
+if (typeof setInterval !== 'undefined') {
+  setInterval(tickActiveTime, 1000);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      isPageActive = true;
+      lastTickTimestamp = Date.now();
+    } else {
+      isPageActive = false;
+      tickActiveTime();
+      if (activeSecondsAccumulator >= 10) {
+        sendClientActivity('Фоновый режим');
+      }
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    isPageActive = (document.visibilityState === 'visible');
+    lastTickTimestamp = Date.now();
+  });
+
+  window.addEventListener('blur', () => {
+    isPageActive = false;
+  });
+}
 
 function sendClientActivity(actionName) {
   try {
     const now = Date.now();
-    // Не чаще 1 раза в 5 секунд, если это повторные вызовы
-    if (actionName && now - _lastActivityPingTime < 5000) return;
+    tickActiveTime();
+    const timeDelta = activeSecondsAccumulator;
+
+    // Не чаще 1 раза в 5 секунд, если это просто частые действия и времени накопилось мало
+    if (actionName && now - _lastActivityPingTime < 5000 && timeDelta < 15) return;
     _lastActivityPingTime = now;
+    activeSecondsAccumulator = 0; // optimistic reset
 
     const group = (typeof S !== 'undefined' && S.group) ? S.group : '';
     let act = actionName;
@@ -6176,11 +6220,12 @@ function sendClientActivity(actionName) {
       ? navigator.userAgentData.platform 
       : (navigator.platform || 'Web');
 
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    const photoUrl = tgUser?.photo_url || '';
+    const optIn = localStorage.getItem('leaderboard_opt_in') === 'true';
+
     const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
-    const headers = { 'Content-Type': 'application/json' };
-    if (typeof S !== 'undefined' && S.initData) {
-      headers['x-telegram-init-data'] = S.initData;
-    }
+    const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() };
 
     fetch(`${API}/activity${devParam}`, {
       method: 'POST',
@@ -6188,10 +6233,48 @@ function sendClientActivity(actionName) {
       body: JSON.stringify({
         group: group,
         action: act,
-        platform: `${platform} / ${navigator.userAgent.slice(0, 30)}`
+        platform: `${platform} / ${navigator.userAgent.slice(0, 30)}`,
+        time_delta_seconds: timeDelta,
+        photo_url: photoUrl,
+        leaderboard_opt_in: optIn
       })
-    }).catch(() => {});
+    }).catch(() => {
+      activeSecondsAccumulator += timeDelta;
+    });
   } catch (_) {}
+}
+
+// Периодическая отправка накопленного времени каждые 45 секунд
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    if (activeSecondsAccumulator >= 15) {
+      sendClientActivity('Активность');
+    }
+  }, 45000);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    tickActiveTime();
+    if (activeSecondsAccumulator > 0) {
+      try {
+        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        const payload = JSON.stringify({
+          group: (typeof S !== 'undefined' && S.group) ? S.group : '',
+          action: 'Закрытие приложения',
+          platform: navigator.platform || 'Web',
+          time_delta_seconds: activeSecondsAccumulator,
+          photo_url: tgUser?.photo_url || '',
+          leaderboard_opt_in: localStorage.getItem('leaderboard_opt_in') === 'true'
+        });
+        const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          navigator.sendBeacon(`${API}/activity${devParam}`, blob);
+        }
+      } catch (_) {}
+    }
+  });
 }
 
 function reportClientBug(errorMessage, stackTrace, groupName, url) {
@@ -6817,6 +6900,256 @@ window.resolveBugReport = async function(reportId) {
     await loadAdminBugReports();
   } catch (err) {
     alert(`Ошибка обновления отчета: ${err.message}`);
+  }
+};
+
+
+// ── LEADERBOARD (ТАБЛИЦА ЛИДЕРОВ АКТИВНОСТИ) ──
+window.openLeaderboardModal = function() {
+  const backdrop = document.getElementById('leaderboardModal');
+  const sheet = document.getElementById('leaderboardSheet');
+  if (backdrop && sheet) {
+    backdrop.style.display = 'flex';
+    backdrop.classList.add('open');
+    sheet.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    loadLeaderboardData();
+    try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+  }
+};
+
+window.closeLeaderboardModal = function() {
+  const backdrop = document.getElementById('leaderboardModal');
+  const sheet = document.getElementById('leaderboardSheet');
+  if (backdrop && sheet) {
+    sheet.classList.remove('open');
+    backdrop.classList.remove('open');
+    backdrop.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+};
+
+window.formatLeaderboardDuration = function(totalSec) {
+  const sec = Math.max(0, parseInt(totalSec) || 0);
+  if (sec < 60) return '< 1 мин';
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m} мин`;
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  if (h < 24) return remM > 0 ? `${h}ч ${remM}м` : `${h}ч`;
+  const d = Math.floor(h / 24);
+  const remH = h % 24;
+  return remH > 0 ? `${d} дн ${remH}ч` : `${d} дн`;
+};
+
+window.onLeaderboardToggleChange = async function(checked) {
+  try {
+    localStorage.setItem('leaderboard_opt_in', checked ? 'true' : 'false');
+    if (typeof isCloudStorageSupported === 'function' && isCloudStorageSupported()) {
+      try { window.Telegram.WebApp.CloudStorage.setItem('leaderboard_opt_in', checked ? 'true' : 'false', () => {}); } catch (_) {}
+    }
+    const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() };
+    await fetchWithTimeout(`${API}/leaderboard/opt-in`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ enabled: checked })
+    }, 6000);
+    // Мгновенно обновляем данные
+    await loadLeaderboardData();
+  } catch (err) {
+    logApp('warn', 'Ошибка сохранения статуса участия в таблице лидеров:', err);
+  }
+};
+
+window.onTelegramAuth = async function(user) {
+  try {
+    const res = await fetch(`${API}/auth/telegram-widget`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(user)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      localStorage.setItem('tg_widget_user', JSON.stringify(data.user));
+      await loadLeaderboardData();
+    }
+  } catch (e) {
+    console.error('Telegram widget auth error:', e);
+  }
+};
+
+window.loadLeaderboardData = async function() {
+  const listEl = document.getElementById('leaderboardItemsList');
+  const myNameEl = document.getElementById('myLeaderboardName');
+  const myGroupEl = document.getElementById('myLeaderboardGroup');
+  const myTimeEl = document.getElementById('myLeaderboardTime');
+  const myRankEl = document.getElementById('myLeaderboardRank');
+  const myAvatarEl = document.getElementById('myLeaderboardAvatar');
+  const myAvatarFallback = document.getElementById('myLeaderboardAvatarFallback');
+  const toggleEl = document.getElementById('leaderboardOptInToggle');
+  const webLoginBanner = document.getElementById('leaderboardWebLoginBanner');
+
+  // Установка сохраненного тумблера
+  const storedOptIn = localStorage.getItem('leaderboard_opt_in') === 'true';
+  if (toggleEl) toggleEl.checked = storedOptIn;
+
+  // Инициализация профиля из Telegram WebApp или Telegram Login Widget
+  let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  if (!tgUser) {
+    try {
+      const widgetStored = localStorage.getItem('tg_widget_user');
+      if (widgetStored) tgUser = JSON.parse(widgetStored);
+    } catch (_) {}
+  }
+
+  // Показываем баннер входа Telegram Widget только в браузере без авторизации
+  if (webLoginBanner) {
+    const isTma = Boolean(window.Telegram?.WebApp?.initData);
+    if (!isTma && !tgUser) {
+      webLoginBanner.style.display = 'block';
+    } else {
+      webLoginBanner.style.display = 'none';
+    }
+  }
+
+  if (myNameEl) {
+    if (tgUser) {
+      myNameEl.textContent = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || (tgUser.username ? `@${tgUser.username}` : 'Студент');
+    } else {
+      myNameEl.textContent = 'Вы (Студент)';
+    }
+  }
+  if (myGroupEl) {
+    myGroupEl.textContent = (typeof S !== 'undefined' && S.group) ? S.group : 'ИСС9-25';
+  }
+  if (tgUser?.photo_url && myAvatarEl && myAvatarFallback) {
+    myAvatarEl.src = tgUser.photo_url;
+    myAvatarEl.style.display = 'block';
+    myAvatarFallback.style.display = 'none';
+    myAvatarEl.onerror = () => {
+      myAvatarEl.style.display = 'none';
+      myAvatarFallback.style.display = 'flex';
+    };
+  }
+
+  if (listEl) {
+    listEl.innerHTML = '<div class="admin-empty-state">Загрузка таблицы лидеров...</div>';
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${API}/leaderboard`, { headers: getAuthHeaders() }, 6000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const lb = data.leaderboard || {};
+    const topUsers = lb.top_users || [];
+    const myStats = lb.user_stats;
+
+    // Обновляем данные пользователя из БД
+    if (myStats) {
+      if (myTimeEl) {
+        myTimeEl.textContent = `${formatLeaderboardDuration(myStats.total_time_seconds)} в приложении`;
+      }
+      if (myRankEl) {
+        if (myStats.leaderboard_opt_in && myStats.rank) {
+          myRankEl.textContent = `Место в топе: #${myStats.rank}`;
+          myRankEl.style.color = '#22c55e';
+        } else {
+          myRankEl.textContent = 'Вне публичного рейтинга';
+          myRankEl.style.color = 'var(--text-muted)';
+        }
+      }
+      if (toggleEl) {
+        toggleEl.checked = Boolean(myStats.leaderboard_opt_in);
+        localStorage.setItem('leaderboard_opt_in', myStats.leaderboard_opt_in ? 'true' : 'false');
+      }
+    }
+
+    if (!listEl) return;
+    if (topUsers.length === 0) {
+      listEl.innerHTML = `
+        <div class="admin-empty-state">
+          Пока никто не включил участие в рейтинге.<br>Включите тумблер выше, чтобы стать первым!
+        </div>
+      `;
+      return;
+    }
+
+    const currentUid = tgUser?.id || (window.location.search.includes('dev=1') ? 7552844207 : null);
+
+    let html = '';
+    topUsers.forEach((u, idx) => {
+      const rankNum = idx + 1;
+      const isTop1 = rankNum === 1;
+      const isTop2 = rankNum === 2;
+      const isTop3 = rankNum === 3;
+      const isMe = currentUid && u.telegram_id === currentUid;
+
+      let rankBadgeHtml = '';
+      let rowClass = 'leaderboard-item-row';
+      if (isTop1) {
+        rowClass += ' rank-top-1';
+        // Золотая корона SVG (Строго без эмодзи!)
+        rankBadgeHtml = `
+          <div class="leaderboard-rank-badge rank-1" title="1 место">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>
+          </div>
+        `;
+      } else if (isTop2) {
+        rowClass += ' rank-top-2';
+        // Серебряная медаль SVG (Строго без эмодзи!)
+        rankBadgeHtml = `
+          <div class="leaderboard-rank-badge rank-2" title="2 место">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+          </div>
+        `;
+      } else if (isTop3) {
+        rowClass += ' rank-top-3';
+        // Бронзовая награда SVG (Строго без эмодзи!)
+        rankBadgeHtml = `
+          <div class="leaderboard-rank-badge rank-3" title="3 место">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+          </div>
+        `;
+      } else {
+        rankBadgeHtml = `<div class="leaderboard-rank-badge rank-other">#${rankNum}</div>`;
+      }
+
+      if (isMe) rowClass += ' is-me';
+
+      const displayName = esc(u.first_name || (u.username ? `@${u.username}` : `Студент #${u.telegram_id}`));
+      const displayGroup = esc(u.selected_group || 'Колледж');
+      const timeStr = formatLeaderboardDuration(u.total_time_seconds);
+
+      const avatarHtml = u.photo_url
+        ? `<img src="${esc(u.photo_url)}" alt="${displayName}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><div style="display:none;" class="leaderboard-avatar-fallback"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>`
+        : `<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>`;
+
+      html += `
+        <div class="${rowClass}">
+          ${rankBadgeHtml}
+          <div class="leaderboard-item-avatar">
+            ${avatarHtml}
+          </div>
+          <div class="leaderboard-item-info">
+            <div class="leaderboard-item-name-line">
+              <span class="leaderboard-item-name">${displayName}${isMe ? ' (Вы)' : ''}</span>
+            </div>
+            <span class="leaderboard-item-group">${displayGroup}</span>
+          </div>
+          <div class="leaderboard-time-pill" title="Активное время в приложении">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>${timeStr}</span>
+          </div>
+        </div>
+      `;
+    });
+
+    listEl.innerHTML = html;
+  } catch (err) {
+    if (listEl) {
+      listEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка загрузки: ${esc(err.message)}</div>`;
+    }
   }
 };
 
