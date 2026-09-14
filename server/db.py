@@ -76,7 +76,7 @@ def init_db() -> None:
                     last_seen TEXT NOT NULL,
                     visits_count INTEGER DEFAULT 1,
                     total_time_seconds INTEGER DEFAULT 0,
-                    leaderboard_opt_in INTEGER DEFAULT 0
+                    leaderboard_opt_in INTEGER DEFAULT 1
                 )
             ''')
 
@@ -90,7 +90,7 @@ def init_db() -> None:
             if 'total_time_seconds' not in act_cols:
                 cursor.execute("ALTER TABLE user_activity ADD COLUMN total_time_seconds INTEGER DEFAULT 0")
             if 'leaderboard_opt_in' not in act_cols:
-                cursor.execute("ALTER TABLE user_activity ADD COLUMN leaderboard_opt_in INTEGER DEFAULT 0")
+                cursor.execute("ALTER TABLE user_activity ADD COLUMN leaderboard_opt_in INTEGER DEFAULT 1")
 
             # Одноразовая нормализация завышенных счетчиков визитов
             cursor.execute('''
@@ -103,6 +103,12 @@ def init_db() -> None:
             if not cursor.fetchone():
                 cursor.execute("UPDATE user_activity SET visits_count = 1 WHERE visits_count > 1")
                 cursor.execute("INSERT INTO schema_migrations (version, applied_at) VALUES ('reset_inflated_visits_v1', ?)", (datetime.now().isoformat(),))
+
+            # По умолчанию включаем участие в таблице лидеров
+            cursor.execute("SELECT 1 FROM schema_migrations WHERE version = 'default_leaderboard_opt_in_v1'")
+            if not cursor.fetchone():
+                cursor.execute("UPDATE user_activity SET leaderboard_opt_in = 1 WHERE leaderboard_opt_in = 0")
+                cursor.execute("INSERT INTO schema_migrations (version, applied_at) VALUES ('default_leaderboard_opt_in_v1', ?)", (datetime.now().isoformat(),))
 
             # 4. Hourly Statistics
             cursor.execute('''
@@ -349,7 +355,7 @@ def upsert_user_activity(
     now_iso = datetime.now().isoformat()
     # Anti-cheat: максимум 90 секунд за один батч-heartbeat
     valid_time_delta = min(max(0, int(time_delta_seconds or 0)), 90)
-    opt_in_val = 1 if leaderboard_opt_in is True else (0 if leaderboard_opt_in is False else None)
+    opt_in_val = 0 if leaderboard_opt_in is False else (1 if leaderboard_opt_in is True else None)
     visit_inc = 1 if is_new_session else 0
 
     with get_db_connection() as conn:
@@ -360,7 +366,7 @@ def upsert_user_activity(
                 last_action, ip_address, platform, first_seen, last_seen,
                 visits_count, total_time_seconds, leaderboard_opt_in
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, COALESCE(?, 0))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, COALESCE(?, 1))
             ON CONFLICT(telegram_id) DO UPDATE SET
                 username = CASE WHEN excluded.username != "" THEN excluded.username ELSE user_activity.username END,
                 first_name = CASE WHEN excluded.first_name != "" THEN excluded.first_name ELSE user_activity.first_name END,
@@ -398,15 +404,20 @@ def set_leaderboard_opt_in(telegram_id: int, enabled: bool) -> bool:
 
 
 def get_leaderboard(limit: int = 20, requesting_user_id: Optional[int] = None) -> Dict:
+    now_iso = datetime.now().isoformat()
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT telegram_id, username, first_name, photo_url, selected_group, total_time_seconds
             FROM user_activity
-            WHERE leaderboard_opt_in = 1 AND total_time_seconds > 0
+            WHERE COALESCE(leaderboard_opt_in, 1) = 1
+              AND telegram_id NOT IN (
+                  SELECT telegram_id FROM banned_users
+                  WHERE banned_until IS NULL OR banned_until > ?
+              )
             ORDER BY total_time_seconds DESC, last_seen DESC
             LIMIT ?
-        ''', (limit,))
+        ''', (now_iso, limit))
         top_users = [dict(row) for row in cursor.fetchall()]
 
         user_stats = None
@@ -419,12 +430,18 @@ def get_leaderboard(limit: int = 20, requesting_user_id: Optional[int] = None) -
             u_row = cursor.fetchone()
             if u_row:
                 user_dict = dict(u_row)
-                if user_dict.get('leaderboard_opt_in'):
+                is_opted = user_dict.get('leaderboard_opt_in') is None or (user_dict.get('leaderboard_opt_in') != 0 and user_dict.get('leaderboard_opt_in') is not False)
+                if is_opted:
                     cursor.execute('''
                         SELECT COUNT(*) + 1 as rank
                         FROM user_activity
-                        WHERE leaderboard_opt_in = 1 AND total_time_seconds > ?
-                    ''', (user_dict.get('total_time_seconds', 0),))
+                        WHERE COALESCE(leaderboard_opt_in, 1) = 1
+                          AND telegram_id NOT IN (
+                              SELECT telegram_id FROM banned_users
+                              WHERE banned_until IS NULL OR banned_until > ?
+                          )
+                          AND total_time_seconds > ?
+                    ''', (now_iso, user_dict.get('total_time_seconds', 0)))
                     rank_row = cursor.fetchone()
                     user_dict['rank'] = rank_row['rank'] if rank_row else 1
                 else:

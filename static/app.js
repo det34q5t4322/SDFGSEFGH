@@ -6352,7 +6352,7 @@ function sendClientActivity(actionName) {
 
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
     const photoUrl = tgUser?.photo_url || '';
-    const optIn = localStorage.getItem('leaderboard_opt_in') === 'true';
+    const optIn = localStorage.getItem('leaderboard_opt_in') !== 'false';
 
     const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
     const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() };
@@ -7263,8 +7263,8 @@ window.loadLeaderboardData = async function() {
   const toggleEl = document.getElementById('leaderboardOptInToggle');
   const webLoginBanner = document.getElementById('leaderboardWebLoginBanner');
 
-  // Установка сохраненного тумблера
-  const storedOptIn = localStorage.getItem('leaderboard_opt_in') === 'true';
+  // Установка сохраненного тумблера (по умолчанию включен)
+  const storedOptIn = localStorage.getItem('leaderboard_opt_in') !== 'false';
   if (toggleEl) toggleEl.checked = storedOptIn;
 
   // Инициализация профиля из Telegram WebApp или Telegram Login Widget
@@ -7323,8 +7323,9 @@ window.loadLeaderboardData = async function() {
       if (myTimeEl) {
         myTimeEl.textContent = `${formatLeaderboardDuration(myStats.total_time_seconds)} в приложении`;
       }
+      const isOpted = myStats.leaderboard_opt_in === null || myStats.leaderboard_opt_in === undefined || (myStats.leaderboard_opt_in !== 0 && myStats.leaderboard_opt_in !== false);
       if (myRankEl) {
-        if (myStats.leaderboard_opt_in && myStats.rank) {
+        if (isOpted && myStats.rank) {
           myRankEl.textContent = `Место в топе: #${myStats.rank}`;
           myRankEl.style.color = '#22c55e';
         } else {
@@ -7333,8 +7334,8 @@ window.loadLeaderboardData = async function() {
         }
       }
       if (toggleEl) {
-        toggleEl.checked = Boolean(myStats.leaderboard_opt_in);
-        localStorage.setItem('leaderboard_opt_in', myStats.leaderboard_opt_in ? 'true' : 'false');
+        toggleEl.checked = isOpted;
+        localStorage.setItem('leaderboard_opt_in', isOpted ? 'true' : 'false');
       }
     }
 
@@ -7342,7 +7343,7 @@ window.loadLeaderboardData = async function() {
     if (topUsers.length === 0) {
       listEl.innerHTML = `
         <div class="admin-empty-state">
-          Пока никто не включил участие в рейтинге.<br>Включите тумблер выше, чтобы стать первым!
+          Пока никто не набрал активного времени.<br>Проводите время в приложении, чтобы подняться в рейтинге!
         </div>
       `;
       return;
