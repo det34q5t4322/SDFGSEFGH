@@ -6680,17 +6680,19 @@ window.loadAdminStats = async function() {
       } else {
         const maxReq = Math.max(...hourly.map(x => x.requests_count || 0), 1);
         let barsHtml = '<div class="admin-chart-bars">';
-        hourly.forEach(item => {
+        hourly.forEach((item, idx) => {
           const count = item.requests_count || 0;
-          const pct = Math.max(8, Math.round((count / maxReq) * 100));
+          const pct = Math.max(6, Math.round((count / maxReq) * 100));
           const hourLabel = item.hour_key ? item.hour_key.slice(11, 16) : '';
           const isPeak = count >= maxReq * 0.75;
+          // Показываем подписи через час или если мало колонок, чтобы текст не слипался
+          const showLabel = hourly.length <= 12 || idx % 2 === 0;
 
           barsHtml += `
             <div class="admin-chart-col" title="${item.hour_key}: ${count} запросов">
-              <div class="admin-bar-val">${count}</div>
+              <div class="admin-bar-val">${count > 0 ? count : ''}</div>
               <div class="admin-chart-bar ${isPeak ? 'peak-bar' : ''}" style="height: ${pct}%;"></div>
-              <div class="admin-bar-label">${hourLabel}</div>
+              <div class="admin-bar-label">${showLabel ? hourLabel : ''}</div>
             </div>
           `;
         });
