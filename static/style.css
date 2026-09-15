@@ -1506,6 +1506,35 @@ input {
   box-shadow: 0 0 0 1.5px var(--accent);
 }
 
+.topbar-games-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+  background: var(--bg-card2);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+  box-sizing: border-box;
+  transition: transform 0.15s ease, background 0.18s ease, border-color 0.18s ease;
+}
+.topbar-games-btn:hover {
+  background: var(--bg-card);
+  border-color: var(--accent);
+}
+.topbar-games-btn:active {
+  transform: scale(0.95);
+}
+.topbar-games-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* ═══════════════════════════════════════════
    LIVE STATUS CARD
 ═══════════════════════════════════════════ */

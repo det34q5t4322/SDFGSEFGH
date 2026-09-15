@@ -531,6 +531,15 @@ function handleTelegramBackButtonClick() {
     closeAdminModal();
   } else if (els.diaryModal?.classList.contains('open')) {
     closeDiaryModal();
+  } else if (document.getElementById('gamesModal')?.classList.contains('open')) {
+    const playView = document.getElementById('gamesPlayView');
+    if (playView && playView.style.display !== 'none') {
+      if (typeof window.backToGamesCatalog === 'function') window.backToGamesCatalog();
+    } else {
+      if (typeof window.closeGamesModal === 'function') window.closeGamesModal(true);
+    }
+  } else if (document.getElementById('leaderboardModal')?.classList.contains('open')) {
+    if (typeof window.closeLeaderboardModal === 'function') window.closeLeaderboardModal();
   } else if (els.sidebar?.classList.contains('open')) {
     closeSidebar();
   } else if ((els.settingsModal || els.themeModal)?.classList.contains('open')) {
@@ -1803,6 +1812,35 @@ function setupSidebarNav() {
       closeSidebar();
     });
   });
+
+  const sbGames = document.getElementById('sidebarGamesBtn');
+  if (sbGames) {
+    sbGames.addEventListener('click', (e) => {
+      if (isLayoutEditingMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.openGamesModal === 'function') window.openGamesModal();
+    });
+  }
+
+  const tbGames = document.getElementById('topbarGamesBtn');
+  if (tbGames) {
+    tbGames.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.openGamesModal === 'function') window.openGamesModal();
+    });
+  }
+
+  const sbLeaderboard = document.getElementById('sidebarLeaderboardBtn');
+  if (sbLeaderboard) {
+    sbLeaderboard.addEventListener('click', (e) => {
+      if (isLayoutEditingMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.openLeaderboardModal === 'function') window.openLeaderboardModal();
+    });
+  }
 }
 
 function setView(view) {
@@ -4733,6 +4771,8 @@ const DEFAULT_MENU_SECTION_MAP = {
   'menu-theme':         'frequent',
   'menu-diary':         'services',
   'menu-stats':         'services',
+  'menu-leaderboard':   'services',
+  'menu-games':         'services',
   'menu-graduation':    'services',
   'menu-english':       'services',
   'menu-onboarding':    'services',
@@ -4746,6 +4786,8 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
   { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
   { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-games',         visible: true,  section: 'services', color: 'default' },
   { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
   { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
   { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
@@ -4760,6 +4802,8 @@ const PRESETS_MENU = {
     { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
     { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-games',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
     { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
     { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
@@ -4772,6 +4816,8 @@ const PRESETS_MENU = {
     { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
     { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-games',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
     { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
     { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
@@ -4784,6 +4830,8 @@ const PRESETS_MENU = {
     { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
     { id: 'menu-diary',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-leaderboard',   visible: false, section: 'services', color: 'default' },
+    { id: 'menu-games',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-graduation',    visible: false, section: 'services', color: 'default' },
     { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
     { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
@@ -7457,21 +7505,26 @@ window._getGameDebugState = function() {
   };
 };
 
+let _gamesModalOpenedAt = 0;
+
 window.openGamesModal = function() {
   const backdrop = document.getElementById('gamesModal');
   const sheet = document.getElementById('gamesSheet');
   if (backdrop && sheet) {
+    _gamesModalOpenedAt = Date.now();
+    try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
     backdrop.style.display = 'flex';
     backdrop.classList.add('open');
     sheet.classList.add('open');
     document.body.style.overflow = 'hidden';
     backToGamesCatalog();
     updateGamesCatalogScores();
-    try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+    if (typeof updateTelegramBackButton === 'function') updateTelegramBackButton();
   }
 };
 
-window.closeGamesModal = function() {
+window.closeGamesModal = function(force = false) {
+  if (!force && Date.now() - _gamesModalOpenedAt < 350) return;
   unmountCurrentGame();
   const backdrop = document.getElementById('gamesModal');
   const sheet = document.getElementById('gamesSheet');
@@ -7480,6 +7533,7 @@ window.closeGamesModal = function() {
     backdrop.classList.remove('open');
     backdrop.style.display = 'none';
     document.body.style.overflow = '';
+    if (typeof updateTelegramBackButton === 'function') updateTelegramBackButton();
   }
 };
 

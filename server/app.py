@@ -115,7 +115,7 @@ def get_real_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm", "/api/activity", "/api/report-bug", "/api/leaderboard", "/api/auth/telegram-widget", "/api/games/stats"}
+PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm", "/api/activity", "/api/report-bug", "/api/bug-reports", "/api/leaderboard", "/api/auth/telegram-widget", "/api/games/stats"}
 
 def get_verified_user_from_request(request: Request) -> Optional[dict]:
     """Извлекает и валидирует Telegram WebApp initData с кэшированием сессии в request.state."""
@@ -867,6 +867,7 @@ async def auth_telegram_widget(payload: TelegramWidgetAuthPayload, request: Requ
 
 
 @app.post("/api/report-bug")
+@app.post("/api/bug-reports")
 async def report_client_bug(request: Request, payload: ClientBugReportPayload):
     """Регистрация ошибки или сбоя от клиента."""
     user = get_verified_user_from_request(request)

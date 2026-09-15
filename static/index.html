@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260914_v2">
+  <link rel="stylesheet" href="/static/style.css?v=20260915_games_v2">
   <script>
     (function() {
       try {
@@ -233,8 +233,13 @@
         <svg class="lucide-icon group-btn-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
       </button>
 
-      <div class="topbar-parity" id="topbarParity">
-        <!-- даты недели -->
+      <div class="topbar-actions" style="display:flex; align-items:center; gap:8px;">
+        <button class="topbar-games-btn" id="topbarGamesBtn" onclick="openGamesModal()" type="button" title="Игры на перемене: 2048, Тетрис, Сапёр" aria-label="Мини-игры">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="6"/></svg>
+        </button>
+        <div class="topbar-parity" id="topbarParity">
+          <!-- даты недели -->
+        </div>
       </div>
     </header>
 
@@ -1549,6 +1554,6 @@
 
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260906_12"></script>
-  <script src="/static/app.js?v=20260914_v2"></script>
+  <script src="/static/app.js?v=20260915_games_v2"></script>
 </body>
 </html>
