@@ -1346,9 +1346,10 @@ class ScheduleParser:
                         if top_obj and not bot_obj:
                             is_both = True
                         elif not top_obj and bot_obj:
-                            is_both = True
-                            top_obj = bot_obj
-                            bot_obj = None
+                            # Верхняя часть пуста (в числителе пары нет), в нижней есть предмет (только знаменатель).
+                            # Это сплит-пара: числитель пуст (None), знаменатель содержит bot_obj.
+                            # Ни в коем случае не делаем is_both=True и не переносим bot_obj в top_obj!
+                            is_split = True
                         elif top_obj and bot_obj:
                             if top_text == bot_text and top_aud == bot_aud:
                                 is_both = True

@@ -2430,12 +2430,12 @@ function getGroupDayPairs(dayName) {
     let lesson = null;
 
     if (slot.is_split) {
-      if (activeParity === 'num' && slot.numerator) {
-        lesson = slot.numerator;
-      } else if (activeParity === 'den' && slot.denominator) {
-        lesson = slot.denominator;
+      if (activeParity === 'num') {
+        lesson = (slot.numerator && slot.numerator.subject) ? slot.numerator : null;
+      } else if (activeParity === 'den') {
+        lesson = (slot.denominator && slot.denominator.subject) ? slot.denominator : null;
       } else {
-        lesson = slot.numerator || slot.denominator;
+        lesson = slot.numerator || slot.denominator || null;
       }
     } else {
       lesson = slot.both || slot.numerator || slot.denominator;
@@ -3182,10 +3182,14 @@ function renderDayPairs(dayName) {
       const den = slot.denominator;
       if (activeParity === 'all') {
         html += renderSplitCard(num, den, pn, bell, isGoing, idx, dayName);
-      } else if (activeParity === 'num' && num && num.subject) {
-        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx, dayName);
-      } else if (activeParity === 'den' && den && den.subject) {
-        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx, dayName);
+      } else if (activeParity === 'num') {
+        if (num && num.subject) {
+          html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx, dayName);
+        }
+      } else if (activeParity === 'den') {
+        if (den && den.subject) {
+          html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx, dayName);
+        }
       } else if (num && num.subject) {
         html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx, dayName);
       } else if (den && den.subject) {
