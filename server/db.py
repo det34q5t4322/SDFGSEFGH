@@ -76,6 +76,7 @@ def init_db() -> None:
                     last_seen TEXT NOT NULL,
                     visits_count INTEGER DEFAULT 1,
                     total_time_seconds INTEGER DEFAULT 0,
+                    game_time_seconds INTEGER DEFAULT 0,
                     leaderboard_opt_in INTEGER DEFAULT 1
                 )
             ''')
@@ -89,8 +90,22 @@ def init_db() -> None:
                 cursor.execute("ALTER TABLE user_activity ADD COLUMN photo_url TEXT DEFAULT ''")
             if 'total_time_seconds' not in act_cols:
                 cursor.execute("ALTER TABLE user_activity ADD COLUMN total_time_seconds INTEGER DEFAULT 0")
+            if 'game_time_seconds' not in act_cols:
+                cursor.execute("ALTER TABLE user_activity ADD COLUMN game_time_seconds INTEGER DEFAULT 0")
             if 'leaderboard_opt_in' not in act_cols:
                 cursor.execute("ALTER TABLE user_activity ADD COLUMN leaderboard_opt_in INTEGER DEFAULT 1")
+
+            # 3.1 User Game Stats
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_game_stats (
+                    telegram_id INTEGER NOT NULL,
+                    game_id TEXT NOT NULL,
+                    high_score INTEGER DEFAULT 0,
+                    total_time_seconds INTEGER DEFAULT 0,
+                    last_played TEXT NOT NULL,
+                    PRIMARY KEY (telegram_id, game_id)
+                )
+            ''')
 
             # Одноразовая нормализация завышенных счетчиков визитов
             cursor.execute('''
@@ -451,6 +466,106 @@ def get_leaderboard(limit: int = 20, requesting_user_id: Optional[int] = None) -
         return {
             "top_users": top_users,
             "user_stats": user_stats
+        }
+
+
+def record_game_stats(
+    telegram_id: int,
+    game_id: str,
+    score: Optional[int] = None,
+    time_delta: int = 0
+) -> Dict:
+    """Запись результатов и игрового времени в user_game_stats и user_activity."""
+    if not telegram_id or telegram_id <= 0 or not game_id:
+        return {}
+    clean_game_id = str(game_id).strip().lower()
+    if clean_game_id not in ("2048", "tetris", "minesweeper"):
+        return {}
+
+    valid_time_delta = min(max(0, int(time_delta or 0)), 120)
+    valid_score = None
+    if score is not None:
+        try:
+            valid_score = max(0, min(int(score), 10_000_000))
+        except (ValueError, TypeError):
+            valid_score = None
+
+    now_iso = datetime.now().isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        if valid_score is not None:
+            cursor.execute('''
+                INSERT INTO user_game_stats (telegram_id, game_id, high_score, total_time_seconds, last_played)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(telegram_id, game_id) DO UPDATE SET
+                    high_score = MAX(user_game_stats.high_score, excluded.high_score),
+                    total_time_seconds = user_game_stats.total_time_seconds + excluded.total_time_seconds,
+                    last_played = excluded.last_played
+            ''', (telegram_id, clean_game_id, valid_score, valid_time_delta, now_iso))
+        else:
+            cursor.execute('''
+                INSERT INTO user_game_stats (telegram_id, game_id, high_score, total_time_seconds, last_played)
+                VALUES (?, ?, 0, ?, ?)
+                ON CONFLICT(telegram_id, game_id) DO UPDATE SET
+                    total_time_seconds = user_game_stats.total_time_seconds + excluded.total_time_seconds,
+                    last_played = excluded.last_played
+            ''', (telegram_id, clean_game_id, valid_time_delta, now_iso))
+
+        if valid_time_delta > 0:
+            cursor.execute('''
+                UPDATE user_activity
+                SET game_time_seconds = COALESCE(game_time_seconds, 0) + ?
+                WHERE telegram_id = ?
+            ''', (valid_time_delta, telegram_id))
+
+        conn.commit()
+
+        cursor.execute('''
+            SELECT game_id, high_score, total_time_seconds, last_played
+            FROM user_game_stats
+            WHERE telegram_id = ? AND game_id = ?
+        ''', (telegram_id, clean_game_id))
+        row = cursor.fetchone()
+        return dict(row) if row else {}
+
+
+def get_user_game_stats(telegram_id: Optional[int] = None) -> Dict[str, Any]:
+    """Получение статистики игр для пользователя и топа по каждой игре."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        user_stats = {}
+        if telegram_id and telegram_id > 0:
+            cursor.execute('''
+                SELECT game_id, high_score, total_time_seconds, last_played
+                FROM user_game_stats
+                WHERE telegram_id = ?
+            ''', (telegram_id,))
+            rows = cursor.fetchall()
+            user_stats = {row['game_id']: dict(row) for row in rows}
+
+        leaderboards = {}
+        now_iso = datetime.now().isoformat()
+        for gid in ("2048", "tetris", "minesweeper"):
+            cursor.execute('''
+                SELECT g.telegram_id, g.high_score, g.total_time_seconds,
+                       COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Игрок') as display_name,
+                       u.photo_url, u.selected_group
+                FROM user_game_stats g
+                LEFT JOIN user_activity u ON g.telegram_id = u.telegram_id
+                WHERE g.game_id = ? AND g.high_score > 0
+                  AND COALESCE(u.leaderboard_opt_in, 1) = 1
+                  AND g.telegram_id NOT IN (
+                      SELECT telegram_id FROM banned_users
+                      WHERE banned_until IS NULL OR banned_until > ?
+                  )
+                ORDER BY g.high_score DESC
+                LIMIT 5
+            ''', (gid, now_iso))
+            leaderboards[gid] = [dict(r) for r in cursor.fetchall()]
+
+        return {
+            "my_stats": user_stats,
+            "leaderboards": leaderboards
         }
 
 

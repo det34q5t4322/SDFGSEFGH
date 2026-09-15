@@ -115,7 +115,7 @@ def get_real_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm", "/api/activity", "/api/report-bug", "/api/leaderboard", "/api/auth/telegram-widget"}
+PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm", "/api/activity", "/api/report-bug", "/api/leaderboard", "/api/auth/telegram-widget", "/api/games/stats"}
 
 def get_verified_user_from_request(request: Request) -> Optional[dict]:
     """Извлекает и валидирует Telegram WebApp initData с кэшированием сессии в request.state."""
@@ -683,6 +683,9 @@ class ClientActivityPayload(BaseModel):
     photo_url: Optional[str] = ""
     leaderboard_opt_in: Optional[bool] = None
     is_new_session: Optional[bool] = False
+    game_id: Optional[str] = None
+    game_score: Optional[int] = None
+    game_time_delta: Optional[int] = 0
 
 
 class LeaderboardOptInPayload(BaseModel):
@@ -741,6 +744,18 @@ async def record_client_activity(request: Request, payload: ClientActivityPayloa
         photo_url = photo_url or user.get("photo_url", "")
 
     if uid and uid > 0:
+        # Запись игровой статистики и времени при наличии game_id
+        if payload.game_id:
+            db.record_game_stats(
+                telegram_id=uid,
+                game_id=payload.game_id,
+                score=payload.game_score,
+                time_delta=payload.game_time_delta or payload.time_delta_seconds or 0
+            )
+
+        default_action = f"Игра: {payload.game_id}" if payload.game_id else "Активность"
+        current_action = payload.action or default_action
+
         prev = _online_users.get(uid, {})
         _online_users[uid] = {
             "username": username or prev.get("username", ""),
@@ -750,7 +765,7 @@ async def record_client_activity(request: Request, payload: ClientActivityPayloa
             "connected_at": prev.get("connected_at", now),
             "ip": client_ip,
             "group": payload.group or prev.get("group", ""),
-            "last_action": payload.action or prev.get("last_action", "Активность"),
+            "last_action": current_action or prev.get("last_action", "Активность"),
             "platform": payload.platform or prev.get("platform", "WebApp")
         }
         db.record_hourly_request(uid)
@@ -760,7 +775,7 @@ async def record_client_activity(request: Request, payload: ClientActivityPayloa
             first_name=first_name,
             photo_url=photo_url,
             group=payload.group or "",
-            action=payload.action or "Активность",
+            action=current_action,
             ip=client_ip,
             platform=payload.platform or "WebApp",
             time_delta_seconds=payload.time_delta_seconds or 0,
@@ -790,6 +805,16 @@ async def set_leaderboard_opt_in_route(request: Request, payload: LeaderboardOpt
     uid = int(user.get("id") or user.get("telegram_id") or 0)
     db.set_leaderboard_opt_in(uid, payload.enabled)
     return {"status": "ok", "enabled": payload.enabled}
+
+
+@app.get("/api/games/stats")
+async def get_games_statistics(request: Request):
+    """Статистика мини-игр пользователя и таблицы лидеров по играм."""
+    user = get_verified_user_from_request(request)
+    uid = None
+    if user and not user.get("is_banned"):
+        uid = int(user.get("id") or user.get("telegram_id") or 0)
+    return db.get_user_game_stats(uid)
 
 
 @app.post("/api/auth/telegram-widget")

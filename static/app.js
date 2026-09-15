@@ -7432,6 +7432,228 @@ window.loadLeaderboardData = async function() {
 };
 
 
+// ══════════════════════════════════════════════════
+// МИНИ-ИГРЫ НА ПЕРЕМЕНЕ (2048, ТЕТРИС, САПЁР)
+// ══════════════════════════════════════════════════
+let _activeGameInstance = null;
+let _activeGameId = null;
+let _activeGameScore = 0;
+let _gameTimerInterval = null;
+let _accumulatedGameDelta = 0;
+let _lastGamePingTime = 0;
+
+const GAME_NAMES = {
+  '2048': '2048',
+  'tetris': 'Тетрис',
+  'minesweeper': 'Сапёр'
+};
+
+window._getGameDebugState = function() {
+  return {
+    activeInstance: _activeGameInstance,
+    activeGameId: _activeGameId,
+    gameTimerInterval: _gameTimerInterval,
+    viewportChildren: document.getElementById('gameViewport')?.children.length || 0
+  };
+};
+
+window.openGamesModal = function() {
+  const backdrop = document.getElementById('gamesModal');
+  const sheet = document.getElementById('gamesSheet');
+  if (backdrop && sheet) {
+    backdrop.style.display = 'flex';
+    backdrop.classList.add('open');
+    sheet.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    backToGamesCatalog();
+    updateGamesCatalogScores();
+    try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+  }
+};
+
+window.closeGamesModal = function() {
+  unmountCurrentGame();
+  const backdrop = document.getElementById('gamesModal');
+  const sheet = document.getElementById('gamesSheet');
+  if (backdrop && sheet) {
+    sheet.classList.remove('open');
+    backdrop.classList.remove('open');
+    backdrop.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+};
+
+window.backToGamesCatalog = function() {
+  unmountCurrentGame();
+  const catalog = document.getElementById('gamesCatalogView');
+  const playView = document.getElementById('gamesPlayView');
+  const backBtn = document.getElementById('gamesBackBtn');
+  const title = document.getElementById('gamesModalTitle');
+  if (catalog) catalog.style.display = 'flex';
+  if (playView) playView.style.display = 'none';
+  if (backBtn) backBtn.style.display = 'none';
+  if (title) title.textContent = 'Игры на перемене';
+  updateGamesCatalogScores();
+};
+
+window.updateGamesCatalogScores = async function() {
+  const b2048 = localStorage.getItem('game_2048_best') || '0';
+  const bTetris = localStorage.getItem('game_tetris_best') || '0';
+  const bMine = localStorage.getItem('game_minesweeper_best') || '';
+
+  const el2048 = document.getElementById('catalogBest2048');
+  const elTetris = document.getElementById('catalogBestTetris');
+  const elMine = document.getElementById('catalogBestMinesweeper');
+
+  if (el2048) el2048.textContent = b2048;
+  if (elTetris) elTetris.textContent = bTetris;
+  if (elMine) elMine.textContent = bMine ? `${bMine}с` : '—';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/games/stats`, { headers: getAuthHeaders() }, 4000);
+    if (res.ok) {
+      const data = await res.json();
+      const my = data.my_stats || {};
+      if (my['2048'] && my['2048'].high_score > parseInt(b2048, 10)) {
+        localStorage.setItem('game_2048_best', String(my['2048'].high_score));
+        if (el2048) el2048.textContent = my['2048'].high_score;
+      }
+      if (my['tetris'] && my['tetris'].high_score > parseInt(bTetris, 10)) {
+        localStorage.setItem('game_tetris_best', String(my['tetris'].high_score));
+        if (elTetris) elTetris.textContent = my['tetris'].high_score;
+      }
+    }
+  } catch (_) {}
+};
+
+window.openGame = async function(gameId) {
+  unmountCurrentGame();
+
+  const catalog = document.getElementById('gamesCatalogView');
+  const playView = document.getElementById('gamesPlayView');
+  const backBtn = document.getElementById('gamesBackBtn');
+  const title = document.getElementById('gamesModalTitle');
+  const viewport = document.getElementById('gameViewport');
+
+  if (catalog) catalog.style.display = 'none';
+  if (playView) playView.style.display = 'block';
+  if (backBtn) backBtn.style.display = 'inline-flex';
+  if (title) title.textContent = GAME_NAMES[gameId] || 'Игра';
+  if (viewport) viewport.innerHTML = '<div class="admin-empty-state">Запуск игры...</div>';
+
+  _activeGameId = gameId;
+  _activeGameScore = 0;
+  _accumulatedGameDelta = 0;
+  _lastGamePingTime = Date.now();
+
+  try {
+    const module = await import(`./games/${gameId}.js?v=20260915_1`);
+    if (viewport) viewport.innerHTML = '';
+    _activeGameInstance = module.mount(viewport, {
+      onScoreUpdate: (score, best) => {
+        _activeGameScore = score;
+        if (gameId === '2048') {
+          const el = document.getElementById('catalogBest2048');
+          if (el) el.textContent = best;
+        } else if (gameId === 'tetris') {
+          const el = document.getElementById('catalogBestTetris');
+          if (el) el.textContent = best;
+        } else if (gameId === 'minesweeper') {
+          const el = document.getElementById('catalogBestMinesweeper');
+          if (el) el.textContent = `${best}с`;
+        }
+      },
+      onGameOver: (score, won) => {
+        _activeGameScore = score;
+        flushGameActivity();
+      }
+    });
+
+    startGameTimeBatcher();
+  } catch (err) {
+    console.error(`Failed to load game ${gameId}:`, err);
+    if (viewport) {
+      viewport.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка загрузки игры: ${esc(err.message)}</div>`;
+    }
+  }
+};
+
+function startGameTimeBatcher() {
+  stopGameTimeBatcher();
+  _gameTimerInterval = setInterval(() => {
+    if (!document.hidden && _activeGameId) {
+      _accumulatedGameDelta++;
+      const now = Date.now();
+      // Strict batching: flush only every 20-30 seconds, never faster to avoid rate limiting
+      if (_accumulatedGameDelta >= 20 && (now - _lastGamePingTime >= 18000)) {
+        flushGameActivity();
+      }
+    }
+  }, 1000);
+}
+
+function stopGameTimeBatcher() {
+  if (_gameTimerInterval) {
+    clearInterval(_gameTimerInterval);
+    _gameTimerInterval = null;
+  }
+}
+
+async function flushGameActivity() {
+  if (!_activeGameId || _accumulatedGameDelta < 5) {
+    return; // Don't ping if less than 5 seconds (strict batching)
+  }
+  const deltaToSend = _accumulatedGameDelta;
+  const gameIdToSend = _activeGameId;
+  const scoreToSend = _activeGameScore;
+
+  _accumulatedGameDelta = 0;
+  _lastGamePingTime = Date.now();
+
+  try {
+    const payload = {
+      group: (typeof S !== 'undefined' && S.group) ? S.group : '',
+      action: `Игра: ${GAME_NAMES[gameIdToSend] || gameIdToSend}`,
+      platform: 'WebApp',
+      time_delta_seconds: deltaToSend,
+      game_id: gameIdToSend,
+      game_score: scoreToSend,
+      game_time_delta: deltaToSend
+    };
+    await fetchWithTimeout(`${API}/activity`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(payload)
+    }, 4000);
+  } catch (e) {
+    _accumulatedGameDelta += deltaToSend;
+  }
+}
+
+window.unmountCurrentGame = function() {
+  stopGameTimeBatcher();
+
+  if (_activeGameId && _accumulatedGameDelta >= 5) {
+    flushGameActivity();
+  }
+
+  if (_activeGameInstance && typeof _activeGameInstance.unmount === 'function') {
+    try {
+      _activeGameInstance.unmount();
+    } catch (e) {
+      console.error('Error unmounting game:', e);
+    }
+  }
+
+  _activeGameInstance = null;
+  _activeGameId = null;
+  _accumulatedGameDelta = 0;
+
+  const viewport = document.getElementById('gameViewport');
+  if (viewport) viewport.innerHTML = '';
+};
+
+
 // ── UTILS ───────────────────────────────
 function esc(str) {
   if (!str) return '';
