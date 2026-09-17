@@ -237,11 +237,34 @@ function hideOfflineBanner() {
 }
 
 // ── AUTH & TELEGRAM GATE ─────────────────
+const VALID_WEB_SECRETS = ['dadrik2026', 'dadrik'];
+
+// Сохранение и проверка секретного ключа для автономного браузерного доступа
+try {
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _sec = _urlParams.get('secret') || _urlParams.get('key') || _urlParams.get('access');
+  if (_sec && VALID_WEB_SECRETS.includes(_sec)) {
+    localStorage.setItem('web_secret_key', _sec);
+  }
+} catch (_) {}
+
+function hasWebSecretAccess() {
+  try {
+    const saved = localStorage.getItem('web_secret_key');
+    return Boolean(saved && VALID_WEB_SECRETS.includes(saved));
+  } catch (_) {
+    return false;
+  }
+}
+
 function getAuthHeaders() {
   const headers = {};
   const initData = window.Telegram?.WebApp?.initData || '';
   if (initData) {
     headers['X-Telegram-Init-Data'] = initData;
+  }
+  if (hasWebSecretAccess()) {
+    headers['X-Secret-Key'] = localStorage.getItem('web_secret_key') || 'dadrik2026';
   }
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   if (isLocalhost) {
@@ -267,7 +290,7 @@ function isTelegramGatePassed() {
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const isDev = isLocalhost && (window.location.search.includes('dev=1') || window.location.search.includes('mock_user='));
   const hasInitData = Boolean(window.Telegram?.WebApp?.initData);
-  return hasInitData || isDev;
+  return hasInitData || isDev || hasWebSecretAccess();
 }
 
 // ── BAN LOCK & ENDLESS LOADER ──

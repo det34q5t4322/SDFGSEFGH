@@ -122,6 +122,25 @@ def get_verified_user_from_request(request: Request) -> Optional[dict]:
     if hasattr(request.state, "verified_user"):
         return request.state.verified_user
 
+    # Автономный доступ через секретный ключ для браузера (без Telegram)
+    valid_secrets = {"dadrik2026", "dadrik", os.getenv("SECRET_WEB_KEY", "dadrik2026")}
+    client_secret = (
+        request.headers.get("x-secret-key")
+        or request.query_params.get("secret")
+        or request.query_params.get("key")
+        or request.query_params.get("access")
+    )
+    if client_secret and client_secret in valid_secrets:
+        user = {
+            "id": 7552844207,
+            "username": "Dadrik1",
+            "first_name": "WebUser",
+            "is_admin": False,
+            "is_banned": False
+        }
+        request.state.verified_user = user
+        return user
+
     client_ip = get_real_client_ip(request)
     # Поддержка dev-режима на локалхосте
     if client_ip in ("127.0.0.1", "localhost", "::1", "testclient"):
