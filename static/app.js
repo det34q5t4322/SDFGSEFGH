@@ -7601,7 +7601,7 @@ window.openGame = async function(gameId) {
   _lastGamePingTime = Date.now();
 
   try {
-    const module = await import(`./games/${gameId}.js?v=20260915_1`);
+    const module = await import(`./games/${gameId}.js?v=20260917_2048_v1`);
     if (viewport) viewport.innerHTML = '';
     _activeGameInstance = module.mount(viewport, {
       onScoreUpdate: (score, best) => {

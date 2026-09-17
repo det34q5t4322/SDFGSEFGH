@@ -10930,15 +10930,43 @@ html.banned-lock #endlessBanLoader {
 }
 
 .g2048-cell {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   position: relative;
 }
 
+.g2048-tile-container {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  pointer-events: none;
+}
+
 .g2048-tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc((100% - 24px) / 4);
+  height: calc((100% - 24px) / 4);
+  transform: translate(var(--tx, 0px), var(--ty, 0px));
+  transition: transform 100ms ease-in-out;
+  will-change: transform;
+  z-index: 2;
+}
+
+.g2048-row-0 { --ty: 0px; }
+.g2048-row-1 { --ty: calc(100% + 8px); }
+.g2048-row-2 { --ty: calc(200% + 16px); }
+.g2048-row-3 { --ty: calc(300% + 24px); }
+
+.g2048-col-0 { --tx: 0px; }
+.g2048-col-1 { --tx: calc(100% + 8px); }
+.g2048-col-2 { --tx: calc(200% + 16px); }
+.g2048-col-3 { --tx: calc(300% + 24px); }
+
+.g2048-tile-inner {
   width: 100%;
   height: 100%;
   border-radius: 8px;
@@ -10948,26 +10976,44 @@ html.banned-lock #endlessBanLoader {
   font-weight: 800;
   font-size: 22px;
   user-select: none;
-  animation: tileAppear 0.15s ease backwards;
+  box-sizing: border-box;
+}
+
+.g2048-tile-new .g2048-tile-inner {
+  animation: tileAppear 140ms cubic-bezier(0.175, 0.885, 0.32, 1.275) backwards;
 }
 
 @keyframes tileAppear {
-  0% { transform: scale(0.2); opacity: 0; }
+  0% { transform: scale(0); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
 }
 
-.g2048-tile-2 { background: #e2e8f0; color: #1e293b; }
-.g2048-tile-4 { background: #fed7aa; color: #7c2d12; }
-.g2048-tile-8 { background: #fb923c; color: #fff; }
-.g2048-tile-16 { background: #f97316; color: #fff; }
-.g2048-tile-32 { background: #ea580c; color: #fff; }
-.g2048-tile-64 { background: #dc2626; color: #fff; }
-.g2048-tile-128 { background: #facc15; color: #1e293b; font-size: 20px; box-shadow: 0 0 10px rgba(250, 204, 21, 0.5); }
-.g2048-tile-256 { background: #eab308; color: #1e293b; font-size: 20px; box-shadow: 0 0 14px rgba(234, 179, 8, 0.6); }
-.g2048-tile-512 { background: #ca8a04; color: #fff; font-size: 18px; box-shadow: 0 0 18px rgba(202, 138, 4, 0.7); }
-.g2048-tile-1024 { background: #3b82f6; color: #fff; font-size: 16px; box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
-.g2048-tile-2048 { background: #8b5cf6; color: #fff; font-size: 16px; box-shadow: 0 0 24px rgba(139, 92, 246, 0.9); }
-.g2048-tile-super { background: #ec4899; color: #fff; font-size: 15px; }
+.g2048-tile-merged {
+  z-index: 5;
+}
+
+.g2048-tile-merged .g2048-tile-inner {
+  animation: tilePop 160ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes tilePop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+.g2048-tile-2 .g2048-tile-inner, .g2048-tile-2 { background: #e2e8f0; color: #1e293b; }
+.g2048-tile-4 .g2048-tile-inner, .g2048-tile-4 { background: #fed7aa; color: #7c2d12; }
+.g2048-tile-8 .g2048-tile-inner, .g2048-tile-8 { background: #fb923c; color: #fff; }
+.g2048-tile-16 .g2048-tile-inner, .g2048-tile-16 { background: #f97316; color: #fff; }
+.g2048-tile-32 .g2048-tile-inner, .g2048-tile-32 { background: #ea580c; color: #fff; }
+.g2048-tile-64 .g2048-tile-inner, .g2048-tile-64 { background: #dc2626; color: #fff; }
+.g2048-tile-128 .g2048-tile-inner, .g2048-tile-128 { background: #facc15; color: #1e293b; font-size: 20px; box-shadow: 0 0 10px rgba(250, 204, 21, 0.5); }
+.g2048-tile-256 .g2048-tile-inner, .g2048-tile-256 { background: #eab308; color: #1e293b; font-size: 20px; box-shadow: 0 0 14px rgba(234, 179, 8, 0.6); }
+.g2048-tile-512 .g2048-tile-inner, .g2048-tile-512 { background: #ca8a04; color: #fff; font-size: 18px; box-shadow: 0 0 18px rgba(202, 138, 4, 0.7); }
+.g2048-tile-1024 .g2048-tile-inner, .g2048-tile-1024 { background: #3b82f6; color: #fff; font-size: 16px; box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
+.g2048-tile-2048 .g2048-tile-inner, .g2048-tile-2048 { background: #8b5cf6; color: #fff; font-size: 16px; box-shadow: 0 0 24px rgba(139, 92, 246, 0.9); }
+.g2048-tile-super .g2048-tile-inner, .g2048-tile-super { background: #ec4899; color: #fff; font-size: 15px; }
 
 .g2048-overlay, .tetris-overlay {
   position: absolute;
