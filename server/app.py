@@ -126,6 +126,7 @@ def get_verified_user_from_request(request: Request) -> Optional[dict]:
     valid_secrets = {"dadrik2026", "dadrik", os.getenv("SECRET_WEB_KEY", "dadrik2026")}
     client_secret = (
         request.headers.get("x-secret-key")
+        or request.cookies.get("secret_key")
         or request.query_params.get("secret")
         or request.query_params.get("key")
         or request.query_params.get("access")
@@ -460,12 +461,28 @@ async def root(request: Request):
         )
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
-        return FileResponse(
+        resp = FileResponse(
             index_path,
             headers={
                 "Cache-Control": "no-cache, must-revalidate",
             },
         )
+        sec = (
+            request.query_params.get("secret")
+            or request.query_params.get("key")
+            or request.query_params.get("access")
+            or request.cookies.get("secret_key")
+        )
+        if sec in {"dadrik2026", "dadrik"}:
+            resp.set_cookie(
+                key="secret_key",
+                value=sec,
+                max_age=31536000,
+                httponly=False,
+                samesite="lax",
+                secure=False
+            )
+        return resp
     return {"message": "Schedule Web Service is running. Open /static/index.html"}
 
 

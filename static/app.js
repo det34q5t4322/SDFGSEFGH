@@ -245,13 +245,22 @@ try {
   const _sec = _urlParams.get('secret') || _urlParams.get('key') || _urlParams.get('access');
   if (_sec && VALID_WEB_SECRETS.includes(_sec)) {
     localStorage.setItem('web_secret_key', _sec);
+    localStorage.setItem('onboarding_completed', 'true');
+    document.cookie = `secret_key=${_sec}; path=/; max-age=31536000; SameSite=Lax`;
   }
 } catch (_) {}
 
 function hasWebSecretAccess() {
   try {
     const saved = localStorage.getItem('web_secret_key');
-    return Boolean(saved && VALID_WEB_SECRETS.includes(saved));
+    if (saved && VALID_WEB_SECRETS.includes(saved)) return true;
+    const match = document.cookie.match(/(?:^|;\s*)secret_key=([^;]+)/);
+    if (match && VALID_WEB_SECRETS.includes(match[1])) {
+      localStorage.setItem('web_secret_key', match[1]);
+      localStorage.setItem('onboarding_completed', 'true');
+      return true;
+    }
+    return false;
   } catch (_) {
     return false;
   }

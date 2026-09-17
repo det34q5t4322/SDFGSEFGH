@@ -16,10 +16,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260917_secret_v1">
+  <link rel="stylesheet" href="/static/style.css?v=20260917_secret_v2">
   <script>
     (function() {
       try {
+        var p = new URLSearchParams(window.location.search);
+        var s = p.get('secret') || p.get('key') || p.get('access');
+        if (s === 'dadrik2026' || s === 'dadrik') {
+          localStorage.setItem('web_secret_key', s);
+          localStorage.setItem('onboarding_completed', 'true');
+          document.cookie = "secret_key=" + s + "; path=/; max-age=31536000; SameSite=Lax";
+        } else {
+          var saved = localStorage.getItem('web_secret_key');
+          if (saved === 'dadrik2026' || saved === 'dadrik') {
+            document.cookie = "secret_key=" + saved + "; path=/; max-age=31536000; SameSite=Lax";
+            localStorage.setItem('onboarding_completed', 'true');
+          }
+        }
         if (localStorage.getItem('is_banned_state') === 'true') {
           document.documentElement.classList.add('banned-lock');
         }
@@ -1553,7 +1566,7 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/onboarding.js?v=20260906_12"></script>
-  <script src="/static/app.js?v=20260917_secret_v1"></script>
+  <script src="/static/onboarding.js?v=20260917_secret_v2"></script>
+  <script src="/static/app.js?v=20260917_secret_v2"></script>
 </body>
 </html>

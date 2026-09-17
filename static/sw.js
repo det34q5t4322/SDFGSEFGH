@@ -2,7 +2,7 @@
    COLLEGE SCHEDULE APP — Resilient Offline Service Worker
    ════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'college-schedule-v16';
+const CACHE_NAME = 'college-schedule-v17';
 
 const STATIC_ASSETS = [
   '/',
@@ -45,6 +45,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   if (req.method !== 'GET' || !url.protocol.startsWith('http')) return;
+  if (url.searchParams.has('secret') || url.searchParams.has('key') || url.searchParams.has('access')) return;
 
   // 1. Navigation requests (opening the web page)
   if (req.mode === 'navigate') {
