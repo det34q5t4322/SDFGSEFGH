@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260920_v3">
+  <link rel="stylesheet" href="/static/style.css?v=20260920_v4">
   <script>
     (function() {
       try {
@@ -1270,59 +1270,60 @@
         <!-- 1. Каталог игр -->
         <div class="games-catalog-view" id="gamesCatalogView">
           <div class="games-catalog-intro">
-            Быстрые игры между парами без интернета и рекламы. Рекорды и время сохраняются в профиле!
+            Быстрые игры между парами без интернета и рекламы. Рекорды сохраняются в профиле!
           </div>
 
           <div class="games-grid">
             <!-- Игра 1: 2048 -->
-            <div class="game-card" onclick="openGame('2048')">
+            <div class="game-card" onclick="openGame('2048')" role="button" tabindex="0">
               <div class="game-card-icon-wrap" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(249, 115, 22, 0.2)); color: #eab308;">
-                <span style="font-weight:900; font-size:18px; font-family:monospace;">2048</span>
+                <span style="font-weight:900; font-size:16px; font-family:monospace;">2048</span>
               </div>
-              <div class="game-card-content">
-                <div class="game-card-title">2048</div>
-                <div class="game-card-desc">Объединяйте плитки с числами, двигая поле свайпами или стрелками.</div>
-                <div class="game-card-meta">
-                  <span class="game-badge">Рекорд: <b id="catalogBest2048">0</b></span>
-                </div>
+              <div class="game-card-title">2048</div>
+              <div class="game-card-meta">
+                <span class="game-badge">Рекорд: <b id="catalogBest2048">0</b></span>
               </div>
-              <button class="game-card-play-btn" type="button" aria-label="Играть в 2048">
-                <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              </button>
             </div>
 
             <!-- Игра 2: Тетрис -->
-            <div class="game-card" onclick="openGame('tetris')">
+            <div class="game-card" onclick="openGame('tetris')" role="button" tabindex="0">
               <div class="game-card-icon-wrap" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(168, 85, 247, 0.2)); color: #60a5fa;">
-                <svg class="lucide-icon" viewBox="0 0 24 24" width="24" height="24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               </div>
-              <div class="game-card-content">
-                <div class="game-card-title">Тетрис</div>
-                <div class="game-card-desc">Классическая головоломка с падающими фигурами и набором очков за линии.</div>
-                <div class="game-card-meta">
-                  <span class="game-badge">Рекорд: <b id="catalogBestTetris">0</b></span>
-                </div>
+              <div class="game-card-title">Тетрис</div>
+              <div class="game-card-meta">
+                <span class="game-badge">Рекорд: <b id="catalogBestTetris">0</b></span>
               </div>
-              <button class="game-card-play-btn" type="button" aria-label="Играть в Тетрис">
-                <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              </button>
             </div>
 
             <!-- Игра 3: Сапёр -->
-            <div class="game-card" onclick="openGame('minesweeper')">
+            <div class="game-card" onclick="openGame('minesweeper')" role="button" tabindex="0">
               <div class="game-card-icon-wrap" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(244, 63, 94, 0.2)); color: #f87171;">
-                <svg class="lucide-icon" viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="13" r="7"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="3" y1="13" x2="5" y2="13"/><line x1="19" y1="13" x2="21" y2="13"/></svg>
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="13" r="7"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="3" y1="13" x2="5" y2="13"/><line x1="19" y1="13" x2="21" y2="13"/></svg>
               </div>
-              <div class="game-card-content">
-                <div class="game-card-title">Сапёр</div>
-                <div class="game-card-desc">Обезвредьте минное поле с безопасным первым ходом и быстрым аккордом.</div>
-                <div class="game-card-meta">
-                  <span class="game-badge">Лучшее время: <b id="catalogBestMinesweeper">—</b></span>
-                </div>
+              <div class="game-card-title">Сапёр</div>
+              <div class="game-card-meta">
+                <span class="game-badge">Рекорд: <b id="catalogBestMinesweeper">—</b></span>
               </div>
-              <button class="game-card-play-btn" type="button" aria-label="Играть в Сапёр">
-                <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              </button>
+            </div>
+          </div>
+
+          <!-- Таблица лидеров мини-игр -->
+          <div class="games-leaderboard-section">
+            <div class="games-lb-header">
+              <div class="games-lb-title-wrap">
+                <span class="leaderboard-header-trophy"><svg class="lucide-icon" viewBox="0 0 24 24" style="width:18px;height:18px;color:#eab308;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>
+                <span class="games-lb-title">Таблица лидеров</span>
+              </div>
+              <div class="games-lb-tabs" id="gamesLbTabs" role="tablist">
+                <button class="games-lb-tab active" data-game="2048" onclick="switchGamesLeaderboard('2048')" type="button">2048</button>
+                <button class="games-lb-tab" data-game="tetris" onclick="switchGamesLeaderboard('tetris')" type="button">Тетрис</button>
+                <button class="games-lb-tab" data-game="minesweeper" onclick="switchGamesLeaderboard('minesweeper')" type="button">Сапёр</button>
+              </div>
+            </div>
+
+            <div class="games-lb-list" id="gamesLbList">
+              <div class="admin-empty-state">Загрузка рекордов...</div>
             </div>
           </div>
         </div>
@@ -1566,7 +1567,7 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/onboarding.js?v=20260920_v3"></script>
-  <script src="/static/app.js?v=20260920_v3"></script>
+  <script src="/static/onboarding.js?v=20260920_v4"></script>
+  <script src="/static/app.js?v=20260920_v4"></script>
 </body>
 </html>

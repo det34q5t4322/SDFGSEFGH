@@ -559,7 +559,7 @@ def get_user_game_stats(telegram_id: Optional[int] = None) -> Dict[str, Any]:
                       WHERE banned_until IS NULL OR banned_until > ?
                   )
                 ORDER BY g.high_score DESC
-                LIMIT 5
+                LIMIT 10
             ''', (gid, now_iso))
             leaderboards[gid] = [dict(r) for r in cursor.fetchall()]
 

@@ -113,8 +113,8 @@ def get_webapp_url(group: Optional[str] = None) -> Optional[str]:
     base = WEB_APP_URL.rstrip("/") + "/"
     sep = "&" if "?" in base else "?"
     if group:
-        return f"{base}{sep}v=20260920_v3&group={urllib.parse.quote(group)}"
-    return f"{base}{sep}v=20260920_v3"
+        return f"{base}{sep}v=20260920_v4&group={urllib.parse.quote(group)}"
+    return f"{base}{sep}v=20260920_v4"
 
 
 def set_user_group(user_id: int, username: str, group: str) -> None:

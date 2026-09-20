@@ -7630,6 +7630,117 @@ window.backToGamesCatalog = function() {
   updateGamesCatalogScores();
 };
 
+let _gamesStatsCache = null;
+let _activeGamesLbTab = '2048';
+
+window.switchGamesLeaderboard = function(gameId) {
+  _activeGamesLbTab = gameId;
+  const tabs = document.querySelectorAll('#gamesLbTabs .games-lb-tab');
+  tabs.forEach(tab => {
+    if (tab.dataset.game === gameId) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
+  window.renderGamesLeaderboard(gameId);
+};
+
+window.renderGamesLeaderboard = function(gameId = _activeGamesLbTab) {
+  const listEl = document.getElementById('gamesLbList');
+  if (!listEl) return;
+
+  if (!_gamesStatsCache) {
+    listEl.innerHTML = '<div class="admin-empty-state">Загрузка рекордов...</div>';
+    return;
+  }
+
+  const items = _gamesStatsCache?.leaderboards?.[gameId] || [];
+  if (items.length === 0) {
+    listEl.innerHTML = `
+      <div class="admin-empty-state" style="padding: 16px 10px;">
+        Пока нет рекордов в ${GAME_NAMES[gameId] || gameId}.<br>Сыграйте первым, чтобы попасть в топ!
+      </div>
+    `;
+    return;
+  }
+
+  let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  if (!tgUser) {
+    try {
+      const widgetStored = localStorage.getItem('tg_widget_user');
+      if (widgetStored) tgUser = JSON.parse(widgetStored);
+    } catch (_) {}
+  }
+  const currentUid = tgUser?.id;
+
+  let html = '';
+  items.forEach((u, idx) => {
+    const rankNum = idx + 1;
+    const isTop1 = rankNum === 1;
+    const isTop2 = rankNum === 2;
+    const isTop3 = rankNum === 3;
+    const isMe = currentUid && u.telegram_id === currentUid;
+
+    let rankBadgeHtml = '';
+    let rowClass = 'leaderboard-item-row';
+    if (isTop1) {
+      rowClass += ' rank-top-1';
+      rankBadgeHtml = `
+        <div class="leaderboard-rank-badge rank-1" title="1 место">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>
+        </div>
+      `;
+    } else if (isTop2) {
+      rowClass += ' rank-top-2';
+      rankBadgeHtml = `
+        <div class="leaderboard-rank-badge rank-2" title="2 место">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+        </div>
+      `;
+    } else if (isTop3) {
+      rowClass += ' rank-top-3';
+      rankBadgeHtml = `
+        <div class="leaderboard-rank-badge rank-3" title="3 место">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+        </div>
+      `;
+    } else {
+      rankBadgeHtml = `<div class="leaderboard-rank-badge rank-other">#${rankNum}</div>`;
+    }
+
+    if (isMe) rowClass += ' is-me';
+
+    const displayName = esc(u.display_name || u.first_name || (u.username ? `@${u.username}` : `Игрок #${u.telegram_id}`));
+    const displayGroup = esc(u.selected_group || 'Колледж');
+    const scoreVal = Number(u.high_score || 0).toLocaleString('ru-RU');
+
+    const avatarHtml = u.photo_url
+      ? `<img src="${esc(u.photo_url)}" alt="${displayName}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><div style="display:none;" class="leaderboard-avatar-fallback"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>`
+      : `<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>`;
+
+    html += `
+      <div class="${rowClass}">
+        ${rankBadgeHtml}
+        <div class="leaderboard-item-avatar">
+          ${avatarHtml}
+        </div>
+        <div class="leaderboard-item-info">
+          <div class="leaderboard-item-name-line">
+            <span class="leaderboard-item-name">${displayName}${isMe ? ' (Вы)' : ''}</span>
+          </div>
+          <span class="leaderboard-item-group">${displayGroup}</span>
+        </div>
+        <div class="games-lb-score-pill">
+          <span>${scoreVal}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  listEl.innerHTML = html;
+};
+
 window.updateGamesCatalogScores = async function() {
   const b2048 = localStorage.getItem('game_2048_best') || '0';
   const bTetris = localStorage.getItem('game_tetris_best') || '0';
@@ -7643,10 +7754,14 @@ window.updateGamesCatalogScores = async function() {
   if (elTetris) elTetris.textContent = bTetris;
   if (elMine) elMine.textContent = bMine ? `${bMine}с` : '—';
 
+  // Отрендерить таблицу лидеров если есть кэш
+  window.renderGamesLeaderboard(_activeGamesLbTab);
+
   try {
     const res = await fetchWithTimeout(`${API}/games/stats`, { headers: getAuthHeaders() }, 4000);
     if (res.ok) {
       const data = await res.json();
+      _gamesStatsCache = data;
       const my = data.my_stats || {};
       if (my['2048'] && my['2048'].high_score > parseInt(b2048, 10)) {
         localStorage.setItem('game_2048_best', String(my['2048'].high_score));
@@ -7656,6 +7771,7 @@ window.updateGamesCatalogScores = async function() {
         localStorage.setItem('game_tetris_best', String(my['tetris'].high_score));
         if (elTetris) elTetris.textContent = my['tetris'].high_score;
       }
+      window.renderGamesLeaderboard(_activeGamesLbTab);
     }
   } catch (_) {}
 };
@@ -7681,7 +7797,7 @@ window.openGame = async function(gameId) {
   _lastGamePingTime = Date.now();
 
   try {
-    const module = await import(`/static/games/${gameId}.js?v=20260920_v3`);
+    const module = await import(`/static/games/${gameId}.js?v=20260920_v4`);
     if (viewport) viewport.innerHTML = '';
     _activeGameInstance = module.mount(viewport, {
       onScoreUpdate: (score, best) => {
