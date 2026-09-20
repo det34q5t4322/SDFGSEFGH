@@ -7713,7 +7713,21 @@ window.renderGamesLeaderboard = function(gameId = _activeGamesLbTab) {
 
     const displayName = esc(u.display_name || u.first_name || (u.username ? `@${u.username}` : `Игрок #${u.telegram_id}`));
     const displayGroup = esc(u.selected_group || 'Колледж');
-    const scoreVal = Number(u.high_score || 0).toLocaleString('ru-RU');
+    let scoreVal = '';
+    if (gameId === 'minesweeper') {
+      const sec = u.best_time_seconds || (u.high_score > 0 ? Math.max(1, Math.round(10000 / u.high_score)) : 0);
+      if (sec <= 0) {
+        scoreVal = '—';
+      } else if (sec < 60) {
+        scoreVal = `${sec} сек`;
+      } else {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        scoreVal = `${m}м ${s < 10 ? '0' + s : s}с`;
+      }
+    } else {
+      scoreVal = Number(u.high_score || 0).toLocaleString('ru-RU');
+    }
 
     const avatarHtml = u.photo_url
       ? `<img src="${esc(u.photo_url)}" alt="${displayName}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><div style="display:none;" class="leaderboard-avatar-fallback"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>`
@@ -7771,6 +7785,13 @@ window.updateGamesCatalogScores = async function() {
         localStorage.setItem('game_tetris_best', String(my['tetris'].high_score));
         if (elTetris) elTetris.textContent = my['tetris'].high_score;
       }
+      if (my['minesweeper'] && my['minesweeper'].high_score > 0) {
+        const serverSec = my['minesweeper'].best_time_seconds || Math.max(1, Math.round(10000 / my['minesweeper'].high_score));
+        const localSec = parseInt(bMine, 10) || 999999;
+        const bestSec = Math.min(serverSec, localSec);
+        localStorage.setItem('game_minesweeper_best', String(bestSec));
+        if (elMine) elMine.textContent = `${bestSec}с`;
+      }
       window.renderGamesLeaderboard(_activeGamesLbTab);
     }
   } catch (_) {}
@@ -7797,7 +7818,7 @@ window.openGame = async function(gameId) {
   _lastGamePingTime = Date.now();
 
   try {
-    const module = await import(`/static/games/${gameId}.js?v=20260920_v4`);
+    const module = await import(`/static/games/${gameId}.js?v=20260920_v5`);
     if (viewport) viewport.innerHTML = '';
     _activeGameInstance = module.mount(viewport, {
       onScoreUpdate: (score, best) => {
@@ -7815,7 +7836,7 @@ window.openGame = async function(gameId) {
       },
       onGameOver: (score, won) => {
         _activeGameScore = score;
-        flushGameActivity();
+        flushGameActivity(true);
       }
     });
 
@@ -7849,9 +7870,10 @@ function stopGameTimeBatcher() {
   }
 }
 
-async function flushGameActivity() {
-  if (!_activeGameId || _accumulatedGameDelta < 5) {
-    return; // Don't ping if less than 5 seconds (strict batching)
+async function flushGameActivity(force = false) {
+  if (!_activeGameId) return;
+  if (!force && _accumulatedGameDelta < 5 && !_activeGameScore) {
+    return; // Don't ping if less than 5 seconds unless forced or has score
   }
   const deltaToSend = _accumulatedGameDelta;
   const gameIdToSend = _activeGameId;

@@ -561,7 +561,16 @@ def get_user_game_stats(telegram_id: Optional[int] = None) -> Dict[str, Any]:
                 ORDER BY g.high_score DESC
                 LIMIT 10
             ''', (gid, now_iso))
-            leaderboards[gid] = [dict(r) for r in cursor.fetchall()]
+            rows = [dict(r) for r in cursor.fetchall()]
+            if gid == "minesweeper":
+                for r in rows:
+                    hs = r.get("high_score", 0)
+                    r["best_time_seconds"] = max(1, round(10000 / hs)) if hs > 0 else None
+            leaderboards[gid] = rows
+
+        if "minesweeper" in user_stats:
+            m_hs = user_stats["minesweeper"].get("high_score", 0)
+            user_stats["minesweeper"]["best_time_seconds"] = max(1, round(10000 / m_hs)) if m_hs > 0 else None
 
         return {
             "my_stats": user_stats,
