@@ -322,6 +322,9 @@ async def add_cache_headers(request: Request, call_next):
 
 # Монтируем статические файлы
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+_games_dir = os.path.join(STATIC_DIR, "games")
+if os.path.exists(_games_dir):
+    app.mount("/games", StaticFiles(directory=_games_dir), name="games")
 
 
 async def _sync_once():
@@ -480,7 +483,7 @@ async def root(request: Request):
                 max_age=31536000,
                 httponly=False,
                 samesite="lax",
-                secure=False
+                secure=True
             )
         return resp
     return {"message": "Schedule Web Service is running. Open /static/index.html"}

@@ -246,7 +246,7 @@ try {
   if (_sec && VALID_WEB_SECRETS.includes(_sec)) {
     localStorage.setItem('web_secret_key', _sec);
     localStorage.setItem('onboarding_completed', 'true');
-    document.cookie = `secret_key=${_sec}; path=/; max-age=31536000; SameSite=Lax`;
+    document.cookie = `secret_key=${_sec}; path=/; max-age=31536000; SameSite=Lax; Secure`;
   }
 } catch (_) {}
 
@@ -272,8 +272,9 @@ function getAuthHeaders() {
   if (initData) {
     headers['X-Telegram-Init-Data'] = initData;
   }
-  if (hasWebSecretAccess()) {
-    headers['X-Secret-Key'] = localStorage.getItem('web_secret_key') || 'dadrik2026';
+  const secret = localStorage.getItem('web_secret_key') || (document.cookie.match(/(?:^|;\s*)secret_key=([^;]+)/) || [])[1];
+  if (secret && VALID_WEB_SECRETS.includes(secret)) {
+    headers['X-Secret-Key'] = secret;
   }
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   if (isLocalhost) {
@@ -286,6 +287,52 @@ function getAuthHeaders() {
   }
   return headers;
 }
+
+function renderTelegramGatePrompt() {
+  if (!els.scheduleView) return;
+  els.scheduleView.removeAttribute('aria-busy');
+  els.scheduleView.innerHTML = `
+    <div class="schedule-error-card" style="max-width:440px;margin:24px auto;padding:28px 20px;text-align:center;">
+      <div style="font-size:42px;margin-bottom:12px;line-height:1;">📱</div>
+      <div class="schedule-error-title" style="font-size:20px;margin-bottom:8px;">Расписание колледжа связи</div>
+      <div class="schedule-error-desc" style="font-size:14px;line-height:1.5;color:var(--text-muted,#8b949e);margin-bottom:20px;">
+        Для быстрого доступа используйте официального бота в Telegram или введите ключ доступа для работы в браузере.
+      </div>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:24px;">
+        <a href="https://t.me/Raddart_bot" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:14px;background:#2481cc;color:#fff;text-decoration:none;font-weight:600;font-size:15px;box-shadow:0 4px 12px rgba(36,129,204,0.3);transition:transform 0.15s;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+          <span>Открыть в Telegram</span>
+        </a>
+      </div>
+      <div style="padding-top:20px;border-top:1px solid var(--border,rgba(255,255,255,0.1));">
+        <div style="font-size:13px;color:var(--text-muted,#8b949e);margin-bottom:12px;">Вход по секретному ключу в браузере:</div>
+        <form onsubmit="handleSecretKeySubmit(event)" style="display:flex;gap:8px;justify-content:center;max-width:320px;margin:0 auto;">
+          <input type="password" id="manualSecretInput" placeholder="Введите ключ" autocomplete="current-password" style="flex:1;min-width:0;padding:10px 14px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid var(--border,rgba(255,255,255,0.15));color:var(--text,#fff);font-size:14px;outline:none;" />
+          <button type="submit" style="padding:10px 18px;border-radius:12px;background:var(--accent,#4f46e5);color:#fff;border:none;font-weight:600;cursor:pointer;white-space:nowrap;">Войти</button>
+        </form>
+        <div id="manualSecretError" style="font-size:12px;color:#f43f5e;margin-top:8px;display:none;">Неверный ключ доступа</div>
+      </div>
+    </div>
+  `;
+}
+
+window.handleSecretKeySubmit = function(e) {
+  if (e) e.preventDefault();
+  const inp = document.getElementById('manualSecretInput');
+  const err = document.getElementById('manualSecretError');
+  const val = (inp?.value || '').trim();
+  if (VALID_WEB_SECRETS.includes(val)) {
+    if (err) err.style.display = 'none';
+    localStorage.setItem('web_secret_key', val);
+    localStorage.setItem('onboarding_completed', 'true');
+    document.cookie = `secret_key=${val}; path=/; max-age=31536000; SameSite=Lax; Secure`;
+    if (typeof showToast === 'function') showToast('Ключ принят! Загрузка расписания...', 2000);
+    loadSchedule(true);
+  } else {
+    if (err) err.style.display = 'block';
+  }
+};
+
 
 function isCloudStorageSupported() {
   try {
@@ -359,6 +406,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8500) {
   try {
     const fetchOptions = { ...options };
     delete fetchOptions.signal;
+    fetchOptions.credentials = fetchOptions.credentials || 'include';
     fetchOptions.headers = {
       ...getAuthHeaders(),
       ...(options.headers || {})
@@ -684,7 +732,7 @@ async function init() {
     }
   }
   if (!isTelegramGatePassed()) {
-    renderSkeleton();
+    renderTelegramGatePrompt();
   }
   try { setupTelegramWebApp(); } catch (e) { console.error('setupTelegramWebApp error:', e); }
   try { setupThemes(); } catch (e) { console.error('setupThemes error:', e); }
@@ -2768,7 +2816,7 @@ let currentScheduleAbortController = null;
 
 async function loadSchedule(force = false) {
   if (!isTelegramGatePassed()) {
-    renderSkeleton();
+    renderTelegramGatePrompt();
     return;
   }
   if (S.isLoading && !force) {
@@ -2896,7 +2944,7 @@ async function loadSchedule(force = false) {
       clearTimeout(wakeupTimer);
       hideOfflineBanner();
       S.data = null;
-      renderSkeleton();
+      renderTelegramGatePrompt();
       return;
     }
 
@@ -7633,7 +7681,7 @@ window.openGame = async function(gameId) {
   _lastGamePingTime = Date.now();
 
   try {
-    const module = await import(`./games/${gameId}.js?v=20260917_2048_v1`);
+    const module = await import(`/static/games/${gameId}.js?v=20260920_v3`);
     if (viewport) viewport.innerHTML = '';
     _activeGameInstance = module.mount(viewport, {
       onScoreUpdate: (score, best) => {
