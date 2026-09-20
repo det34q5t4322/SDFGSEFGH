@@ -7573,7 +7573,9 @@ let _lastGamePingTime = 0;
 const GAME_NAMES = {
   '2048': '2048',
   'tetris': 'Тетрис',
-  'minesweeper': 'Сапёр'
+  'minesweeper': 'Сапёр',
+  'snake': 'Змейка',
+  'flappy': 'Flappy Студент'
 };
 
 window._getGameDebugState = function() {
@@ -7759,14 +7761,20 @@ window.updateGamesCatalogScores = async function() {
   const b2048 = localStorage.getItem('game_2048_best') || '0';
   const bTetris = localStorage.getItem('game_tetris_best') || '0';
   const bMine = localStorage.getItem('game_minesweeper_best') || '';
+  const bSnake = localStorage.getItem('game_snake_best') || '0';
+  const bFlappy = localStorage.getItem('game_flappy_best') || '0';
 
   const el2048 = document.getElementById('catalogBest2048');
   const elTetris = document.getElementById('catalogBestTetris');
   const elMine = document.getElementById('catalogBestMinesweeper');
+  const elSnake = document.getElementById('catalogBestSnake');
+  const elFlappy = document.getElementById('catalogBestFlappy');
 
   if (el2048) el2048.textContent = b2048;
   if (elTetris) elTetris.textContent = bTetris;
   if (elMine) elMine.textContent = bMine ? `${bMine}с` : '—';
+  if (elSnake) elSnake.textContent = bSnake;
+  if (elFlappy) elFlappy.textContent = bFlappy;
 
   // Отрендерить таблицу лидеров если есть кэш
   window.renderGamesLeaderboard(_activeGamesLbTab);
@@ -7791,6 +7799,14 @@ window.updateGamesCatalogScores = async function() {
         const bestSec = Math.min(serverSec, localSec);
         localStorage.setItem('game_minesweeper_best', String(bestSec));
         if (elMine) elMine.textContent = `${bestSec}с`;
+      }
+      if (my['snake'] && my['snake'].high_score > parseInt(bSnake, 10)) {
+        localStorage.setItem('game_snake_best', String(my['snake'].high_score));
+        if (elSnake) elSnake.textContent = my['snake'].high_score;
+      }
+      if (my['flappy'] && my['flappy'].high_score > parseInt(bFlappy, 10)) {
+        localStorage.setItem('game_flappy_best', String(my['flappy'].high_score));
+        if (elFlappy) elFlappy.textContent = my['flappy'].high_score;
       }
       window.renderGamesLeaderboard(_activeGamesLbTab);
     }
@@ -7818,7 +7834,7 @@ window.openGame = async function(gameId) {
   _lastGamePingTime = Date.now();
 
   try {
-    const module = await import(`/static/games/${gameId}.js?v=20260920_v5`);
+    const module = await import(`/static/games/${gameId}.js?v=20260920_v6`);
     if (viewport) viewport.innerHTML = '';
     _activeGameInstance = module.mount(viewport, {
       onScoreUpdate: (score, best) => {
@@ -7832,6 +7848,12 @@ window.openGame = async function(gameId) {
         } else if (gameId === 'minesweeper') {
           const el = document.getElementById('catalogBestMinesweeper');
           if (el) el.textContent = `${best}с`;
+        } else if (gameId === 'snake') {
+          const el = document.getElementById('catalogBestSnake');
+          if (el) el.textContent = best;
+        } else if (gameId === 'flappy') {
+          const el = document.getElementById('catalogBestFlappy');
+          if (el) el.textContent = best;
         }
       },
       onGameOver: (score, won) => {

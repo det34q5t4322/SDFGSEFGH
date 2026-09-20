@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260920_v5">
+  <link rel="stylesheet" href="/static/style.css?v=20260920_v6">
   <script>
     (function() {
       try {
@@ -1306,6 +1306,28 @@
                 <span class="game-badge">Рекорд: <b id="catalogBestMinesweeper">—</b></span>
               </div>
             </div>
+
+            <!-- Игра 4: Змейка -->
+            <div class="game-card" onclick="openGame('snake')" role="button" tabindex="0">
+              <div class="game-card-icon-wrap" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.2)); color: #10b981;">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22"><path d="M12 2c5.523 0 10 4.477 10 10a10 10 0 0 1-19.9 1.5"/><path d="M7 13.5A3.5 3.5 0 0 0 10.5 17h3a3.5 3.5 0 0 0 3.5-3.5v-3A3.5 3.5 0 0 0 13.5 7h-3A3.5 3.5 0 0 0 7 10.5v3z"/><circle cx="10" cy="10" r="1" fill="currentColor"/></svg>
+              </div>
+              <div class="game-card-title">Змейка</div>
+              <div class="game-card-meta">
+                <span class="game-badge">Рекорд: <b id="catalogBestSnake">0</b></span>
+              </div>
+            </div>
+
+            <!-- Игра 5: Flappy -->
+            <div class="game-card" onclick="openGame('flappy')" role="button" tabindex="0">
+              <div class="game-card-icon-wrap" style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.2)); color: #38bdf8;">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22"><path d="M16 7h.01"/><path d="M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.28-2.3L2 18z"/><path d="m20 7 2 .5-2 1.5"/><path d="M10 18v3"/></svg>
+              </div>
+              <div class="game-card-title">Flappy</div>
+              <div class="game-card-meta">
+                <span class="game-badge">Рекорд: <b id="catalogBestFlappy">0</b></span>
+              </div>
+            </div>
           </div>
 
           <!-- Таблица лидеров мини-игр -->
@@ -1319,6 +1341,8 @@
                 <button class="games-lb-tab active" data-game="2048" onclick="switchGamesLeaderboard('2048')" type="button">2048</button>
                 <button class="games-lb-tab" data-game="tetris" onclick="switchGamesLeaderboard('tetris')" type="button">Тетрис</button>
                 <button class="games-lb-tab" data-game="minesweeper" onclick="switchGamesLeaderboard('minesweeper')" type="button">Сапёр</button>
+                <button class="games-lb-tab" data-game="snake" onclick="switchGamesLeaderboard('snake')" type="button">Змейка</button>
+                <button class="games-lb-tab" data-game="flappy" onclick="switchGamesLeaderboard('flappy')" type="button">Flappy</button>
               </div>
             </div>
 
@@ -1567,7 +1591,7 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/onboarding.js?v=20260920_v5"></script>
-  <script src="/static/app.js?v=20260920_v5"></script>
+  <script src="/static/onboarding.js?v=20260920_v6"></script>
+  <script src="/static/app.js?v=20260920_v6"></script>
 </body>
 </html>

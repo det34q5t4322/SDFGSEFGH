@@ -10716,10 +10716,22 @@ html.banned-lock #endlessBanLoader {
 }
 
 .games-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
   gap: 8px;
   width: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+.games-grid::-webkit-scrollbar {
+  height: 4px;
+}
+.games-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
 }
 
 .game-card {
@@ -10737,7 +10749,9 @@ html.banned-lock #endlessBanLoader {
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
   user-select: none;
   -webkit-user-select: none;
-  min-width: 0;
+  flex: 0 0 100px;
+  scroll-snap-align: start;
+  box-sizing: border-box;
 }
 .game-card:hover {
   border-color: var(--accent, #6366f1);
@@ -10842,18 +10856,27 @@ html.banned-lock #endlessBanLoader {
   padding: 3px;
   border-radius: 10px;
   border: 1px solid var(--border);
+  overflow-x: auto;
+  max-width: 100%;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.games-lb-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .games-lb-tab {
   background: transparent;
   border: none;
   color: var(--text-muted, #94a3b8);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 7px;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .games-lb-tab:hover {
   color: var(--text-primary);
@@ -11372,5 +11395,156 @@ html.banned-lock #endlessBanLoader {
 .ms-cell.num-7 { color: #e2e8f0; }
 .ms-cell.num-8 { color: #94a3b8; }
 
+/* ── SNAKE STYLES ── */
+.snake-game-wrap {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
+.snake-canvas-container {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 1 / 1;
+  background: #0b1329;
+  border: 2px solid var(--border);
+  border-radius: var(--card-radius, 14px);
+  overflow: hidden;
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.6);
+  touch-action: none;
+}
 
+#snakeCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.snake-overlay, .flappy-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 16px;
+  text-align: center;
+}
+
+.snake-overlay-card, .flappy-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.snake-overlay-title, .flappy-overlay-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.snake-overlay-score, .flappy-overlay-score {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+}
+
+.snake-overlay-btn, .flappy-overlay-btn {
+  padding: 8px 18px;
+  border-radius: 10px;
+  background: var(--accent, #6366f1);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.snake-overlay-btn:active, .flappy-overlay-btn:active {
+  transform: scale(0.94);
+}
+
+.snake-dpad {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 220px;
+}
+
+.snake-dpad-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.snake-dpad-btn {
+  width: 52px;
+  height: 46px;
+  border-radius: 10px;
+  background: var(--bg-card2, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: all 0.12s ease;
+}
+.snake-dpad-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+.snake-dpad-btn:active {
+  transform: scale(0.92);
+  background: var(--accent, #6366f1);
+  color: #fff;
+}
+
+.snake-dpad-center {
+  width: 52px;
+  height: 46px;
+}
+
+/* ── FLAPPY STYLES ── */
+.flappy-game-wrap {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.flappy-canvas-container {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 320 / 460;
+  max-height: 440px;
+  background: #070d1e;
+  border: 2px solid var(--border);
+  border-radius: var(--card-radius, 14px);
+  overflow: hidden;
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.6);
+  touch-action: none;
+}
+
+#flappyCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

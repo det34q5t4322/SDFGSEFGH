@@ -2,7 +2,7 @@
    COLLEGE SCHEDULE APP — Resilient Offline Service Worker
    ════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'college-schedule-v20';
+const CACHE_NAME = 'college-schedule-v21';
 
 const STATIC_ASSETS = [
   '/',
@@ -13,7 +13,9 @@ const STATIC_ASSETS = [
   '/static/telegram-web-app.js',
   '/static/games/2048.js',
   '/static/games/tetris.js',
-  '/static/games/minesweeper.js'
+  '/static/games/minesweeper.js',
+  '/static/games/snake.js',
+  '/static/games/flappy.js'
 ];
 
 self.addEventListener('install', (event) => {

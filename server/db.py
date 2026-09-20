@@ -479,7 +479,7 @@ def record_game_stats(
     if not telegram_id or telegram_id <= 0 or not game_id:
         return {}
     clean_game_id = str(game_id).strip().lower()
-    if clean_game_id not in ("2048", "tetris", "minesweeper"):
+    if clean_game_id not in ("2048", "tetris", "minesweeper", "snake", "flappy"):
         return {}
 
     valid_time_delta = min(max(0, int(time_delta or 0)), 120)
@@ -545,7 +545,7 @@ def get_user_game_stats(telegram_id: Optional[int] = None) -> Dict[str, Any]:
 
         leaderboards = {}
         now_iso = datetime.now().isoformat()
-        for gid in ("2048", "tetris", "minesweeper"):
+        for gid in ("2048", "tetris", "minesweeper", "snake", "flappy"):
             cursor.execute('''
                 SELECT g.telegram_id, g.high_score, g.total_time_seconds,
                        COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Игрок') as display_name,
