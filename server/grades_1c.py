@@ -9,11 +9,24 @@ import ast
 import json
 import logging
 import re
+import asyncio
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Глобальный семафор для предотвращения спама и перегрузки сервера 1С:
+# не более 2 параллельных активных сессий взаимодействия с 1С одновременно.
+# Все остальные запросы безопасно ожидают в неблокирующей асинхронной очереди.
+_ONEC_SEMAPHORE: Optional[asyncio.Semaphore] = None
+
+
+def _get_onec_semaphore() -> asyncio.Semaphore:
+    global _ONEC_SEMAPHORE
+    if _ONEC_SEMAPHORE is None:
+        _ONEC_SEMAPHORE = asyncio.Semaphore(2)
+    return _ONEC_SEMAPHORE
 
 BASE_URL = "https://online-obr-e5cloud-02-gpt-msk.1c.ru"
 DEFAULT_DB_NAME = "moskva_kolledzh_telekommunikatcii_mtusi"
@@ -208,214 +221,216 @@ class OneCGradessClient:
         Принимает ФИО или GUID студента и пароль.
         Возвращает (успех, сообщение_об_ошибке).
         """
-        await self.init_session()
+        async with _get_onec_semaphore():
+            await self.init_session()
 
-        matched_group_name, group_id = resolve_group_info(group)
-        guid = login_or_fio.strip()
-        full_name = login_or_fio.strip()
+            matched_group_name, group_id = resolve_group_info(group)
+            guid = login_or_fio.strip()
+            full_name = login_or_fio.strip()
 
-        # Если передан не GUID, ищем по списку студентов
-        if not re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", guid):
-            student_info = await self.find_student_info(login_or_fio, group_id=group_id, group_name_hint=matched_group_name)
-            if student_info:
-                guid, full_name, matched_group_name = student_info
-            else:
-                # Попробуем поискать по другим группам
-                for other_gname, other_gid in KNOWN_GROUPS.items():
-                    if other_gid != group_id:
-                        fallback_info = await self.find_student_info(login_or_fio, group_id=other_gid, group_name_hint=other_gname)
-                        if fallback_info:
-                            guid, full_name, matched_group_name = fallback_info
-                            break
+            # Если передан не GUID, ищем по списку студентов
+            if not re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", guid):
+                student_info = await self.find_student_info(login_or_fio, group_id=group_id, group_name_hint=matched_group_name)
+                if student_info:
+                    guid, full_name, matched_group_name = student_info
+                else:
+                    # Попробуем поискать по другим группам
+                    for other_gname, other_gid in KNOWN_GROUPS.items():
+                        if other_gid != group_id:
+                            fallback_info = await self.find_student_info(login_or_fio, group_id=other_gid, group_name_hint=other_gname)
+                            if fallback_info:
+                                guid, full_name, matched_group_name = fallback_info
+                                break
 
-                if not guid or not re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", guid):
-                    return False, f"Студент '{login_or_fio}' не найден в группе {matched_group_name}"
+                    if not guid or not re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", guid):
+                        return False, f"Студент '{login_or_fio}' не найден в группе {matched_group_name}"
 
-        self.student_guid = guid
-        self.student_name = full_name
-        self.group_name = matched_group_name
+            self.student_guid = guid
+            self.student_name = full_name
+            self.group_name = matched_group_name
 
-        payload = self._build_login_payload(guid, password)
-        try:
-            resp = await self.client.post(
-                f"{BASE_URL}/ui/common",
-                headers=LIB_HEADERS,
-                content=payload.encode("utf-8")
-            )
-            if resp.status_code == 200 and resp.text.startswith("//OK"):
-                return True, "Авторизация успешна"
-            elif "//EX" in resp.text:
-                return False, "Неверный пароль от дневника 1С"
-            else:
-                return False, f"Ошибка ответа сервера 1С: HTTP {resp.status_code}"
-        except Exception as e:
-            logger.error(f"Исключение при логине в 1C: {e}")
-            return False, f"Сетевая ошибка при обращении к 1С: {str(e)}"
+            payload = self._build_login_payload(guid, password)
+            try:
+                resp = await self.client.post(
+                    f"{BASE_URL}/ui/common",
+                    headers=LIB_HEADERS,
+                    content=payload.encode("utf-8")
+                )
+                if resp.status_code == 200 and resp.text.startswith("//OK"):
+                    return True, "Авторизация успешна"
+                elif "//EX" in resp.text:
+                    return False, "Неверный пароль от дневника 1С"
+                else:
+                    return False, f"Ошибка ответа сервера 1С: HTTP {resp.status_code}"
+            except Exception as e:
+                logger.error(f"Исключение при логине в 1C: {e}")
+                return False, f"Сетевая ошибка при обращении к 1С: {str(e)}"
 
     async def get_all_grades(self) -> Dict[str, Any]:
         """
         Получает полный список предметов с их средними баллами
         и детальными оценками по урокам/заданиям.
         """
-        try:
-            # 1. Загрузка страницы дневника для настройки серверного контекста
-            await self.client.get(f"{BASE_URL}/diary.html?db_name={self.db_name}")
+        async with _get_onec_semaphore():
+            try:
+                # 1. Загрузка страницы дневника для настройки серверного контекста
+                await self.client.get(f"{BASE_URL}/diary.html?db_name={self.db_name}")
 
-            # 2. Запрос списка журналов студента
-            j_payload = (
-                f"7|0|5|{BASE_URL}/ui/diary/|7B00848B1B9D192D0E4E6566698D029C|"
-                f"ru._1c.ui.diary.client.DiaryRemoteService|getStudentJournalList|I|"
-                f"1|2|3|4|2|5|5|0|5014|"
-            )
-            resp = await self.client.post(
-                f"{BASE_URL}/ui/diary",
-                headers=DIARY_HEADERS,
-                content=j_payload.encode("utf-8")
-            )
-            if resp.status_code != 200 or not resp.text.startswith("//OK"):
-                return {"error": "Не удалось загрузить список журналов 1С", "subjects": []}
-
-            data = ast.literal_eval(resp.text[4:].strip())
-            str_table = [x for x in reversed(data) if isinstance(x, list) and len(x) > 10][0]
-
-            # Извлечение всех предметов в порядке их появления в токенах
-            subj_key = str_table.index("subjectName") + 1
-            avg_key = str_table.index("averageMark") + 1
-
-            entries = []
-            for i, tok in enumerate(data):
-                if tok == subj_key:
-                    s_idx = data[i - 2]
-                    subj = str_table[s_idx - 1] if 1 <= s_idx <= len(str_table) else "Предмет"
-
-                    # Средний балл
-                    avg_val = None
-                    raw_avg = ""
-                    for k in range(i, min(len(data), i + 10)):
-                        if data[k] == avg_key:
-                            if data[k - 1] == 12:  # String
-                                avg_tok = data[k - 2]
-                                if isinstance(avg_tok, int) and 1 <= avg_tok <= len(str_table):
-                                    raw_avg = str_table[avg_tok - 1]
-                                    try:
-                                        avg_val = float(raw_avg.replace(",", "."))
-                                    except ValueError:
-                                        pass
-                            break
-
-                    entries.append({"subject": subj, "average_mark": avg_val, "raw_average": raw_avg})
-
-            # Все ID журналов в порядке следования
-            jids = [x for x in data if isinstance(x, int) and 31000 <= x <= 35000]
-
-            subjects = []
-            for jid, entry in zip(jids, entries):
-                subjects.append({
-                    "journal_id": jid,
-                    "subject": entry["subject"],
-                    "average_mark": entry["average_mark"],
-                    "raw_average": entry["raw_average"],
-                    "grades": []
-                })
-
-            # 3. Запрос отметок по каждому предмету
-            all_recent_grades = []
-            for s in subjects:
-                jid = s["journal_id"]
-                t_payload = (
+                # 2. Запрос списка журналов студента
+                j_payload = (
                     f"7|0|5|{BASE_URL}/ui/diary/|7B00848B1B9D192D0E4E6566698D029C|"
-                    f"ru._1c.ui.diary.client.DiaryRemoteService|getJournalNormalTasks|I|"
-                    f"1|2|3|4|1|5|{jid}|"
+                    f"ru._1c.ui.diary.client.DiaryRemoteService|getStudentJournalList|I|"
+                    f"1|2|3|4|2|5|5|0|5014|"
                 )
-                try:
-                    t_resp = await self.client.post(
-                        f"{BASE_URL}/ui/diary",
-                        headers=DIARY_HEADERS,
-                        content=t_payload.encode("utf-8")
+                resp = await self.client.post(
+                    f"{BASE_URL}/ui/diary",
+                    headers=DIARY_HEADERS,
+                    content=j_payload.encode("utf-8")
+                )
+                if resp.status_code != 200 or not resp.text.startswith("//OK"):
+                    return {"error": "Не удалось загрузить список журналов 1С", "subjects": []}
+
+                data = ast.literal_eval(resp.text[4:].strip())
+                str_table = [x for x in reversed(data) if isinstance(x, list) and len(x) > 10][0]
+
+                # Извлечение всех предметов в порядке их появления в токенах
+                subj_key = str_table.index("subjectName") + 1
+                avg_key = str_table.index("averageMark") + 1
+
+                entries = []
+                for i, tok in enumerate(data):
+                    if tok == subj_key:
+                        s_idx = data[i - 2]
+                        subj = str_table[s_idx - 1] if 1 <= s_idx <= len(str_table) else "Предмет"
+
+                        # Средний балл
+                        avg_val = None
+                        raw_avg = ""
+                        for k in range(i, min(len(data), i + 10)):
+                            if data[k] == avg_key:
+                                if data[k - 1] == 12:  # String
+                                    avg_tok = data[k - 2]
+                                    if isinstance(avg_tok, int) and 1 <= avg_tok <= len(str_table):
+                                        raw_avg = str_table[avg_tok - 1]
+                                        try:
+                                            avg_val = float(raw_avg.replace(",", "."))
+                                        except ValueError:
+                                            pass
+                                break
+
+                        entries.append({"subject": subj, "average_mark": avg_val, "raw_average": raw_avg})
+
+                # Все ID журналов в порядке следования
+                jids = [x for x in data if isinstance(x, int) and 31000 <= x <= 35000]
+
+                subjects = []
+                for jid, entry in zip(jids, entries):
+                    subjects.append({
+                        "journal_id": jid,
+                        "subject": entry["subject"],
+                        "average_mark": entry["average_mark"],
+                        "raw_average": entry["raw_average"],
+                        "grades": []
+                    })
+
+                # 3. Запрос отметок по каждому предмету
+                all_recent_grades = []
+                for s in subjects:
+                    jid = s["journal_id"]
+                    t_payload = (
+                        f"7|0|5|{BASE_URL}/ui/diary/|7B00848B1B9D192D0E4E6566698D029C|"
+                        f"ru._1c.ui.diary.client.DiaryRemoteService|getJournalNormalTasks|I|"
+                        f"1|2|3|4|1|5|{jid}|"
                     )
-                    if t_resp.status_code == 200 and t_resp.text.startswith("//OK"):
-                        t_data = ast.literal_eval(t_resp.text[4:].strip())
-                        str_tables = [x for x in reversed(t_data) if isinstance(x, list) and len(x) > 0]
-                        t_str_table = str_tables[0] if str_tables else []
-                        if len(t_str_table) <= 1:
-                            continue
+                    try:
+                        t_resp = await self.client.post(
+                            f"{BASE_URL}/ui/diary",
+                            headers=DIARY_HEADERS,
+                            content=t_payload.encode("utf-8")
+                        )
+                        if t_resp.status_code == 200 and t_resp.text.startswith("//OK"):
+                            t_data = ast.literal_eval(t_resp.text[4:].strip())
+                            str_tables = [x for x in reversed(t_data) if isinstance(x, list) and len(x) > 0]
+                            t_str_table = str_tables[0] if str_tables else []
+                            if len(t_str_table) <= 1:
+                                continue
 
-                        # Поиск дат и отметок
-                        for i in range(len(t_data) - 5):
-                            val = t_data[i]
-                            if isinstance(val, int) and 2020 <= val <= 2030:
-                                month = t_data[i + 1]
-                                day = t_data[i + 2]
-                                if isinstance(month, int) and 1 <= month <= 12 and isinstance(day, int) and 1 <= day <= 31:
-                                    date_str = f"{day:02d}.{month:02d}.{val}"
-                                    window = t_data[max(0, i - 30): min(len(t_data), i + 25)]
+                            # Поиск дат и отметок
+                            for i in range(len(t_data) - 5):
+                                val = t_data[i]
+                                if isinstance(val, int) and 2020 <= val <= 2030:
+                                    month = t_data[i + 1]
+                                    day = t_data[i + 2]
+                                    if isinstance(month, int) and 1 <= month <= 12 and isinstance(day, int) and 1 <= day <= 31:
+                                        date_str = f"{day:02d}.{month:02d}.{val}"
+                                        window = t_data[max(0, i - 30): min(len(t_data), i + 25)]
 
-                                    grade = None
-                                    if 1000 in window:
-                                        grade = 5
-                                    elif 850 in window:
-                                        grade = 4
-                                    elif 700 in window:
-                                        grade = 3
-                                    elif 500 in window:
-                                        grade = 2
+                                        grade = None
+                                        if 1000 in window:
+                                            grade = 5
+                                        elif 850 in window:
+                                            grade = 4
+                                        elif 700 in window:
+                                            grade = 3
+                                        elif 500 in window:
+                                            grade = 2
 
-                                    topic = ""
-                                    for token in window:
-                                        if isinstance(token, int) and 1 <= token <= len(t_str_table):
-                                            txt = t_str_table[token - 1]
-                                            if (len(txt) > 3 and not txt.startswith("ru._1c") and
-                                                    not txt.startswith("com.") and not txt.startswith("java.") and
-                                                    txt not in ["theme", "ordernum"]):
-                                                topic = txt
+                                        topic = ""
+                                        for token in window:
+                                            if isinstance(token, int) and 1 <= token <= len(t_str_table):
+                                                txt = t_str_table[token - 1]
+                                                if (len(txt) > 3 and not txt.startswith("ru._1c") and
+                                                        not txt.startswith("com.") and not txt.startswith("java.") and
+                                                        txt not in ["theme", "ordernum"]):
+                                                    topic = txt
 
-                                    if grade is not None:
-                                        grade_item = {
-                                            "date": date_str,
-                                            "grade": grade,
-                                            "topic": topic
-                                        }
-                                        s["grades"].append(grade_item)
-                                        all_recent_grades.append({
-                                            "date": date_str,
-                                            "subject": s["subject"],
-                                            "grade": grade,
-                                            "topic": topic
-                                        })
-                except Exception as ex:
-                    logger.warning(f"Ошибка получения отметок для предмета {s['subject']} ({jid}): {ex}")
-                    continue
+                                        if grade is not None:
+                                            grade_item = {
+                                                "date": date_str,
+                                                "grade": grade,
+                                                "topic": topic
+                                            }
+                                            s["grades"].append(grade_item)
+                                            all_recent_grades.append({
+                                                "date": date_str,
+                                                "subject": s["subject"],
+                                                "grade": grade,
+                                                "topic": topic
+                                            })
+                    except Exception as ex:
+                        logger.warning(f"Ошибка получения отметок для предмета {s['subject']} ({jid}): {ex}")
+                        continue
 
-            # Сортировка оценок по дате убывания
-            def parse_d(item):
-                try:
-                    return datetime.strptime(item["date"], "%d.%m.%Y")
-                except Exception:
-                    return datetime.min
+                # Сортировка оценок по дате убывания
+                def parse_d(item):
+                    try:
+                        return datetime.strptime(item["date"], "%d.%m.%Y")
+                    except Exception:
+                        return datetime.min
 
-            for s in subjects:
-                s["grades"].sort(key=parse_d, reverse=True)
+                for s in subjects:
+                    s["grades"].sort(key=parse_d, reverse=True)
 
-            all_recent_grades.sort(key=parse_d, reverse=True)
+                all_recent_grades.sort(key=parse_d, reverse=True)
 
-            # Общий средний балл
-            valid_avgs = [s["average_mark"] for s in subjects if s["average_mark"] is not None]
-            overall_avg = round(sum(valid_avgs) / len(valid_avgs), 2) if valid_avgs else None
+                # Общий средний балл
+                valid_avgs = [s["average_mark"] for s in subjects if s["average_mark"] is not None]
+                overall_avg = round(sum(valid_avgs) / len(valid_avgs), 2) if valid_avgs else None
 
-            return {
-                "student": self.student_name or "Студент",
-                "group": self.group_name or "ИСС9-225",
-                "overall_average": overall_avg,
-                "subjects_count": len(subjects),
-                "subjects_with_grades": len(valid_avgs),
-                "subjects": subjects,
-                "recent_grades": all_recent_grades,
-                "synced_at": datetime.now().strftime("%d.%m.%Y %H:%M")
-            }
+                return {
+                    "student": self.student_name or "Студент",
+                    "group": self.group_name or "ИСС9-225",
+                    "overall_average": overall_avg,
+                    "subjects_count": len(subjects),
+                    "subjects_with_grades": len(valid_avgs),
+                    "subjects": subjects,
+                    "recent_grades": all_recent_grades,
+                    "synced_at": datetime.now().strftime("%d.%m.%Y %H:%M")
+                }
 
-        except Exception as e:
-            logger.error(f"Критическая ошибка get_all_grades: {e}")
-            return {"error": str(e), "subjects": []}
+            except Exception as e:
+                logger.error(f"Критическая ошибка get_all_grades: {e}")
+                return {"error": str(e), "subjects": []}
 
 
 async def fetch_grades_with_credentials(login_or_fio: str, password: str, group: str = "ИСС9-225") -> Dict[str, Any]:

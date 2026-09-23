@@ -1662,8 +1662,22 @@ async def get_grades(
 
     cached = account.get("cached_grades") or {}
 
-    # Если запрошено принудительное обновление или кэш пустой
-    if force_refresh or not cached or not cached.get("subjects"):
+    # Защита от спама и частых запросов: минимальный интервал обращения к 1С — 15 минут (900 секунд).
+    # В остальное время всегда мгновенно отдаётся локальный кэш из базы данных SQLite (<2 мс).
+    is_stale = True
+    last_synced = account.get("last_synced")
+    if last_synced:
+        try:
+            ls_dt = datetime.strptime(last_synced, "%Y-%m-%d %H:%M:%S")
+            if (datetime.now() - ls_dt).total_seconds() < 900:
+                is_stale = False
+        except Exception:
+            pass
+
+    # Обращаемся к 1С ТОЛЬКО если кэш пуст или (запрошено force_refresh И прошло более 15 минут)
+    should_fetch_1c = (not cached or not cached.get("subjects")) or (force_refresh and is_stale)
+
+    if should_fetch_1c:
         try:
             raw_pw = crypto_utils.decrypt_text(account["encrypted_password"])
             async with OneCGradessClient() as client:
