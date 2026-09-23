@@ -18,7 +18,7 @@ export function mount(container, options = {}) {
   let ctx = null;
   let animId = null;
   let lastTick = 0;
-  let tickInterval = 135; // ms per step
+  let tickInterval = 190; // ms per step (умеренная плавная скорость)
 
   let snake = [];
   let dir = { x: 1, y: 0 };
@@ -164,7 +164,7 @@ export function mount(container, options = {}) {
     applesEaten = 0;
     bonusFood = null;
     bonusTimer = 0;
-    tickInterval = 135;
+    tickInterval = 190;
     gameOver = false;
     isPaused = false;
     isStarted = false;
@@ -239,8 +239,8 @@ export function mount(container, options = {}) {
       applesEaten++;
       ate = true;
       triggerHaptic('light');
-      // Acceleration
-      tickInterval = Math.max(80, 135 - Math.floor(score / 50) * 5);
+      // Smooth, controllable acceleration
+      tickInterval = Math.max(115, 190 - Math.floor(score / 40) * 4);
       spawnFood();
     }
 

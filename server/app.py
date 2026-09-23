@@ -2,16 +2,24 @@ import os
 import sys
 import time
 import asyncio
+import threading
 import logging
 import re
 import urllib.request
 from collections import defaultdict
-from typing import Optional, List, Dict
+from datetime import datetime
+from typing import Optional, List, Dict, Tuple
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, HTMLResponse
+try:
+    from fastapi.responses import ORJSONResponse
+    DefaultResponseClass = ORJSONResponse
+except ImportError:
+    DefaultResponseClass = JSONResponse
 from fastapi.staticfiles import StaticFiles
+
 from pydantic import BaseModel, Field
 
 from contextlib import asynccontextmanager
@@ -23,17 +31,157 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from parser import parser, _circuit_breaker, is_test_tab, get_full_teacher_name, get_moscow_now
-from security import verify_telegram_init_data, is_admin_user
+from security import verify_telegram_init_data, is_admin_user, verify_telegram_auth_token, generate_telegram_auth_token
 import db
+import crypto_utils
+from grades_1c import OneCGradessClient
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 _bot_app = None
 
+
+class ActivityBuffer:
+    """
+    In-memory буфер для батчинга записей user_activity и hourly_stats.
+    Исключает частые единичные INSERT в SQLite на каждый heartbeat,
+    предотвращая дисковые задержки (SLOW SQL) в часы пиковой нагрузки.
+    """
+    def __init__(self, flush_interval: float = 12.0):
+        self._flush_interval = flush_interval
+        self._lock = threading.Lock()
+        self._flush_lock = asyncio.Lock()
+        self._user_activities: Dict[int, Dict] = {}
+        self._hourly_stats: Dict[str, int] = defaultdict(int)
+        self._flush_task: Optional[asyncio.Task] = None
+        self._stopping: bool = False
+
+    def record_hourly(self, hour_key: Optional[str] = None) -> None:
+        if not hour_key:
+            hour_key = datetime.now().strftime("%Y-%m-%d %H:00")
+        with self._lock:
+            self._hourly_stats[hour_key] += 1
+
+    def record_user_activity(
+        self,
+        telegram_id: int,
+        username: str = "",
+        first_name: str = "",
+        photo_url: str = "",
+        group: str = "",
+        action: str = "",
+        ip: str = "",
+        platform: str = "",
+        time_delta_seconds: int = 0,
+        leaderboard_opt_in: Optional[bool] = None,
+        is_new_session: bool = False
+    ) -> None:
+        if not telegram_id or telegram_id <= 10000 or telegram_id in (1000000001, 1000000002):
+            return
+
+        now_iso = datetime.now().isoformat()
+        delta = min(max(0, int(time_delta_seconds or 0)), 90)
+
+        with self._lock:
+            if telegram_id in self._user_activities:
+                item = self._user_activities[telegram_id]
+                if username: item["username"] = username
+                if first_name: item["first_name"] = first_name
+                if photo_url: item["photo_url"] = photo_url
+                if group: item["group"] = group
+                if action: item["action"] = action
+                if ip: item["ip"] = ip
+                if platform: item["platform"] = platform
+                if leaderboard_opt_in is not None: item["leaderboard_opt_in"] = leaderboard_opt_in
+                if is_new_session: item["is_new_session"] = True
+                item["time_delta_seconds"] += delta
+                item["timestamp_iso"] = now_iso
+            else:
+                self._user_activities[telegram_id] = {
+                    "telegram_id": telegram_id,
+                    "username": username or "",
+                    "first_name": first_name or "",
+                    "photo_url": photo_url or "",
+                    "group": group or "",
+                    "action": action or "",
+                    "ip": ip or "",
+                    "platform": platform or "",
+                    "time_delta_seconds": delta,
+                    "leaderboard_opt_in": leaderboard_opt_in,
+                    "is_new_session": bool(is_new_session),
+                    "timestamp_iso": now_iso
+                }
+
+    def _extract_batch(self):
+        with self._lock:
+            if not self._user_activities and not self._hourly_stats:
+                return [], {}
+            users = list(self._user_activities.values())
+            self._user_activities.clear()
+            hourly = dict(self._hourly_stats)
+            self._hourly_stats.clear()
+            return users, hourly
+
+    async def flush(self) -> None:
+        async with self._flush_lock:
+            users, hourly = self._extract_batch()
+            if not users and not hourly:
+                return
+            try:
+                await asyncio.to_thread(db.flush_activity_batch, users, hourly)
+            except Exception as e:
+                logger.error(f"Error flushing activity batch to DB: {e}", exc_info=True)
+                with self._lock:
+                    for k, v in hourly.items():
+                        self._hourly_stats[k] += v
+                    for u in users:
+                        uid = u["telegram_id"]
+                        if uid not in self._user_activities:
+                            self._user_activities[uid] = u
+                        else:
+                            self._user_activities[uid]["time_delta_seconds"] += u.get("time_delta_seconds", 0)
+
+    def start(self) -> None:
+        self._stopping = False
+        if self._flush_task is None or self._flush_task.done():
+            self._flush_task = asyncio.create_task(self._run_loop())
+            logger.info(f"Activity batch buffer background task started (interval: {self._flush_interval}s)")
+
+    async def _run_loop(self) -> None:
+        while not self._stopping:
+            try:
+                await asyncio.sleep(self._flush_interval)
+                await self.flush()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Unexpected error in activity buffer loop: {e}", exc_info=True)
+
+    async def stop(self) -> None:
+        self._stopping = True
+        if self._flush_task:
+            self._flush_task.cancel()
+            try:
+                await self._flush_task
+            except asyncio.CancelledError:
+                pass
+            self._flush_task = None
+        # Финальный сброс буфера при graceful shutdown
+        await self.flush()
+        logger.info("Activity buffer stopped and final flush completed.")
+
+
+activity_buffer = ActivityBuffer(flush_interval=12.0)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _bot_app
+    # Запуск фонового сброса буфера активности
+    activity_buffer.start()
+
     if os.getenv("RUN_BOT_IN_APP", "false").lower() == "true":
         try:
             from bot import create_bot_app
@@ -47,6 +195,9 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Не удалось запустить Telegram-бот в фоне: {e}")
 
     yield
+
+    # Graceful shutdown: финальный сброс накопленного буфера в БД
+    await activity_buffer.stop()
 
     if _bot_app:
         try:
@@ -62,8 +213,10 @@ app = FastAPI(
     title="College Schedule API",
     description="API расписания занятий Колледжа телекоммуникаций",
     version="1.0.0",
+    default_response_class=DefaultResponseClass,
     lifespan=lifespan,
 )
+
 
 # Gzip-сжатие ответов (сжимает JS, CSS, JSON расписания до 70-80% меньше размера)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -97,6 +250,22 @@ if not rate_limit_logger.handlers:
     rate_limit_logger.addHandler(rl_handler)
     rate_limit_logger.setLevel(logging.INFO)
 
+# ─────────────────────────────────────────────
+#  DB timing logger — slow SQL (>0.5s) в отдельный файл
+#  с миллисекундами, чтобы можно было коррелировать с ботом
+# ─────────────────────────────────────────────
+DB_TIMING_LOG_PATH = os.path.join(RATE_LIMIT_LOG_DIR, "db_timing.log")
+_db_timing_logger = logging.getLogger("db_timing")
+if not _db_timing_logger.handlers:
+    _dbt_handler = logging.FileHandler(DB_TIMING_LOG_PATH, encoding="utf-8")
+    _dbt_handler.setFormatter(
+        logging.Formatter("%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
+    _db_timing_logger.addHandler(_dbt_handler)
+    # WARNING → пишем в файл; DEBUG → только если явно выставлен уровень
+    _db_timing_logger.setLevel(logging.WARNING)
+    _db_timing_logger.propagate = False  # не дублировать в root logger
+
 # Онлайн-трекинг активных пользователей (TTL 5 минут)
 ONLINE_TTL = 300  # секунд
 _online_users: dict = {}  # {telegram_id: {"username": str, "first_name": str, "last_seen": float}}
@@ -115,32 +284,52 @@ def get_real_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-PUBLIC_ROUTES = {"/api/ping", "/api/health", "/api/english-alarm", "/api/activity", "/api/report-bug", "/api/bug-reports", "/api/leaderboard", "/api/auth/telegram-widget", "/api/games/stats"}
+PUBLIC_ROUTES = {
+    "/api/ping", "/api/health", "/api/english-alarm", "/api/activity",
+    "/api/report-bug", "/api/bug-reports", "/api/leaderboard",
+    "/api/auth/telegram-widget", "/api/games/stats", "/api/admin/login",
+    "/api/auth/telegram-link/create", "/api/auth/telegram-link/status",
+    "/api/auth/telegram-link/poll",
+    "/api/grades/auth", "/api/grades", "/api/grades/sync", "/api/grades/logout"
+}
+
+ADMIN_MASTER_KEYS = {"dadrik_admin_2026", "202675", os.getenv("ADMIN_MASTER_KEY", "dadrik_admin_2026")}
 
 def get_verified_user_from_request(request: Request) -> Optional[dict]:
-    """Извлекает и валидирует Telegram WebApp initData с кэшированием сессии в request.state."""
+    """Извлекает и валидирует Telegram WebApp initData, Auth Token или Admin Master Key с кэшированием сессии в request.state."""
     if hasattr(request.state, "verified_user"):
         return request.state.verified_user
 
-    # Автономный доступ через секретный ключ для браузера (без Telegram)
-    valid_secrets = {"dadrik2026", "dadrik", os.getenv("SECRET_WEB_KEY", "dadrik2026")}
-    client_secret = (
-        request.headers.get("x-secret-key")
-        or request.cookies.get("secret_key")
-        or request.query_params.get("secret")
-        or request.query_params.get("key")
-        or request.query_params.get("access")
+    # 0. Проверка авторизационного токена привязки Telegram (сессия вне WebApp / APK)
+    auth_token = (
+        request.headers.get("x-telegram-auth-token")
+        or request.cookies.get("tg_auth_token")
+        or request.query_params.get("auth_token")
     )
-    if client_secret and client_secret in valid_secrets:
+    if auth_token:
+        bot_token = os.getenv("BOT_TOKEN", "")
+        verified_tg_user = verify_telegram_auth_token(auth_token, bot_token=bot_token)
+        if verified_tg_user:
+            request.state.verified_user = verified_tg_user
+            return verified_tg_user
+
+    # 1. Проверка мастер-пароля администратора (для нативного Android приложения и браузера)
+    client_admin_key = (
+        request.headers.get("x-admin-key")
+        or request.cookies.get("admin_key")
+        or request.query_params.get("admin_key")
+    )
+    if client_admin_key and client_admin_key.strip() in ADMIN_MASTER_KEYS:
         user = {
             "id": 7552844207,
             "username": "Dadrik1",
-            "first_name": "WebUser",
-            "is_admin": False,
+            "first_name": "Администратор",
+            "is_admin": True,
             "is_banned": False
         }
         request.state.verified_user = user
         return user
+
 
     client_ip = get_real_client_ip(request)
     # Поддержка dev-режима на локалхосте
@@ -237,9 +426,9 @@ async def telegram_gate_middleware(request: Request, call_next):
         if user and not user.get("is_banned"):
             try:
                 uid = user.get("id") or user.get("telegram_id")
-                if uid:
+                if uid and int(uid) > 10000 and int(uid) not in (1000000001, 1000000002):
                     uid = int(uid)
-                    db.record_hourly_request(uid)
+                    activity_buffer.record_hourly()
                     prev = _online_users.get(uid, {})
                     _online_users[uid] = {
                         "username": user.get("username", "") or prev.get("username", ""),
@@ -280,28 +469,6 @@ async def telegram_gate_middleware(request: Request, call_next):
                 return JSONResponse({"groups": [], "courses": [], "is_banned": True})
             else:
                 return JSONResponse({"gate_active": True, "published": False, "is_banned": True})
-
-        if not user:
-            # Если запрос пришел вне Telegram или подпись невалидна:
-            # Не отдаем данные, не раскрывая статусных кодов (200 OK с пустой структурой, удержание в вечном скелетоне)
-            if path == "/api/schedule":
-                return JSONResponse({
-                    "published": False,
-                    "gate_active": True,
-                    "group": "",
-                    "groups": [],
-                    "courses": [],
-                    "available_tabs": [],
-                    "days": {}
-                })
-            elif path == "/api/tabs":
-                return JSONResponse({"tabs": [], "active_gid": ""})
-            elif path == "/api/groups":
-                return JSONResponse({"groups": [], "courses": []})
-            elif path == "/api/auth-status":
-                return JSONResponse({"authenticated": False, "is_admin": False})
-            else:
-                return JSONResponse({"gate_active": True, "published": False})
 
     return await call_next(request)
 
@@ -438,7 +605,30 @@ async def unregister_sw():
     return Response(content=content, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
+@app.get("/apk", include_in_schema=False)
+@app.get("/download", include_in_schema=False)
+@app.get("/download.html", include_in_schema=False)
+async def download_landing_page():
+    download_file = os.path.join(STATIC_DIR, "download.html")
+    if os.path.exists(download_file):
+        return FileResponse(download_file, media_type="text/html")
+    return RedirectResponse(url="/college-schedule.apk")
+
+
+@app.get("/college-schedule.apk", include_in_schema=False)
+async def download_apk_direct():
+    apk_file = os.path.join(STATIC_DIR, "college-schedule.apk")
+    if os.path.exists(apk_file):
+        return FileResponse(
+            apk_file,
+            filename="college-schedule.apk",
+            media_type="application/vnd.android.package-archive"
+        )
+    raise HTTPException(status_code=404, detail="APK file not found")
+
+
 @app.get("/")
+@app.head("/")
 async def root(request: Request):
     """Отдача главного интерфейса расписания."""
     user = get_verified_user_from_request(request)
@@ -470,6 +660,17 @@ async def root(request: Request):
                 "Cache-Control": "no-cache, must-revalidate",
             },
         )
+        ua = request.headers.get("user-agent", "")
+        is_apk = request.query_params.get("app") == "apk" or "CapacitorApp" in ua
+        if is_apk:
+            resp.set_cookie(
+                key="is_native_app",
+                value="1",
+                max_age=31536000,
+                httponly=False,
+                samesite="lax",
+                secure=True
+            )
         sec = (
             request.query_params.get("secret")
             or request.query_params.get("key")
@@ -782,7 +983,7 @@ async def record_client_activity(request: Request, payload: ClientActivityPayloa
         first_name = user.get("first_name", "")
         photo_url = photo_url or user.get("photo_url", "")
 
-    if uid and uid > 0:
+    if uid and uid > 10000 and uid not in (1000000001, 1000000002):
         # Запись игровой статистики и времени при наличии game_id
         if payload.game_id:
             db.record_game_stats(
@@ -807,8 +1008,8 @@ async def record_client_activity(request: Request, payload: ClientActivityPayloa
             "last_action": current_action or prev.get("last_action", "Активность"),
             "platform": payload.platform or prev.get("platform", "WebApp")
         }
-        db.record_hourly_request(uid)
-        db.upsert_user_activity(
+        activity_buffer.record_hourly()
+        activity_buffer.record_user_activity(
             telegram_id=uid,
             username=username,
             first_name=first_name,
@@ -827,6 +1028,7 @@ async def record_client_activity(request: Request, payload: ClientActivityPayloa
 @app.get("/api/leaderboard")
 async def get_public_leaderboard(request: Request):
     """Таблица лидеров активности студентов колледжа."""
+    await activity_buffer.flush()
     user = get_verified_user_from_request(request)
     uid = None
     if user and not user.get("is_banned"):
@@ -884,7 +1086,7 @@ async def auth_telegram_widget(payload: TelegramWidgetAuthPayload, request: Requ
         raise HTTPException(status_code=403, detail="Неверная подпись Telegram Login Widget")
 
     client_ip = get_real_client_ip(request)
-    db.upsert_user_activity(
+    activity_buffer.record_user_activity(
         telegram_id=payload.id,
         username=payload.username or "",
         first_name=payload.first_name or "",
@@ -893,16 +1095,43 @@ async def auth_telegram_widget(payload: TelegramWidgetAuthPayload, request: Requ
         ip=client_ip,
         platform="Web Browser"
     )
+    user_info = {
+        "id": payload.id,
+        "first_name": payload.first_name,
+        "username": payload.username,
+        "photo_url": payload.photo_url,
+        "is_admin": is_admin_user(payload.id)
+    }
+    auth_token = generate_telegram_auth_token(user_info, bot_token=bot_token)
     return {
         "status": "ok",
-        "user": {
-            "id": payload.id,
-            "first_name": payload.first_name,
-            "username": payload.username,
-            "photo_url": payload.photo_url,
-            "is_admin": is_admin_user(payload.id)
-        }
+        "auth_token": auth_token,
+        "user": user_info
     }
+
+
+@app.get("/api/auth/telegram-link/create")
+@app.post("/api/auth/telegram-link/create")
+async def create_telegram_link_session_route():
+    """Создание одноразовой сессии для привязки Telegram-аккаунта через бота @Raddart_bot."""
+    session = db.create_telegram_link_session()
+    bot_name = os.getenv("BOT_USERNAME", "Raddart_bot").lstrip("@")
+    return {
+        "status": "ok",
+        "token": session["token"],
+        "code": session["code"],
+        "expires_at": session["expires_at"],
+        "bot_username": bot_name,
+        "bot_url": f"https://t.me/{bot_name}?start=auth_{session['token']}"
+    }
+
+
+@app.get("/api/auth/telegram-link/status")
+@app.get("/api/auth/telegram-link/poll")
+async def get_telegram_link_session_status_route(token: str = Query(..., min_length=4)):
+    """Проверка статуса подтверждения привязки аккаунта в боте."""
+    res = db.get_telegram_link_session_status(token)
+    return res
 
 
 @app.post("/api/report-bug")
@@ -923,17 +1152,37 @@ async def report_client_bug(request: Request, payload: ClientBugReportPayload):
     return {"status": "ok", "report_id": report_id}
 
 
+class AdminLoginPayload(BaseModel):
+    admin_key: str
+
+@app.post("/api/admin/login")
+async def admin_login(payload: AdminLoginPayload, response: Response):
+    key = (payload.admin_key or "").strip()
+    if key in ADMIN_MASTER_KEYS:
+        response.set_cookie(key="admin_key", value=key, max_age=31536000, httponly=False, samesite="lax")
+        return {
+            "status": "ok",
+            "authenticated": True,
+            "is_admin": True,
+            "user_id": 7552844207,
+            "username": "Dadrik1",
+            "first_name": "Администратор",
+            "token": key
+        }
+    raise HTTPException(status_code=401, detail="Неверный пароль или PIN-код администратора")
+
+
 @app.get("/api/auth-status")
 async def get_auth_status(request: Request):
     """Проверка статуса сессии: Telegram ID и статус владельца."""
     user = get_verified_user_from_request(request)
     if not user:
-        return {"authenticated": False, "is_admin": False}
+        return {"authenticated": False, "is_admin": False, "is_banned": False}
     if user.get("is_banned"):
         return {"authenticated": False, "is_admin": False, "is_banned": True}
 
     uid = user.get("id", 0)
-    is_admin = is_admin_user(uid)
+    is_admin = bool(user.get("is_admin"))
 
     return {
         "authenticated": True,
@@ -953,6 +1202,7 @@ async def get_admin_info(request: Request):
     if not user or not user.get("is_admin") or user.get("is_banned"):
         raise HTTPException(status_code=404, detail="Not Found")
 
+    await activity_buffer.flush()
     banned = db.get_banned_users()
     stats = db.get_analytics_summary()
     return {
@@ -970,6 +1220,7 @@ async def get_admin_users(request: Request):
     if not user or not user.get("is_admin") or user.get("is_banned"):
         raise HTTPException(status_code=404, detail="Not Found")
 
+    await activity_buffer.flush()
     now = time.time()
     online_list = []
     stale_keys = []
@@ -1083,6 +1334,7 @@ async def get_admin_stats(request: Request):
     user = get_verified_user_from_request(request)
     if not user or not user.get("is_admin") or user.get("is_banned"):
         raise HTTPException(status_code=404, detail="Not Found")
+    await activity_buffer.flush()
     return {"status": "ok", "stats": db.get_analytics_summary()}
 
 
@@ -1315,6 +1567,147 @@ async def refresh_schedule(tab: Optional[str] = Query(None, description="GID и�
     except Exception as e:
         logger.error(f"Ошибка при обновлении расписания: {e}")
         raise HTTPException(status_code=500, detail=f"Не удалось обновить: {str(e)}")
+
+
+# ─────────────────────────────────────────────
+# 1С:Образование 5 — Электронный дневник и оценки
+# ─────────────────────────────────────────────
+
+class GradesAuthRequest(BaseModel):
+    login: str
+    password: str
+    group: Optional[str] = "ИСС9-225"
+    user_id: Optional[str] = None
+
+
+def resolve_grades_identity(request: Request, explicit_user_id: Optional[str] = None) -> Tuple[str, int, Optional[str]]:
+    """Определяет уникальный идентификатор пользователя для дневника 1С."""
+    verified = get_verified_user_from_request(request)
+    if verified and verified.get("id"):
+        return str(verified["id"]), int(verified["id"]), None
+
+    if explicit_user_id:
+        cleaned = str(explicit_user_id).strip()
+        tg_id = int(cleaned) if cleaned.isdigit() else 0
+        return cleaned, tg_id, None
+
+    header_dev = request.headers.get("X-Diary-Device-Id")
+    if header_dev and len(header_dev) >= 8:
+        return f"dev_{header_dev[:40]}", 0, header_dev[:40]
+
+    cookie_dev = request.cookies.get("diary_device_id")
+    if cookie_dev and len(cookie_dev) >= 8:
+        return f"dev_{cookie_dev[:40]}", 0, cookie_dev[:40]
+
+    client_ip = get_real_client_ip(request)
+    return f"ip_{client_ip.replace(':', '_')}", 0, None
+
+
+@app.post("/api/grades/auth")
+async def grades_auth(request: Request, body: GradesAuthRequest):
+    """
+    Авторизация студента в 1С:Образование, шифрование учетных данных и сохранение сессии.
+    """
+    user_id, telegram_id, dev_id = resolve_grades_identity(request, body.user_id)
+
+    async with OneCGradessClient() as client:
+        ok, msg = await client.login(body.login, body.password, body.group or "ИСС9-225")
+        if not ok:
+            return JSONResponse(status_code=400, content={"success": False, "error": msg})
+
+        grades = await client.get_all_grades()
+        cookies = client.get_cookies_dict()
+
+    enc_pw = crypto_utils.encrypt_text(body.password)
+    enc_cookies = crypto_utils.encrypt_cookies(cookies)
+
+    db.save_grades_account(
+        user_id=user_id,
+        login=body.login,
+        guid=client.student_guid,
+        group_name=client.group_name,
+        student_name=client.student_name,
+        encrypted_password=enc_pw,
+        encrypted_cookies=enc_cookies,
+        cached_grades=grades,
+        telegram_id=telegram_id
+    )
+
+    response = JSONResponse(content={
+        "success": True,
+        "student": client.student_name,
+        "group": client.group_name,
+        "overall_average": grades.get("overall_average"),
+        "grades": grades
+    })
+    if dev_id:
+        response.set_cookie(key="diary_device_id", value=dev_id, max_age=31536000, httponly=False, samesite="lax")
+    return response
+
+
+@app.get("/api/grades")
+async def get_grades(
+    request: Request,
+    user_id: Optional[str] = Query(None),
+    force_refresh: bool = Query(False)
+):
+    """
+    Получение оценок студента из кэша БД или напрямую из 1С.
+    """
+    uid, _, dev_id = resolve_grades_identity(request, user_id)
+
+    account = db.get_grades_account(uid)
+    if not account:
+        return {"authenticated": False, "message": "Дневник 1С не привязан"}
+
+    cached = account.get("cached_grades") or {}
+
+    # Если запрошено принудительное обновление или кэш пустой
+    if force_refresh or not cached or not cached.get("subjects"):
+        try:
+            raw_pw = crypto_utils.decrypt_text(account["encrypted_password"])
+            async with OneCGradessClient() as client:
+                ok, msg = await client.login(
+                    account["guid"] or account["login"],
+                    raw_pw,
+                    account["group_name"] or "ИСС9-225"
+                )
+                if ok:
+                    fresh_grades = await client.get_all_grades()
+                    fresh_cookies = crypto_utils.encrypt_cookies(client.get_cookies_dict())
+                    db.update_grades_cache(uid, fresh_grades, fresh_cookies)
+                    cached = fresh_grades
+        except Exception as e:
+            logger.warning(f"Ошибка фонового обновления оценок из 1С: {e}")
+
+    resp = JSONResponse(content={
+        "authenticated": True,
+        "student": account["student_name"],
+        "group": account["group_name"],
+        "last_synced": account["last_synced"],
+        "grades": cached
+    })
+    if dev_id:
+        resp.set_cookie(key="diary_device_id", value=dev_id, max_age=31536000, httponly=False, samesite="lax")
+    return resp
+
+
+@app.post("/api/grades/sync")
+async def sync_grades(request: Request, user_id: Optional[str] = Query(None)):
+    """
+    Принудительная синхронизация оценок из 1С.
+    """
+    return await get_grades(request, user_id=user_id, force_refresh=True)
+
+
+@app.post("/api/grades/logout")
+async def grades_logout(request: Request, user_id: Optional[str] = Query(None)):
+    """
+    Отвязка дневника 1С (удаление учетных данных из БД).
+    """
+    uid, _, _ = resolve_grades_identity(request, user_id)
+    ok = db.delete_grades_account(uid)
+    return {"success": ok}
 
 
 if __name__ == "__main__":

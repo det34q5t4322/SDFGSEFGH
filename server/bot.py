@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import html
@@ -23,6 +24,7 @@ from telegram import (
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
+    CallbackQueryHandler,
     ContextTypes,
     Defaults,
     MessageHandler,
@@ -42,6 +44,27 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────
+#  DB timing logger — slow SQL (>0.5s) в тот же файл logs/db_timing.log,
+#  что и у FastAPI — для кросс-процессной корреляции по PID
+# ─────────────────────────────────────────────
+_BOT_LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
+os.makedirs(_BOT_LOG_DIR, exist_ok=True)
+_db_timing_logger = logging.getLogger("db_timing")
+if not _db_timing_logger.handlers:
+    _dbt_handler = logging.FileHandler(
+        os.path.join(_BOT_LOG_DIR, "db_timing.log"), encoding="utf-8"
+    )
+    _dbt_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    _db_timing_logger.addHandler(_dbt_handler)
+    _db_timing_logger.setLevel(logging.WARNING)
+    _db_timing_logger.propagate = False
 
 # Конфигурация бота
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
@@ -91,16 +114,21 @@ def html_esc(text: Any) -> str:
     return html.escape(str(text))
 
 
-from security import verify_telegram_init_data
+from security import verify_telegram_init_data, generate_telegram_auth_token
+import db
+import crypto_utils
+from grades_1c import OneCGradessClient
+import httpx
 
 
 DEFAULT_GROUP = "ИСС9-25"
 DIARY_1C_URL = "https://online-obr-e5cloud-02-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi"
 
 
-def get_user_group(user_id: int) -> str:
-    """Получение сохраненной группы пользователя. По умолчанию ИСС9-25."""
-    users = load_users()
+async def get_user_group(user_id: int) -> str:
+    """Получение сохраненной группы пользователя. По умолчанию ИСС9-25.
+    Выполняется в пуле потоков, чтобы не блокировать event loop файловым I/O."""
+    users = await asyncio.to_thread(load_users)
     saved = users.get(str(user_id), {}).get("group")
     return saved if saved else DEFAULT_GROUP
 
@@ -113,12 +141,13 @@ def get_webapp_url(group: Optional[str] = None) -> Optional[str]:
     base = WEB_APP_URL.rstrip("/") + "/"
     sep = "&" if "?" in base else "?"
     if group:
-        return f"{base}{sep}v=20260920_v6&group={urllib.parse.quote(group)}"
-    return f"{base}{sep}v=20260920_v6"
+        return f"{base}{sep}v=20260920_v10&group={urllib.parse.quote(group)}"
+    return f"{base}{sep}v=20260920_v10"
 
 
-def set_user_group(user_id: int, username: str, group: str) -> None:
-    """Сохранение группы пользователя с валидацией входных данных."""
+async def set_user_group(user_id: int, username: str, group: str) -> None:
+    """Сохранение группы пользователя с валидацией входных данных.
+    Выполняется в пуле потоков, чтобы не блокировать event loop файловым I/O."""
     if not isinstance(user_id, int) or user_id <= 0:
         raise ValueError("user_id должен быть положительным целым числом")
     if not group or not isinstance(group, str):
@@ -129,13 +158,16 @@ def set_user_group(user_id: int, username: str, group: str) -> None:
     if not re.match(r"^[\w\s\-\.\(\)]+$", clean_group, re.UNICODE):
         raise ValueError("Название группы содержит недопустимые символы")
 
-    users = load_users()
-    users[str(user_id)] = {
-        "group": clean_group,
-        "username": username or "",
-        "updated_at": get_moscow_now().isoformat(),
-    }
-    save_users(users)
+    def _save():
+        users = load_users()
+        users[str(user_id)] = {
+            "group": clean_group,
+            "username": username or "",
+            "updated_at": get_moscow_now().isoformat(),
+        }
+        save_users(users)
+
+    await asyncio.to_thread(_save)
 
 
 def get_current_week_parity() -> str:
@@ -213,7 +245,7 @@ async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             reply_markup=build_schedule_keyboard(0),
         )
         return
-    wa_url = get_webapp_url(get_user_group(update.effective_user.id)) or WEB_APP_URL
+    wa_url = get_webapp_url(await get_user_group(update.effective_user.id)) or WEB_APP_URL
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 Открыть интерактивное расписание", web_app=WebAppInfo(url=wa_url))]
     ])
@@ -224,12 +256,120 @@ async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Приветственное меню /start: удаляет старые нижние кнопки и предлагает открыть WebApp."""
+async def save_user_avatar_if_possible(bot, user_id: int) -> str:
+    """Безопасно сохраняет аватар пользователя в static/avatars/tg_{user_id}.jpg без утечки токена."""
+    try:
+        photos = await bot.get_user_profile_photos(user_id, limit=1)
+        if photos and photos.total_count > 0:
+            file_id = photos.photos[0][-1].file_id
+            tg_file = await bot.get_file(file_id)
+            file_url = tg_file.file_path
+            if not file_url.startswith("http"):
+                base = TELEGRAM_API_URL or ("https://api.telegram.org/file/bot" + BOT_TOKEN)
+                file_url = f"{base.rstrip('/')}/{file_url.lstrip('/')}"
+
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(file_url)
+                if resp.status_code == 200 and resp.content:
+                    static_avatars = os.path.join(os.path.dirname(__file__), "..", "static", "avatars")
+                    os.makedirs(static_avatars, exist_ok=True)
+                    out_path = os.path.join(static_avatars, f"tg_{user_id}.jpg")
+                    with open(out_path, "wb") as f:
+                        f.write(resp.content)
+                    return f"/static/avatars/tg_{user_id}.jpg"
+    except Exception as e:
+        logger.warning(f"Не удалось загрузить аватарку для пользователя {user_id}: {e}")
+    return ""
+
+
+async def process_account_linking(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_key: str) -> None:
+    """Обрабатывает подтверждение привязки Telegram-аккаунта к веб-приложению или APK."""
     user = update.effective_user
     user_id = user.id
-    current_group = get_user_group(user_id)
+    current_group = await get_user_group(user_id)
+
+    clean_key = str(raw_key).strip()
+    if clean_key.startswith("auth_"):
+        clean_key = clean_key[5:]
+    elif clean_key.startswith("link_"):
+        clean_key = clean_key[5:]
+
+    photo_url = await save_user_avatar_if_possible(context.bot, user_id)
+    user_info = {
+        "id": user_id,
+        "telegram_id": user_id,
+        "username": user.username or "",
+        "first_name": user.first_name or "",
+        "photo_url": photo_url
+    }
+    auth_token = generate_telegram_auth_token(user_info, BOT_TOKEN)
+    success = db.confirm_telegram_link_session(clean_key, user_info, auth_token)
+
+    if success:
+        try:
+            db.upsert_user_activity(
+                telegram_id=user_id,
+                username=user.username or "",
+                first_name=user.first_name or "",
+                photo_url=photo_url,
+                group=current_group,
+                action="Привязка Telegram аккаунта",
+                ip="",
+                platform="Telegram Bot"
+            )
+        except Exception as e:
+            logger.warning(f"upsert_user_activity error: {e}")
+
+        success_text = (
+            f"🎉 <b>Аккаунт успешно привязан!</b>\n\n"
+            f"👤 Студент: <b>{html_esc(user.first_name or user.username or 'Студент')}</b>\n"
+            f"👥 Группа: <b>{html_esc(current_group)}</b>\n\n"
+            f"✅ Теперь всё ваше время в приложении (включая Android APK), рекорды в мини-играх "
+            f"и статистика будут автоматически учитываться в таблице лидеров колледжа!\n\n"
+            f"Вернитесь в приложение — оно уже обновилось."
+        )
+        kb = build_schedule_keyboard(0, group=current_group)
+        if update.message:
+            await update.message.reply_text(success_text, parse_mode="HTML", reply_markup=kb)
+        elif update.callback_query:
+            await send_or_edit(update, context, success_text, reply_markup=kb)
+    else:
+        fail_text = (
+            "⚠️ <b>Не удалось привязать аккаунт</b>\n\n"
+            "Возможно, ссылка или код привязки уже истекли (срок действия 10 минут) или были использованы ранее.\n"
+            "Попробуйте нажать кнопку «Привязать через Telegram» в приложении ещё раз."
+        )
+        kb = build_schedule_keyboard(0, group=current_group)
+        if update.message:
+            await update.message.reply_text(fail_text, parse_mode="HTML", reply_markup=kb)
+        elif update.callback_query:
+            await send_or_edit(update, context, fail_text, reply_markup=kb)
+
+
+async def link_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /link <код> для ручной привязки аккаунта."""
+    if not context.args or len(context.args) == 0:
+        await send_or_edit(
+            update, context,
+            "ℹ️ Чтобы привязать аккаунт к приложению, укажите код:\nНапример: <code>/link 123456</code>"
+        )
+        return
+    await process_account_linking(update, context, context.args[0])
+
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Приветственное меню /start: проверяет deep link привязки, иначе предлагает открыть WebApp."""
+    user = update.effective_user
+    user_id = user.id
+    current_group = await get_user_group(user_id)
     context.user_data["last_bot_msg_id"] = None
+
+    # Проверяем deep link аргумент
+    if context.args and len(context.args) > 0:
+        link_arg = context.args[0].strip()
+        if link_arg.startswith("auth_") or link_arg.startswith("link_") or (link_arg.isdigit() and len(link_arg) == 6):
+            await process_account_linking(update, context, link_arg)
+            return
 
     welcome_text = (
         f"👋 Привет, <b>{html_esc(user.first_name or 'студент')}</b>!\n"
@@ -266,7 +406,7 @@ async def show_courses_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     """Уведомление о смене группы."""
     user = update.effective_user
     user_id = user.id if user else 0
-    current_group = get_user_group(user_id) if user_id else DEFAULT_GROUP
+    current_group = await get_user_group(user_id) if user_id else DEFAULT_GROUP
     text = (
         f"👥 Ваша текущая группа: <b>{html_esc(current_group)}</b>\n\n"
         "Вы можете сменить группу прямо в приложении (нажав на название группы вверху экрана) "
@@ -412,7 +552,7 @@ def format_day_schedule(group_name: str, day_name: str, target_date: Optional[da
 async def send_schedule_for_day(update: Update, context: ContextTypes.DEFAULT_TYPE, offset_days: int = 0) -> None:
     """Отображение расписания дня в одном редактируемом сообщении."""
     user_id = update.effective_user.id
-    group_name = get_user_group(user_id)
+    group_name = await get_user_group(user_id)
 
     if not group_name:
         await show_courses_menu(update, context)
@@ -446,7 +586,7 @@ def build_week_keyboard(group: str = DEFAULT_GROUP) -> InlineKeyboardMarkup:
 async def send_week_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обзор недели в одном сообщении с кнопкой открытия в приложении."""
     user_id = update.effective_user.id
-    group_name = get_user_group(user_id)
+    group_name = await get_user_group(user_id)
 
     if not group_name:
         await show_courses_menu(update, context)
@@ -472,7 +612,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     """Обработка текстовых сообщений и команд в одном сообщении."""
     text = update.message.text.strip()
     user = update.effective_user
-    current_group = get_user_group(user.id) if user else DEFAULT_GROUP
+    current_group = await get_user_group(user.id) if user else DEFAULT_GROUP
 
     if "сегодня" in text.lower():
         await send_schedule_for_day(update, context, offset_days=0)
@@ -496,7 +636,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
         if group_match:
             user = update.effective_user
-            set_user_group(user.id, user.username, group_match)
+            await set_user_group(user.id, user.username, group_match)
             clean_msg = await update.message.reply_text(
                 f"✅ Группа успешно изменена на <b>{html_esc(group_match)}</b>!",
                 parse_mode="HTML",
@@ -535,7 +675,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 async def alarm_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """💀🚨 Сигнал тревоги — обратный отсчёт до ближайшего английского."""
     user = update.effective_user
-    group_name = get_user_group(user.id) if user else DEFAULT_GROUP
+    group_name = await get_user_group(user.id) if user else DEFAULT_GROUP
 
     alarm = parser.get_upcoming_alarm(group_name, pattern=r"(англ|иностр)")
 
@@ -576,25 +716,336 @@ async def alarm_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await send_or_edit(update, context, text, reply_markup=keyboard)
 
 
+def format_grades_message(student_name: str, group_name: str, grades_data: dict) -> str:
+    """Форматирует сводку оценок студента: по умолчанию ТОЛЬКО общий средний балл пар!"""
+    overall_avg = grades_data.get("overall_average")
+    avg_str = f"<b>⭐ {overall_avg:.2f}</b>" if isinstance(overall_avg, (int, float)) else "<i>нет данных</i>"
+
+    lines = [
+        "📊 <b>Электронный дневник 1С:Образование</b>",
+        f"👤 Студент: <b>{html_esc(student_name)}</b>",
+        f"👥 Группа: <b>{html_esc(group_name)}</b>",
+        f"⭐️ Общий средний балл: {avg_str}",
+        "━━━━━━━━━━━━━━━━━━━━\n",
+        "📚 <b>Пары и средний балл:</b>"
+    ]
+
+    subjects = grades_data.get("subjects") or []
+    if subjects:
+        for s in subjects:
+            subj_name = s.get("subject", "Предмет")
+            avg_m = s.get("average_mark")
+            grades = s.get("grades") or []
+            if avg_m is not None:
+                score_disp = f"<b>⭐ {avg_m:.2f}</b>"
+                count_disp = f" <i>({len(grades)} оц.)</i>" if grades else ""
+            else:
+                score_disp = "—"
+                count_disp = ""
+            lines.append(f"• {html_esc(subj_name)}: {score_disp}{count_disp}")
+    else:
+        lines.append("<i>В журнале пока нет предметов.</i>")
+
+    lines.append("")
+    synced_at = grades_data.get("synced_at") or datetime.now().strftime("%d.%m.%Y %H:%M")
+    lines.append(f"🔄 <i>Обновлено: {synced_at}</i>")
+    lines.append("💡 <i>Нажмите на пару ниже, чтобы раскрыть её оценки:</i>")
+    return "\n".join(lines)
+
+
+def format_subject_details(subj_dict: dict) -> str:
+    """Форматирует детальные оценки конкретной пары."""
+    subj_name = subj_dict.get("subject", "Предмет")
+    avg_m = subj_dict.get("average_mark")
+    avg_str = f"<b>⭐ {avg_m:.2f}</b>" if avg_m is not None else "—"
+    grades = subj_dict.get("grades") or []
+
+    lines = [
+        f"📚 <b>{html_esc(subj_name)}</b>",
+        f"⭐️ Средний балл пары: {avg_str}",
+        "━━━━━━━━━━━━━━━━━━━━\n",
+        f"📝 <b>Оценки ({len(grades)} шт.):</b>"
+    ]
+    if grades:
+        for g in grades:
+            d = g.get("date", "")
+            val = g.get("grade", "")
+            topic = g.get("topic", "")
+            topic_str = f"\n   <i>Тема: {html_esc(topic)}</i>" if topic else ""
+            lines.append(f"• {d} — Оценка: <b>{val}</b>{topic_str}")
+    else:
+        lines.append("<i>По этой паре пока нет оценок.</i>")
+
+    return "\n".join(lines)
+
+
+def build_grades_keyboard(grades_data: Optional[dict] = None) -> InlineKeyboardMarkup:
+    """Инлайн-кнопки управления дневником 1С со списком пар для просмотра оценок."""
+    buttons = []
+    subjects = (grades_data or {}).get("subjects") or []
+
+    # Кнопки пар, у которых есть оценки
+    subj_btns = []
+    for s in subjects:
+        if s.get("grades"):
+            jid = s.get("journal_id")
+            s_name = s.get("subject", "Пара")
+            short_name = s_name[:20] + "…" if len(s_name) > 22 else s_name
+            avg_m = s.get("average_mark")
+            avg_lbl = f" ({avg_m:.1f})" if avg_m is not None else ""
+            subj_btns.append(InlineKeyboardButton(f"📖 {short_name}{avg_lbl}", callback_data=f"grades_subj_{jid}"))
+
+    for i in range(0, len(subj_btns), 2):
+        buttons.append(subj_btns[i:i + 2])
+
+    # Кнопка приложения
+    if WEB_APP_URL:
+        wa_diary_url = WEB_APP_URL.rstrip("/") + "/?open=diary"
+        buttons.append([InlineKeyboardButton("🚀 Открыть дневник в приложении", web_app=WebAppInfo(url=wa_diary_url))])
+
+    buttons.append([
+        InlineKeyboardButton("🔄 Обновить оценки", callback_data="grades_refresh"),
+        InlineKeyboardButton("🚪 Отвязать дневник", callback_data="grades_unlink")
+    ])
+    return InlineKeyboardMarkup(buttons)
+
+
 async def diary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Прямой переход в электронный дневник 1С:Колледж."""
-    text = (
-        "📚 <b>Электронный дневник 1С:Колледж</b>\n"
-        "Московский колледж телекоммуникаций МТУСИ\n\n"
-        "Нажмите на кнопку ниже или перейдите по прямой ссылке для входа в личный кабинет студента:\n\n"
-        f"🔗 <a href=\"{DIARY_1C_URL}\">Вход в Дневник 1С (прямой портал)</a>\n\n"
-        "💡 <b>Если в приложении Telegram белый экран:</b>\n"
-        "Портал 1С защищён DDoS-Guard и требует открытия в обычном браузере. "
-        "Нажмите на <b>три точки (⋮)</b> вверху справа экрана Telegram и выберите <b>«Открыть в браузере»</b> (Chrome / Safari / Яндекс)."
-    )
+    """Просмотр оценок студента из 1С:Образование или инструкции по привязке."""
     user = update.effective_user
-    group_name = get_user_group(user.id) if user else DEFAULT_GROUP
-    keyboard = build_schedule_keyboard(0, group=group_name)
+    if not user:
+        return
+
+    account = db.get_grades_account(user.id)
+    if not account:
+        text = (
+            "📚 <b>Электронный дневник 1С:Образование</b>\n"
+            "Московский колледж телекоммуникаций МТУСИ\n\n"
+            "Вы можете привязать свой дневник и смотреть средний балл и свежие оценки прямо в боте и приложении!\n\n"
+            "🔑 <b>Как войти:</b>\n\n"
+            "1️⃣ <b>В приложении:</b> нажмите кнопку «Войти в дневник» ниже.\n\n"
+            "2️⃣ <b>Прямо в боте:</b> отправьте команду:\n"
+            "<code>/grades_login Фамилия Пароль</code>\n"
+            "<i>Пример:</i> <code>/grades_login Иванов 1234567</code>\n\n"
+            "🔒 <i>Ваш пароль надёжно шифруется (Fernet AES-128) и не хранится в открытом виде.</i>"
+        )
+        login_btns = []
+        if WEB_APP_URL:
+            wa_diary_url = WEB_APP_URL.rstrip("/") + "/?open=diary"
+            login_btns.append([InlineKeyboardButton("🚀 Войти в дневник", web_app=WebAppInfo(url=wa_diary_url))])
+        keyboard = InlineKeyboardMarkup(login_btns)
+
+        if update.callback_query:
+            await update.callback_query.answer()
+            await update.callback_query.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard, disable_notification=True)
+        elif update.message:
+            await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard, disable_notification=True)
+        return
+
+    cached_grades = account.get("cached_grades") or {}
+    text = format_grades_message(
+        account.get("student_name") or user.first_name,
+        account.get("group_name") or "ИСС9-225",
+        cached_grades
+    )
+    keyboard = build_grades_keyboard(cached_grades)
+
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard, disable_notification=True)
     elif update.message:
         await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard, disable_notification=True)
+
+
+async def grades_login_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Привязка аккаунта 1С:Образование через логин/пароль."""
+    user = update.effective_user
+    if not user or not update.message:
+        return
+
+    # Удаляем сообщение с паролем из чата для безопасности
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+
+    if not context.args or len(context.args) < 2:
+        await update.effective_chat.send_message(
+            "ℹ️ <b>Как войти в дневник 1С:</b>\n\n"
+            "Отправьте команду:\n"
+            "<code>/grades_login Фамилия Пароль</code>\n\n"
+            "Пример:\n"
+            "<code>/grades_login Иванов 1234567</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    password = context.args[-1]
+    login_fio = " ".join(context.args[:-1]).strip()
+    user_group = await get_user_group(user.id)
+
+    status_msg = await update.effective_chat.send_message(
+        "⏳ <b>Подключаемся к системе 1С:Образование...</b>",
+        parse_mode="HTML"
+    )
+
+    try:
+        async with OneCGradessClient() as client:
+            ok, err_msg = await client.login(login_fio, password, user_group)
+            if not ok:
+                await status_msg.edit_text(
+                    f"❌ <b>Ошибка входа в 1С:</b>\n{html_esc(err_msg)}\n\n"
+                    "Проверьте правильность фамилии и пароля.",
+                    parse_mode="HTML"
+                )
+                return
+
+            await status_msg.edit_text("⏳ <b>Загружаем оценки студента...</b>", parse_mode="HTML")
+            grades = await client.get_all_grades()
+            cookies = client.get_cookies_dict()
+
+        enc_pw = crypto_utils.encrypt_text(password)
+        enc_cookies = crypto_utils.encrypt_cookies(cookies)
+
+        db.save_grades_account(
+            user_id=user.id,
+            login=login_fio,
+            guid=client.student_guid,
+            group_name=client.group_name,
+            student_name=client.student_name,
+            encrypted_password=enc_pw,
+            encrypted_cookies=enc_cookies,
+            cached_grades=grades,
+            telegram_id=user.id
+        )
+
+        success_text = (
+            f"✅ <b>Дневник 1С успешно привязан!</b>\n\n" +
+            format_grades_message(client.student_name, client.group_name, grades)
+        )
+        keyboard = build_grades_keyboard(grades)
+        await status_msg.edit_text(success_text, parse_mode="HTML", reply_markup=keyboard)
+
+    except Exception as e:
+        logger.error(f"Ошибка входа в дневник 1С: {e}")
+        await status_msg.edit_text(
+            f"❌ <b>Произошла ошибка при обращении к серверу 1С:</b>\n{html_esc(str(e))}",
+            parse_mode="HTML"
+        )
+
+
+async def grades_logout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Отвязка аккаунта 1С."""
+    user = update.effective_user
+    if not user:
+        return
+    deleted = db.delete_grades_account(user.id)
+    if deleted:
+        await update.effective_chat.send_message("✅ <b>Дневник 1С успешно отвязан.</b>\nВаши данные удалены из бота.", parse_mode="HTML")
+    else:
+        await update.effective_chat.send_message("ℹ️ У вас не был привязан дневник 1С.", parse_mode="HTML")
+
+
+async def grades_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик интерактивных кнопок дневника 1С."""
+    query = update.callback_query
+    if not query:
+        return
+    data = query.data or ""
+    user = update.effective_user
+    if not user:
+        return
+
+    if data == "grades_refresh":
+        account = db.get_grades_account(user.id)
+        if not account:
+            await query.answer("Дневник не привязан.", show_alert=True)
+            return
+
+        await query.answer("Синхронизируем оценки с 1С...")
+        try:
+            raw_pw = crypto_utils.decrypt_text(account["encrypted_password"])
+            async with OneCGradessClient() as client:
+                ok, msg = await client.login(
+                    account["guid"] or account["login"],
+                    raw_pw,
+                    account["group_name"] or "ИСС9-225"
+                )
+                if not ok:
+                    await query.answer(f"1С вернул ошибку: {msg}", show_alert=True)
+                    return
+                fresh_grades = await client.get_all_grades()
+                fresh_cookies = crypto_utils.encrypt_cookies(client.get_cookies_dict())
+                db.update_grades_cache(user.id, fresh_grades, fresh_cookies)
+
+            new_text = format_grades_message(
+                account.get("student_name") or user.first_name,
+                account.get("group_name") or "ИСС9-225",
+                fresh_grades
+            )
+            keyboard = build_grades_keyboard(fresh_grades)
+            await query.edit_message_text(new_text, parse_mode="HTML", reply_markup=keyboard)
+            await query.answer("Оценки обновлены! ✅")
+        except Exception as e:
+            logger.warning(f"Ошибка обновления оценок в колбэке: {e}")
+            await query.answer("Не удалось связаться с 1С, попробуйте позже.", show_alert=True)
+
+    elif data.startswith("grades_subj_"):
+        jid_str = data.replace("grades_subj_", "").strip()
+        account = db.get_grades_account(user.id)
+        if not account:
+            await query.answer("Дневник не привязан.", show_alert=True)
+            return
+        cached_grades = account.get("cached_grades") or {}
+        subjects = cached_grades.get("subjects") or []
+        target_subj = next((s for s in subjects if str(s.get("journal_id")) == jid_str), None)
+        if not target_subj:
+            await query.answer("Пара не найдена.", show_alert=True)
+            return
+
+        detail_text = format_subject_details(target_subj)
+        detail_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Назад ко всем парам", callback_data="grades_back")],
+            [InlineKeyboardButton("🔄 Обновить", callback_data="grades_refresh")]
+        ])
+        await query.edit_message_text(detail_text, parse_mode="HTML", reply_markup=detail_kb)
+        await query.answer()
+
+    elif data == "grades_back":
+        account = db.get_grades_account(user.id)
+        if not account:
+            await query.answer()
+            return
+        cached_grades = account.get("cached_grades") or {}
+        main_text = format_grades_message(
+            account.get("student_name") or user.first_name,
+            account.get("group_name") or "ИСС9-225",
+            cached_grades
+        )
+        main_kb = build_grades_keyboard(cached_grades)
+        await query.edit_message_text(main_text, parse_mode="HTML", reply_markup=main_kb)
+        await query.answer()
+
+    elif data == "grades_unlink":
+        confirm_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⚠️ Да, отвязать", callback_data="grades_unlink_confirm")],
+            [InlineKeyboardButton("Отмена", callback_data="grades_cancel")]
+        ])
+        await query.edit_message_reply_markup(reply_markup=confirm_kb)
+        await query.answer()
+
+    elif data == "grades_unlink_confirm":
+        db.delete_grades_account(user.id)
+        await query.edit_message_text("✅ <b>Дневник 1С отвязан.</b>\nВаши данные удалены из бота.", parse_mode="HTML")
+        await query.answer("Отвязано!")
+
+    elif data == "grades_cancel":
+        account = db.get_grades_account(user.id)
+        if account:
+            cached_grades = account.get("cached_grades") or {}
+            keyboard = build_grades_keyboard(cached_grades)
+            await query.edit_message_reply_markup(reply_markup=keyboard)
+        await query.answer("Отменено")
 
 
 async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -623,12 +1074,13 @@ async def post_init(application) -> None:
         await application.bot.set_my_commands([
             BotCommand("start", "🔄 Главное меню"),
             BotCommand("app", "🚀 Открыть расписание"),
+            BotCommand("diary", "📚 Оценки и Дневник 1С"),
             BotCommand("support", "🎧 Служба поддержки"),
         ])
         logger.info("Команды меню бота успешно зарегистрированы!")
 
         if WEB_APP_URL:
-            wa_menu_url = WEB_APP_URL.rstrip("/") + "/?v=20260920_v6"
+            wa_menu_url = WEB_APP_URL.rstrip("/") + "/?v=20260920_v10"
             await application.bot.set_chat_menu_button(
                 menu_button=MenuButtonWebApp(text="Расписание", web_app=WebAppInfo(url=wa_menu_url))
             )
@@ -677,16 +1129,20 @@ def create_bot_app():
 
     # Регистрация обработчиков команд
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("link", link_command))
     app.add_handler(CommandHandler("app", app_command))
     app.add_handler(CommandHandler("today", lambda u, c: send_schedule_for_day(u, c, 0)))
     app.add_handler(CommandHandler("tomorrow", lambda u, c: send_schedule_for_day(u, c, 1)))
     app.add_handler(CommandHandler("week", send_week_schedule))
     app.add_handler(CommandHandler(["alarm", "english"], alarm_command))
     app.add_handler(CommandHandler("group", show_courses_menu))
-    app.add_handler(CommandHandler(["diary", "dnevnik"], diary_command))
+    app.add_handler(CommandHandler(["diary", "dnevnik", "grades", "marks"], diary_command))
+    app.add_handler(CommandHandler(["grades_login", "login_1c", "dnevnik_login"], grades_login_command))
+    app.add_handler(CommandHandler(["grades_logout", "logout_1c"], grades_logout_command))
     app.add_handler(CommandHandler(["support", "help_me"], support_command))
 
-    # Все инлайн-кнопки переведены на Web App; устаревшие callback-обработчики отключены для максимальной скорости
+    # Обработчик интерактивных кнопок дневника 1С
+    app.add_handler(CallbackQueryHandler(grades_callback_handler, pattern="^grades_"))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 

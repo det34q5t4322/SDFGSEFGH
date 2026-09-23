@@ -16,11 +16,29 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260920_v6">
+  <link rel="stylesheet" href="/static/style.css?v=20260924_v25">
   <script>
     (function() {
       try {
         var p = new URLSearchParams(window.location.search);
+        if (p.get('reset') === '1' || p.get('logout') === '1') {
+          localStorage.clear();
+          sessionStorage.clear();
+          document.cookie = "tg_auth_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+          document.cookie = "secret_key=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+          document.cookie = "admin_key=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+          window.location.replace(window.location.pathname);
+          return;
+        } else if (p.get('reset_tg') === '1') {
+          localStorage.removeItem('tg_auth_token');
+          localStorage.removeItem('tg_auth_user');
+          localStorage.removeItem('tg_sync_prompt_shown');
+          localStorage.removeItem('tg_guest_mode');
+          document.cookie = "tg_auth_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+          p.delete('reset_tg');
+          var newQuery = p.toString() ? ('?' + p.toString()) : '';
+          window.history.replaceState({}, '', window.location.pathname + newQuery);
+        }
         var s = p.get('secret') || p.get('key') || p.get('access');
         if (s === 'dadrik2026' || s === 'dadrik') {
           localStorage.setItem('web_secret_key', s);
@@ -32,6 +50,14 @@
             document.cookie = "secret_key=" + saved + "; path=/; max-age=31536000; SameSite=Lax";
             localStorage.setItem('onboarding_completed', 'true');
           }
+        }
+        var ak = p.get('admin_key') || localStorage.getItem('schedule_admin_master_key');
+        if (ak) {
+          localStorage.setItem('schedule_admin_master_key', ak);
+          document.cookie = "admin_key=" + ak + "; path=/; max-age=31536000; SameSite=Lax";
+        }
+        if (p.get('unban') === '1' || p.get('reset') === '1') {
+          try { localStorage.removeItem('is_banned_state'); } catch (_) {}
         }
         if (localStorage.getItem('is_banned_state') === 'true') {
           document.documentElement.classList.add('banned-lock');
@@ -107,7 +133,6 @@
       </div>
     </div>
 
-    <!-- Навигация по разделам и действиям (без дублей нижней навигации) -->
     <nav class="sidebar-nav" id="sidebarNav">
       <!-- 1. Часто используемое -->
       <div class="sidebar-section-header" data-section="frequent">Часто используемое</div>
@@ -140,12 +165,20 @@
       <!-- 2. Справочное и сервисы -->
       <div class="sidebar-section-header" data-section="services">Справочное и сервисы</div>
       <div class="sidebar-section-container" data-section="services" id="menuSectionServices">
-        <!-- Дневник 1С -->
-        <button class="sidebar-nav-item" data-menu-id="menu-diary" data-section="services" id="sidebarDiaryBtn" type="button" title="Перейти в электронный дневник 1С">
+        <!-- Скачать приложение (Android) -->
+        <a href="/download.html" class="sidebar-nav-item" data-menu-id="menu-download-app" data-section="services" id="sidebarDownloadAppBtn" title="Скачать приложение для Android" style="text-decoration:none;">
           <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
-          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg></span>
+          <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" class="lucide-icon" style="fill:#3ddc84;stroke:none;"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.996-3.4572c.1576-.2731.0642-.6222-.2089-.7798-.273-.1576-.6222-.0642-.7798.2089l-2.0243 3.5062C15.2014 8.1633 13.6525 7.79 12 7.79s-3.2014.3733-4.8645 1.0194L5.1112 5.3032c-.1576-.2731-.5068-.3665-.7798-.2089-.2731.1576-.3665.5067-.2089.7798l1.996 3.4572C2.6884 11.2367.3435 14.8876 0 19.167h24c-.3435-4.2794-2.6884-7.9303-6.1185-9.8456"/></svg></span>
+          <span class="sidebar-nav-label">Скачать приложение</span>
+          <span class="menu-app-tag" style="background:rgba(61,220,132,0.16);color:#3ddc84;border:1px solid rgba(61,220,132,0.32);padding:2px 6px;border-radius:6px;font-size:11px;font-weight:700;margin-left:auto;">Android</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
+        </a>
+
+        <!-- Дневник 1С -->
+        <button class="sidebar-nav-item" data-menu-id="menu-diary" data-section="services" id="sidebarDiaryBtn" type="button" title="Перейти в электронный дневник 1С" onclick="openDiaryModal()">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24" style="color:#facc15;"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v20"/><path d="M10 7h6"/><path d="M10 11h6"/></svg></span>
           <span class="sidebar-nav-label">Дневник 1С</span>
-          <span class="sidebar-external-arrow" title="Открывается в браузере"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></span>
           <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
 
@@ -217,6 +250,12 @@
           <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
 
+        <!-- Вход администратора (для создателя) -->
+        <button class="sidebar-nav-item" id="sidebarAdminLoginBtn" onclick="openAdminLoginModal()" type="button" title="Вход администратора">
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <span class="sidebar-nav-label" style="opacity:0.85;">Вход создателя</span>
+        </button>
+
         <!-- Админ-панель (только для владельца) -->
         <button class="sidebar-nav-item" data-menu-id="menu-admin" data-section="system" id="sidebarAdminBtn" style="display:none;" type="button" title="Панель управления">
           <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
@@ -247,6 +286,14 @@
       </button>
 
       <div class="topbar-actions" style="display:flex; align-items:center; gap:8px;">
+        <button class="topbar-diary-btn" id="topbarDiaryBtn" onclick="openDiaryModal()" type="button" title="Электронный дневник 1С" aria-label="1С Оценки" style="display:inline-flex; align-items:center; gap:6px; background:rgba(234,179,8,0.12); border:1px solid rgba(234,179,8,0.32); border-radius:10px; color:#facc15; font-size:13px; font-weight:700; padding:6px 12px; cursor:pointer;">
+          <svg class="lucide-icon" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v20"/><path d="M10 7h6"/><path d="M10 11h6"/></svg>
+          <span class="topbar-diary-text">1С Оценки</span>
+        </button>
+        <a class="topbar-download-btn" id="topbarDownloadBtn" href="/download.html" title="Скачать приложение на Android" aria-label="Скачать приложение" style="text-decoration:none;">
+          <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:#3ddc84;stroke:none;flex-shrink:0;"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.996-3.4572c.1576-.2731.0642-.6222-.2089-.7798-.273-.1576-.6222-.0642-.7798.2089l-2.0243 3.5062C15.2014 8.1633 13.6525 7.79 12 7.79s-3.2014.3733-4.8645 1.0194L5.1112 5.3032c-.1576-.2731-.5068-.3665-.7798-.2089-.2731.1576-.3665.5067-.2089.7798l1.996 3.4572C2.6884 11.2367.3435 14.8876 0 19.167h24c-.3435-4.2794-2.6884-7.9303-6.1185-9.8456"/></svg>
+          <span class="topbar-download-text">Приложение</span>
+        </a>
         <button class="topbar-games-btn" id="topbarGamesBtn" onclick="openGamesModal()" type="button" title="Игры на перемене: 2048, Тетрис, Сапёр" aria-label="Мини-игры">
           <svg class="lucide-icon" viewBox="0 0 24 24"><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="6"/></svg>
         </button>
@@ -653,6 +700,10 @@
     <span class="bottom-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span>
     <span class="bottom-nav-label">Преподаватели</span>
   </button>
+  <button class="bottom-nav-item" data-view="diary" id="bottomNavDiary" type="button">
+    <span class="bottom-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v20"/><path d="M10 7h6"/><path d="M10 11h6"/></svg></span>
+    <span class="bottom-nav-label">1С Оценки</span>
+  </button>
   <button class="bottom-nav-item" data-view="classroom" id="bottomNavClassroom" type="button">
     <span class="bottom-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h20"/><path d="M13 20V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"/><path d="M9 12v.01"/></svg></span>
     <span class="bottom-nav-label">Аудитории</span>
@@ -863,37 +914,110 @@
       <div class="diary-modal-header">
         <div class="diary-modal-brand">
           <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v20"/><path d="M10 7h6"/><path d="M10 11h6"/></svg>
-          <span class="diary-brand-title">Дневник 1С:Колледж</span>
+          <span class="diary-brand-title">Дневник 1С:Образование</span>
         </div>
         <div class="diary-modal-actions">
-          <button class="diary-action-btn" id="diaryReloadBtn" title="Перезагрузить страницу дневника" aria-label="Обновить">
+          <button class="diary-action-btn" id="diaryReloadBtn" title="Обновить оценки" aria-label="Обновить">
             <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
           </button>
-          <button class="diary-action-btn diary-ext-btn" id="diaryExternalBtn" title="Открыть в отдельной вкладке или браузере" aria-label="В браузере">
-            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-            <span class="diary-ext-label">В браузере</span>
+          <button class="diary-action-btn diary-logout-btn" id="diaryLogoutBtn" style="display:none;" title="Выйти из аккаунта" aria-label="Выйти">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span class="diary-btn-text">Выйти</span>
           </button>
           <button class="diary-action-btn diary-close-btn" id="closeDiaryModal" title="Закрыть окно дневника" aria-label="Закрыть">
             <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
       </div>
-      <div class="diary-modal-body">
+      <div class="diary-modal-body" id="diaryModalBody">
+        <!-- Loader -->
         <div class="diary-loader" id="diaryLoader">
           <div class="diary-spinner"></div>
-          <span class="diary-loader-text">Загрузка дневника 1С...</span>
+          <span class="diary-loader-text" id="diaryLoaderText">Загрузка дневника 1С...</span>
         </div>
-        <iframe id="diaryIframe" class="diary-iframe" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
-      </div>
-      <div class="diary-trouble-bar" id="diaryTroubleBar">
-        <div class="diary-trouble-text">
-          <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
-          <span>Белый экран? Браузер блокирует cookie 1С</span>
+
+        <!-- 1. AUTH / REGISTRATION VIEW -->
+        <div class="diary-auth-view" id="diaryAuthView" style="display:none;">
+          <div class="diary-auth-card">
+            <div class="diary-auth-icon-wrap">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h3 class="diary-auth-title">Вход в дневник 1С</h3>
+            <p class="diary-auth-subtitle">Войдите под вашей учетной записью «1С:Образование», чтобы видеть пары и средние баллы</p>
+
+            <form class="diary-auth-form" id="diaryAuthForm" onsubmit="event.preventDefault(); return false;">
+              <div class="diary-input-group">
+                <label for="diaryLoginInput">Фамилия или ФИО</label>
+                <div class="diary-input-wrap">
+                  <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <input type="text" id="diaryLoginInput" placeholder="Например: Иванов" autocomplete="username" required>
+                </div>
+              </div>
+
+              <div class="diary-input-group">
+                <label for="diaryPasswordInput">Пароль от 1С</label>
+                <div class="diary-input-wrap">
+                  <svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <input type="password" id="diaryPasswordInput" placeholder="Введите пароль" autocomplete="current-password" required>
+                </div>
+              </div>
+
+              <div class="diary-input-group">
+                <label for="diaryGroupInput">Группа</label>
+                <div class="diary-input-wrap">
+                  <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <input type="text" id="diaryGroupInput" placeholder="ИСС9-225" value="ИСС9-225">
+                </div>
+              </div>
+
+              <div class="diary-auth-error" id="diaryAuthError" style="display:none;"></div>
+
+              <button class="diary-auth-submit-btn" id="diaryAuthSubmitBtn" type="button">
+                <span>Войти и загрузить оценки</span>
+                <svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </form>
+
+            <div class="diary-auth-footer-hint">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Пароль шифруется (Fernet AES-128) и защищен. Бот и сервер используют его только для безопасного получения оценок.</span>
+            </div>
+          </div>
         </div>
-        <button class="diary-trouble-btn" id="diaryTroubleBtn" type="button">
-          <span>Открыть напрямую</span>
-          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        </button>
+
+        <!-- 2. GRADES VIEW -->
+        <div class="diary-grades-view" id="diaryGradesView" style="display:none;">
+          <!-- Top student summary bar -->
+          <div class="diary-student-bar">
+            <div class="diary-student-info">
+              <div class="diary-student-name" id="diaryStudentName">Студент</div>
+              <div class="diary-student-sub">
+                <span class="diary-student-group" id="diaryStudentGroup">ИСС9-225</span>
+                <span class="diary-student-dot">•</span>
+                <span class="diary-student-sync" id="diaryStudentSync">Обновлено недавно</span>
+              </div>
+            </div>
+            <div class="diary-overall-score-badge" id="diaryOverallScoreBadge">
+              <span class="diary-overall-score-label">Общий балл</span>
+              <div class="diary-overall-score-val" id="diaryOverallScoreVal">—</div>
+            </div>
+          </div>
+
+          <!-- Subjects accordion list -->
+          <div class="diary-subjects-section">
+            <div class="diary-section-header">
+              <div class="diary-section-title">
+                <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg>
+                <span>Дисциплины и пары</span>
+              </div>
+              <div class="diary-section-hint">Нажмите на пару, чтобы раскрыть оценки</div>
+            </div>
+
+            <div class="diary-subjects-list" id="diarySubjectsList">
+              <!-- Dynamically populated subject cards -->
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1151,6 +1275,24 @@
               <span>Сбросить интерфейс по умолчанию</span>
             </button>
           </div>
+
+          <div class="theme-section">
+            <div class="theme-section-header">
+              <span class="theme-section-title">Сессия и синхронизация</span>
+            </div>
+            <p style="font-size:0.84rem;color:var(--text-muted);margin-bottom:12px;">
+              Сбросить привязку профиля Telegram для повторного тестирования окна синхронизации на весь экран.
+            </p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <button class="settings-danger-btn" id="modalResetSessionBtn" type="button" onclick="resetMySession()">
+                <svg class="lucide-icon" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                <span>Сбросить привязку TG и протестировать</span>
+              </button>
+              <button class="settings-action-btn" id="modalOpenTgGateBtn" type="button" onclick="openTelegramAppSyncGate()" style="background:rgba(36,129,204,0.18);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:10px 14px;border-radius:12px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;">
+                <span>📱 Открыть окно синхронизации сейчас</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Вкладка 4: Недели семестра -->
@@ -1210,6 +1352,7 @@
             </div>
           </div>
 
+
           <!-- Переключатель конфиденциальности Opt-In -->
           <div class="leaderboard-opt-in-bar">
             <div class="leaderboard-opt-in-label-wrap">
@@ -1221,14 +1364,6 @@
               <span class="leaderboard-switch-slider"></span>
             </label>
           </div>
-        </div>
-
-        <!-- Контейнер для входа через Telegram Login Widget (для браузеров) -->
-        <div class="leaderboard-web-login-banner" id="leaderboardWebLoginBanner" style="display:none;">
-          <div class="leaderboard-web-login-desc">
-            Для привязки аватара и участия в рейтинге войдите через Telegram:
-          </div>
-          <div id="telegramWidgetContainer" style="display:flex; justify-content:center; margin-top:8px;"></div>
         </div>
 
         <!-- Заголовок списка лидеров -->
@@ -1243,6 +1378,329 @@
         <div class="leaderboard-items-list" id="leaderboardItemsList">
           <div class="admin-empty-state">Загрузка таблицы лидеров...</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── INLINE BULLETPROOF TELEGRAM APP SYNC GATE CONTROLLER ──
+    window._tgGatePollingTimer = null;
+    window._tgGateActiveToken = null;
+    window._tgGateCurrentCode = '';
+    window._pendingModalAfterTg = null;
+
+    window.openTelegramAppSyncGate = function() {
+      var gate = document.getElementById('telegramAppSyncGate');
+      if (!gate) return;
+
+      if (window._tgGatePollingTimer) {
+        clearInterval(window._tgGatePollingTimer);
+        window._tgGatePollingTimer = null;
+      }
+
+      var btn = document.getElementById('tgSyncGateStartBtn');
+      var btnText = document.getElementById('tgSyncGateStartBtnText');
+      var statusBox = document.getElementById('tgSyncGateStatusBox');
+
+      if (btn) {
+        btn.disabled = false;
+        btn.onclick = function() { window.startTelegramGateSync(); };
+      }
+      if (btnText) btnText.textContent = '📱 Синхронизировать с Telegram';
+      if (statusBox) statusBox.style.display = 'none';
+      gate.style.display = 'flex';
+    };
+
+    window.skipTelegramGateSync = function() {
+      if (window._tgGatePollingTimer) {
+        clearInterval(window._tgGatePollingTimer);
+        window._tgGatePollingTimer = null;
+      }
+      localStorage.setItem('tg_guest_mode', '1');
+      localStorage.setItem('tg_sync_prompt_shown', '1');
+      var gate = document.getElementById('telegramAppSyncGate');
+      if (gate) gate.style.display = 'none';
+
+      var pending = window._pendingModalAfterTg;
+      window._pendingModalAfterTg = null;
+      if (pending === 'leaderboard') {
+        window.realOpenLeaderboardModal();
+      } else if (pending === 'games') {
+        window.realOpenGamesModal();
+      }
+    };
+
+    window.copyTelegramGateCode = function() {
+      var code = window._tgGateCurrentCode ? ('/link ' + window._tgGateCurrentCode) : '/link';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function() {
+          var btn = document.getElementById('tgSyncGateCopyBtn');
+          if (btn) {
+            var orig = btn.textContent;
+            btn.textContent = 'Скопировано!';
+            setTimeout(function() { btn.textContent = orig; }, 1500);
+          }
+        }).catch(function() {
+          prompt('Скопируйте команду:', code);
+        });
+      } else {
+        prompt('Скопируйте команду:', code);
+      }
+    };
+
+    window.startTelegramGateSync = async function() {
+      var btn = document.getElementById('tgSyncGateStartBtn');
+      var btnText = document.getElementById('tgSyncGateStartBtnText');
+      var statusBox = document.getElementById('tgSyncGateStatusBox');
+      var codeText = document.getElementById('tgSyncGateCodeText');
+      var statusText = document.getElementById('tgSyncGateStatusText');
+
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.textContent = 'Создание сессии...';
+
+      var apiBase = (window.location.origin && !window.location.origin.includes('schedule.dadrik.ru') && window.location.protocol.startsWith('http') && !window.location.hostname.includes('127.0.0.1') && !window.location.hostname.includes('localhost'))
+        ? 'https://schedule.dadrik.ru/api' : '/api';
+
+      try {
+        var res = await fetch(apiBase + '/auth/telegram-link/create', { method: 'POST' });
+        if (!res.ok) throw new Error('Ошибка сервера при создании сессии');
+        var data = await res.json();
+        if (data.status === 'ok' && data.token) {
+          window._tgGateActiveToken = data.token;
+          window._tgGateCurrentCode = data.code;
+          if (codeText) codeText.textContent = '/link ' + data.code;
+          if (statusBox) statusBox.style.display = 'flex';
+          if (statusText) statusText.textContent = 'Ожидаем подтверждения в боте...';
+          if (btnText) btnText.textContent = '📱 Открыть @Raddart_bot';
+
+          var botUrl = data.bot_url || ('https://t.me/Raddart_bot?start=auth_' + data.token);
+          var tgAppUri = 'tg://resolve?domain=Raddart_bot&start=auth_' + data.token;
+
+          var openTg = function() {
+            try {
+              var a = document.createElement('a');
+              a.href = botUrl;
+              a.target = '_blank';
+              a.rel = 'noopener noreferrer';
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(function() { try { document.body.removeChild(a); } catch(_) {} }, 100);
+              window.location.href = tgAppUri;
+            } catch (_) {
+              window.location.href = botUrl;
+            }
+          };
+
+          if (btn) {
+            btn.disabled = false;
+            btn.onclick = openTg;
+          }
+
+          openTg();
+
+          if (window._tgGatePollingTimer) clearInterval(window._tgGatePollingTimer);
+          var startTime = Date.now();
+          window._tgGatePollingTimer = setInterval(async function() {
+            if (Date.now() - startTime > 300000) {
+              clearInterval(window._tgGatePollingTimer);
+              window._tgGatePollingTimer = null;
+              if (statusText) statusText.textContent = 'Срок ожидания истек. Нажмите кнопку снова.';
+              if (btn) {
+                btn.onclick = function() { window.startTelegramGateSync(); };
+                if (btnText) btnText.textContent = 'Попробовать снова';
+              }
+              return;
+            }
+
+            try {
+              var sRes = await fetch(apiBase + '/auth/telegram-link/status?token=' + encodeURIComponent(data.token));
+              if (!sRes.ok) {
+                sRes = await fetch(apiBase + '/auth/telegram-link/poll?token=' + encodeURIComponent(data.token));
+              }
+              if (!sRes.ok) return;
+              var sData = await sRes.json();
+              if (sData.status === 'ok' && sData.auth_token) {
+                clearInterval(window._tgGatePollingTimer);
+                window._tgGatePollingTimer = null;
+                localStorage.setItem('tg_auth_token', sData.auth_token);
+                localStorage.setItem('tg_sync_prompt_shown', '1');
+                localStorage.removeItem('tg_guest_mode');
+                if (sData.user) {
+                  localStorage.setItem('tg_auth_user', JSON.stringify(sData.user));
+                  window.TELEGRAM_LINKED_USER = sData.user;
+                }
+                if (statusText) statusText.textContent = '✅ Успешно синхронизировано!';
+                if (btnText) btnText.textContent = 'Готово!';
+                if (typeof showToast === 'function') showToast('Telegram успешно синхронизирован!', 'success');
+                setTimeout(function() {
+                  var gate = document.getElementById('telegramAppSyncGate');
+                  if (gate) gate.style.display = 'none';
+                  var pending = window._pendingModalAfterTg;
+                  window._pendingModalAfterTg = null;
+                  if (pending === 'leaderboard') {
+                    window.realOpenLeaderboardModal();
+                  } else if (pending === 'games') {
+                    window.realOpenGamesModal();
+                  }
+                }, 700);
+              } else if (sData.status === 'expired') {
+                clearInterval(window._tgGatePollingTimer);
+                window._tgGatePollingTimer = null;
+                if (statusText) statusText.textContent = 'Срок действия сессии истек.';
+                if (btn) {
+                  btn.onclick = function() { window.startTelegramGateSync(); };
+                  if (btnText) btnText.textContent = 'Попробовать снова';
+                }
+              }
+            } catch (_) {}
+          }, 1500);
+
+        } else {
+          throw new Error('Некорректный ответ сервера');
+        }
+      } catch (err) {
+        console.error('startTelegramGateSync error:', err);
+        if (btn) {
+          btn.disabled = false;
+          btn.onclick = function() { window.startTelegramGateSync(); };
+        }
+        if (btnText) btnText.textContent = 'Попробовать снова';
+        if (statusText) statusText.textContent = 'Ошибка подключения к серверу';
+        if (typeof showToast === 'function') showToast('Ошибка подключения к серверу', 'error');
+      }
+    };
+
+    window.realOpenLeaderboardModal = function() {
+      var backdrop = document.getElementById('leaderboardModal');
+      var sheet = document.getElementById('leaderboardSheet');
+      if (backdrop && sheet) {
+        backdrop.style.display = 'flex';
+        backdrop.classList.add('open');
+        sheet.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        if (typeof loadLeaderboardData === 'function') loadLeaderboardData();
+        try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+      }
+    };
+
+    window.openLeaderboardModal = function() {
+      var hasTgAuth = Boolean(localStorage.getItem('tg_auth_token')) || Boolean(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 5);
+      var promptShown = localStorage.getItem('tg_sync_prompt_shown') === '1';
+
+      if (!hasTgAuth && !promptShown) {
+        window._pendingModalAfterTg = 'leaderboard';
+        window.openTelegramAppSyncGate();
+        return;
+      }
+      window.realOpenLeaderboardModal();
+    };
+
+    window.realOpenGamesModal = function() {
+      var backdrop = document.getElementById('gamesModal');
+      var sheet = document.getElementById('gamesSheet');
+      if (backdrop && sheet) {
+        try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+        backdrop.style.display = 'flex';
+        backdrop.classList.add('open');
+        sheet.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        if (typeof backToGamesCatalog === 'function') backToGamesCatalog();
+        if (typeof updateGamesCatalogScores === 'function') updateGamesCatalogScores();
+        if (typeof updateTelegramBackButton === 'function') updateTelegramBackButton();
+      }
+    };
+
+    window.openGamesModal = function() {
+      var hasTgAuth = Boolean(localStorage.getItem('tg_auth_token')) || Boolean(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 5);
+      var promptShown = localStorage.getItem('tg_sync_prompt_shown') === '1';
+
+      if (!hasTgAuth && !promptShown) {
+        window._pendingModalAfterTg = 'games';
+        window.openTelegramAppSyncGate();
+        return;
+      }
+      window.realOpenGamesModal();
+    };
+
+    window.resetTgSync = function() {
+      localStorage.removeItem('tg_auth_token');
+      localStorage.removeItem('tg_auth_user');
+      localStorage.removeItem('tg_sync_prompt_shown');
+      localStorage.removeItem('tg_guest_mode');
+      window.TELEGRAM_LINKED_USER = null;
+      window._pendingModalAfterTg = null;
+      if (typeof window.updateTelegramSyncUI === 'function') {
+        window.updateTelegramSyncUI();
+      }
+    };
+
+    window.resetMySession = function() {
+      var savedSecret = localStorage.getItem('web_secret_key');
+      var savedAdminKey = localStorage.getItem('schedule_admin_master_key');
+      var savedOnboarding = localStorage.getItem('onboarding_completed');
+
+      window.resetTgSync();
+
+      try {
+        var settingsModal = document.getElementById('settingsModal');
+        if (settingsModal) {
+          settingsModal.classList.remove('open');
+          settingsModal.style.display = 'none';
+        }
+      } catch (_) {}
+      try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+      try { if (typeof closeLeaderboardModal === 'function') closeLeaderboardModal(); } catch (_) {}
+      try { if (typeof closeGamesModal === 'function') closeGamesModal(); } catch (_) {}
+
+      if (savedSecret) localStorage.setItem('web_secret_key', savedSecret);
+      if (savedAdminKey) localStorage.setItem('schedule_admin_master_key', savedAdminKey);
+      if (savedOnboarding) localStorage.setItem('onboarding_completed', savedOnboarding);
+
+      window.openTelegramAppSyncGate();
+      if (typeof showToast === 'function') showToast('Привязка Telegram сброшена! Окно открыто.', 'success');
+    };
+  </script>
+
+  <!-- ══════════════════════════════════════════════════
+       ЭКРАН СИНХРОНИЗАЦИИ С TELEGRAM НА ВЕСЬ ЭКРАН
+       ══════════════════════════════════════════════════ -->
+  <div id="telegramAppSyncGate" class="tg-sync-gate" style="display:none;">
+    <div class="tg-sync-gate-backdrop" onclick="skipTelegramGateSync()"></div>
+    <div class="tg-sync-gate-card">
+      <button type="button" class="tg-sync-gate-close-btn" onclick="skipTelegramGateSync()" aria-label="Закрыть">&times;</button>
+      <div class="tg-sync-gate-badge">
+        <svg viewBox="0 0 24 24" class="tg-sync-plane-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+      </div>
+
+      <h2 class="tg-sync-gate-title">Синхронизация профиля</h2>
+      <p class="tg-sync-gate-subtitle">
+        Синхронизируйте приложение с официальным ботом <b>@Raddart_bot</b>, чтобы участвовать в рейтинге и сохранять рекорды игр в единый профиль!
+      </p>
+
+      <div class="tg-sync-gate-actions">
+        <button type="button" id="tgSyncGateStartBtn" class="tg-sync-gate-main-btn" onclick="startTelegramGateSync()">
+          <svg viewBox="0 0 24 24" style="width:22px;height:22px;fill:currentColor;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+          <span id="tgSyncGateStartBtnText">📱 Синхронизировать с Telegram</span>
+        </button>
+
+        <!-- Блок ожидания / резервного кода -->
+        <div id="tgSyncGateStatusBox" class="tg-sync-gate-status-box" style="display:none;">
+          <div class="tg-sync-gate-loader-row">
+            <div class="tg-link-spinner"></div>
+            <span id="tgSyncGateStatusText">Ожидаем подтверждения в боте...</span>
+          </div>
+          <div class="tg-sync-gate-code-hint">
+            <span>Или отправьте команду боту <b>@Raddart_bot</b>:</span>
+            <div class="tg-sync-gate-code-copy-row">
+              <code id="tgSyncGateCodeText">/link ......</code>
+              <button type="button" class="tg-sync-copy-btn" id="tgSyncGateCopyBtn" onclick="copyTelegramGateCode()">Скопировать</button>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="tg-sync-gate-guest-btn" onclick="skipTelegramGateSync()">
+          Продолжить без привязки (как гость)
+        </button>
       </div>
     </div>
   </div>
@@ -1317,17 +1775,6 @@
                 <span class="game-badge">Рекорд: <b id="catalogBestSnake">0</b></span>
               </div>
             </div>
-
-            <!-- Игра 5: Flappy -->
-            <div class="game-card" onclick="openGame('flappy')" role="button" tabindex="0">
-              <div class="game-card-icon-wrap" style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.2)); color: #38bdf8;">
-                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22"><path d="M16 7h.01"/><path d="M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.28-2.3L2 18z"/><path d="m20 7 2 .5-2 1.5"/><path d="M10 18v3"/></svg>
-              </div>
-              <div class="game-card-title">Flappy</div>
-              <div class="game-card-meta">
-                <span class="game-badge">Рекорд: <b id="catalogBestFlappy">0</b></span>
-              </div>
-            </div>
           </div>
 
           <!-- Таблица лидеров мини-игр -->
@@ -1342,7 +1789,6 @@
                 <button class="games-lb-tab" data-game="tetris" onclick="switchGamesLeaderboard('tetris')" type="button">Тетрис</button>
                 <button class="games-lb-tab" data-game="minesweeper" onclick="switchGamesLeaderboard('minesweeper')" type="button">Сапёр</button>
                 <button class="games-lb-tab" data-game="snake" onclick="switchGamesLeaderboard('snake')" type="button">Змейка</button>
-                <button class="games-lb-tab" data-game="flappy" onclick="switchGamesLeaderboard('flappy')" type="button">Flappy</button>
               </div>
             </div>
 
@@ -1371,7 +1817,10 @@
           <span class="admin-header-crown"><svg class="lucide-icon" viewBox="0 0 24 24" style="width:20px;height:20px;color:#eab308;"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg></span>
           <div class="modal-sheet-title">Панель управления</div>
         </div>
-        <button class="modal-close-btn" id="adminModalCloseBtn" onclick="closeAdminModal()" type="button" aria-label="Закрыть">&times;</button>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button type="button" onclick="logoutAdmin()" title="Выйти из режима администратора" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; border-radius:6px; font-size:11px; font-weight:600; padding:4px 8px; cursor:pointer;">Выйти</button>
+          <button class="modal-close-btn" id="adminModalCloseBtn" onclick="closeAdminModal()" type="button" aria-label="Закрыть">&times;</button>
+        </div>
       </div>
 
       <!-- Admin Tabs Navigation -->
@@ -1590,8 +2039,159 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════════════
+       МОДАЛЬНОЕ ОКНО: СКАЧАТЬ ПРИЛОЖЕНИЕ (ANDROID & IOS ПРЕДУПРЕЖДЕНИЕ)
+       ══════════════════════════════════════════════════ -->
+  <div class="modal-backdrop" id="downloadModal" style="display:none;" onclick="if (event.target === this) closeDownloadModal()">
+    <div class="modal-sheet modal-sheet-download" id="downloadSheet">
+      <div class="modal-sheet-handle" onclick="closeDownloadModal()"></div>
+      <div class="modal-sheet-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="download-header-icon"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:#3ddc84;stroke:none;"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.996-3.4572c.1576-.2731.0642-.6222-.2089-.7798-.273-.1576-.6222-.0642-.7798.2089l-2.0243 3.5062C15.2014 8.1633 13.6525 7.79 12 7.79s-3.2014.3733-4.8645 1.0194L5.1112 5.3032c-.1576-.2731-.5068-.3665-.7798-.2089-.2731.1576-.3665.5067-.2089.7798l1.996 3.4572C2.6884 11.2367.3435 14.8876 0 19.167h24c-.3435-4.2794-2.6884-7.9303-6.1185-9.8456"/></svg></span>
+          <div class="modal-sheet-title">Приложение «Расписание»</div>
+        </div>
+        <button class="modal-close-btn" id="downloadCloseBtn" onclick="closeDownloadModal()" type="button" aria-label="Закрыть">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="download-sheet-body">
+        <!-- Блок 1: Android приложение (.apk) -->
+        <div class="download-section-card download-android-card">
+          <div class="download-card-header">
+            <div class="download-app-icon-wrap">
+              <svg viewBox="0 0 24 24" class="download-os-icon" style="fill:#3ddc84;stroke:none;"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.996-3.4572c.1576-.2731.0642-.6222-.2089-.7798-.273-.1576-.6222-.0642-.7798.2089l-2.0243 3.5062C15.2014 8.1633 13.6525 7.79 12 7.79s-3.2014.3733-4.8645 1.0194L5.1112 5.3032c-.1576-.2731-.5068-.3665-.7798-.2089-.2731.1576-.3665.5067-.2089.7798l1.996 3.4572C2.6884 11.2367.3435 14.8876 0 19.167h24c-.3435-4.2794-2.6884-7.9303-6.1185-9.8456"/></svg>
+            </div>
+            <div class="download-card-titles">
+              <div class="download-card-main-title">Версия для Android</div>
+              <div class="download-card-sub">Файл установки .APK • 12 МБ • Быстро и без интернета</div>
+            </div>
+            <span class="download-avail-tag tag-avail">Доступно</span>
+          </div>
+
+          <div class="download-actions-group">
+            <a href="/college-schedule.apk" download="college-schedule.apk" class="download-btn-primary" id="downloadDirectApkLink">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Скачать для Android (.apk)</span>
+            </a>
+            <a href="/apk" target="_blank" rel="noopener" class="download-guide-sublink">
+              <span>Открыть страницу загрузки и инструкцию по установке →</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Блок 2: ВАЖНОЕ ПРЕДУПРЕЖДЕНИЕ — ДЛЯ IPHONE / IOS НЕ ДОСТУПНО -->
+        <div class="download-section-card download-ios-card">
+          <div class="download-card-header">
+            <div class="download-app-icon-wrap ios-wrap">
+              <svg viewBox="0 0 170 170" class="download-os-icon ios-icon" style="fill:#fb7185;stroke:none;"><path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.69-7.8-11.97-14.3-5.77-8.91-10.45-19.12-14.04-30.64-3.59-11.52-5.39-22.36-5.39-32.53 0-13.7 3.51-25.13 10.53-34.3 7.02-9.17 15.82-13.88 26.4-14.13 4.89 0 10.37 1.25 16.44 3.76 6.07 2.5 10.15 3.81 12.24 3.91 1.74-.22 6.07-1.74 12.98-4.57 6.91-2.83 12.65-4.08 17.22-3.76 13.04 1.09 23.36 5.87 30.97 14.35-11.52 6.96-17.17 16.53-16.95 28.71.22 9.57 3.81 17.62 10.76 24.14 6.96 6.52 15.11 10.22 24.46 11.09-.76 2.61-1.63 5.33-2.61 8.16-2.5 7.18-5.54 14.36-9.13 21.55zM119.22 31.84c0-7.72 2.76-14.9 8.27-21.53 5.51-6.63 12.44-10.31 20.78-11.05.11.98.16 1.85.16 2.61 0 7.61-2.93 14.95-8.81 22.02-5.87 7.07-12.93 10.93-21.19 11.58-.22-1.2-.33-2.4-.33-3.63z"/></svg>
+            </div>
+            <div class="download-card-titles">
+              <div class="download-card-main-title">Для Apple iPhone (iOS)</div>
+              <div class="download-card-sub">Информация для пользователей iPhone и iPad</div>
+            </div>
+            <span class="download-avail-tag tag-unavail">Недоступно</span>
+          </div>
+
+          <div class="download-ios-banner">
+            <span class="ios-alert-sign">⚠️</span>
+            <div class="ios-alert-body">
+              <strong>Установка приложения на iPhone недоступна.</strong>
+              <p>Apple запрещает установку сторонних приложений (.apk / .ipa) вне официального App Store. На iPhone вы можете использовать расписание следующими способами:</p>
+            </div>
+          </div>
+
+          <div class="download-ios-solutions">
+            <!-- Способ 1: Бот в Telegram -->
+            <div class="ios-solution-row">
+              <div class="ios-sol-num">1</div>
+              <div class="ios-sol-content">
+                <div class="ios-sol-title">Telegram Mini App (рекомендуется)</div>
+                <div class="ios-sol-desc">Открывайте официального бота — в нём доступен полноценный интерфейс с расписанием:</div>
+                <a href="https://t.me/Raddart_bot" target="_blank" rel="noopener" class="ios-sol-btn">
+                  <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor;flex-shrink:0;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+                  <span>Запустить @Raddart_bot</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- Способ 2: PWA Ярлык Safari -->
+            <div class="ios-solution-row">
+              <div class="ios-sol-num">2</div>
+              <div class="ios-sol-content">
+                <div class="ios-sol-title">Добавить на экран «Домой» (Safari)</div>
+                <div class="ios-sol-desc">
+                  В Safari нажмите кнопку <b>«Поделиться»</b> (<svg class="lucide-icon" style="width:13px;height:13px;vertical-align:middle;display:inline-block;" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>), пролистайте вниз и выберите <b>«На экран „Домой“»</b>. Сайт добавится как иконка и будет открываться без панелей браузера.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── MODAL: ADMIN LOGIN ─── -->
+  <div class="modal-backdrop" id="adminLoginModal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.75); backdrop-filter:blur(8px); align-items:center; justify-content:center; padding:16px;" onclick="if(event.target===this)closeAdminLoginModal();">
+    <div style="background:var(--bg-card,#131422); border:1px solid var(--border,rgba(255,255,255,0.1)); border-radius:16px; padding:24px; max-width:380px; width:100%; box-shadow:0 12px 40px rgba(0,0,0,0.6);">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+        <span style="font-size:24px;">🛡</span>
+        <h3 style="margin:0; font-size:18px; font-weight:700; color:var(--text,#fff);">Вход для создателя</h3>
+      </div>
+      <p style="margin:0 0 16px 0; font-size:13px; color:var(--text-sub,#949cb8); line-height:1.4;">
+        Введите мастер-пароль или секретный PIN-код администратора для разблокировки панели управления:
+      </p>
+      <form onsubmit="submitAdminLogin(event); return false;">
+        <input type="password" id="adminLoginKeyInput" placeholder="Мастер-пароль или PIN" autocomplete="current-password"
+          style="width:100%; box-sizing:border-box; padding:12px 14px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); border-radius:10px; color:#fff; font-size:15px; outline:none; margin-bottom:8px;">
+        <div id="adminLoginError" style="display:none; color:#ef4444; font-size:12px; margin-bottom:12px; font-weight:600;"></div>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="button" onclick="closeAdminLoginModal()" style="flex:1; padding:11px 0; background:rgba(255,255,255,0.08); border:none; border-radius:10px; color:var(--text,#fff); font-size:14px; font-weight:600; cursor:pointer;">Отмена</button>
+          <button type="submit" id="adminLoginSubmitBtn" style="flex:1; padding:11px 0; background:var(--accent,#4f8ef7); border:none; border-radius:10px; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">Войти</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── MODAL: UPDATE APP (FOR OLD APK) ─── -->
+  <div class="modal-backdrop" id="updateAppModal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); align-items:center; justify-content:center; padding:16px;">
+    <div style="background:linear-gradient(145deg, #131a2a, #0b0f19); border:1px solid #1e293b; border-radius:20px; padding:24px; max-width:390px; width:100%; box-shadow:0 16px 50px rgba(0,0,0,0.8); text-align:center; position:relative; overflow:hidden;">
+      <div style="position:absolute; top:-30px; left:50%; transform:translateX(-50%); width:120px; height:60px; background:radial-gradient(circle, rgba(6,182,212,0.4) 0%, transparent 70%); filter:blur(20px); pointer-events:none;"></div>
+      
+      <div style="width:56px; height:56px; border-radius:16px; background:rgba(6,182,212,0.12); border:1px solid rgba(6,182,212,0.3); display:inline-flex; align-items:center; justify-content:center; margin-bottom:16px;">
+        <span style="font-size:28px;">⚡</span>
+      </div>
+
+      <h3 style="margin:0 0 8px 0; font-size:20px; font-weight:800; color:#fff; letter-spacing:-0.3px;">Новое обновление 2.0!</h3>
+      <p style="margin:0 0 16px 0; font-size:13px; color:#94a3b8; line-height:1.5;">
+        Появились <b style="color:#06b6d4;">виджеты на рабочий стол Android</b>! Теперь текущая и следующая пара видны сразу на экране телефона без открытия приложения.
+      </p>
+
+      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:12px; margin-bottom:18px; text-align:left;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:12px; font-weight:700; color:#f8fafc;">
+          <span>📱</span><span>Что нового в обновлении:</span>
+        </div>
+        <div style="font-size:12px; color:#94a3b8; line-height:1.4;">
+          • Виджет с текущей и следующей парой<br>
+          • Аудитории, звонки и преподаватели<br>
+          • Быстрое открытие в 1 клик
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <a id="btnInstallApkUpdate" href="https://schedule.dadrik.ru/college-schedule.apk" download="college-schedule.apk"
+           style="display:flex; align-items:center; justify-content:center; gap:8px; width:100%; box-sizing:border-box; padding:13px 0; background:linear-gradient(135deg, #06b6d4, #3b82f6); border:none; border-radius:12px; color:#fff; font-size:15px; font-weight:700; text-decoration:none; cursor:pointer; box-shadow:0 4px 15px rgba(6,182,212,0.35);">
+          <span>🚀 Скачать и обновить</span>
+        </a>
+        <button type="button" onclick="dismissUpdateAppModal()" style="padding:10px 0; background:transparent; border:none; color:#64748b; font-size:13px; font-weight:600; cursor:pointer;">
+          Напомнить позже
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/onboarding.js?v=20260920_v6"></script>
-  <script src="/static/app.js?v=20260920_v6"></script>
+  <script src="/static/onboarding.js?v=20260924_v25"></script>
+  <script src="/static/app.js?v=20260924_v25"></script>
 </body>
 </html>

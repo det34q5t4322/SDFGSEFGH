@@ -1,0 +1,9165 @@
+/* ════════════════════════════════════════
+   COLLEGE SCHEDULE APP — app.js
+   Современный интерфейс: sidebar, day-strip,
+   live-card, плиточный выбор групп,
+   интерактивный список преподавателей и аудиторий
+════════════════════════════════════════ */
+
+'use strict';
+
+// ── THEME & PREFERENCES INITIALIZATION (Zero-flicker) ─
+const STORAGE_THEME        = 'college_schedule_theme';
+const STORAGE_FONT_FAMILY  = 'schedule_font_family';
+const STORAGE_FONT_SIZE    = 'schedule_font_size';
+const STORAGE_SHOW_TEACHER = 'schedule_show_teacher';
+const STORAGE_SHOW_ROOM    = 'schedule_show_room';
+const STORAGE_SHOW_BADGES  = 'schedule_show_badges';
+const STORAGE_SHOW_BREAKS  = 'schedule_show_breaks';
+const STORAGE_NAV_POSITION = 'schedule_nav_position';
+
+// ── SAFE LOCALSTORAGE ACCESSORS (Protects against SecurityError / Private mode) ─
+function safeGetItem(key, fallback = null) {
+  try {
+    const val = localStorage.getItem(key);
+    return val !== null ? val : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_) {}
+}
+
+function safeRemoveItem(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (_) {}
+}
+
+(function() {
+  try {
+    const savedTheme = safeGetItem(STORAGE_THEME, 'obsidian');
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    const savedFont = safeGetItem(STORAGE_FONT_FAMILY, 'system');
+    document.documentElement.setAttribute('data-font', savedFont);
+    const savedSize = safeGetItem(STORAGE_FONT_SIZE, 'normal');
+    document.documentElement.setAttribute('data-font-size', savedSize);
+    const savedNavPos = safeGetItem(STORAGE_NAV_POSITION, 'bottom');
+    document.documentElement.setAttribute('data-nav-position', 'bottom');
+
+    if (safeGetItem(STORAGE_SHOW_TEACHER) === 'false') {
+      document.documentElement.setAttribute('data-hide-teacher', 'true');
+    }
+    if (safeGetItem(STORAGE_SHOW_ROOM) === 'false') {
+      document.documentElement.setAttribute('data-hide-room', 'true');
+    }
+    if (safeGetItem(STORAGE_SHOW_BADGES) === 'false') {
+      document.documentElement.setAttribute('data-hide-badges', 'true');
+    }
+    if (safeGetItem(STORAGE_SHOW_BREAKS) === 'false') {
+      document.documentElement.setAttribute('data-hide-breaks', 'true');
+    }
+  } catch (_) {}
+})();
+
+// ── ICONS (Lucide SVG System) ──────────────
+const ICONS = {
+  calendar: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>',
+  calendarDays: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>',
+  gradCap: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>',
+  door: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h20"/><path d="M13 20V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"/><path d="M9 12v.01"/></svg>',
+  book: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg>',
+  palette: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>',
+  users: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  refresh: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
+  clock: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  mapPin: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>',
+  user: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>',
+  coffee: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/><path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/></svg>',
+  utensils: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 2v6a3 3 0 0 1-3 3 3 3 0 0 1-3-3V2"/><path d="M15 11v11"/><path d="M5 2v14a3 3 0 0 0 3 3v3"/><path d="M8 2v6"/><path d="M5 2h3"/></svg>',
+  swap: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>',
+  ban: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>',
+  check: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
+  extLink: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>',
+  alert: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  chevronLeft: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>',
+  chevronRight: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>',
+  x: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+  moon: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>',
+  play: '<svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg>',
+  eye: '<svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff: '<svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>',
+  lock: '<svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  grip: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>',
+  zap: '<svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  smartphone: '<svg class="lucide-icon" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg>',
+  menuIcon: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>',
+  tag: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>',
+  shieldAlert: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>',
+  settings: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+  sun: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+  flower: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 7.5a4.5 4.5 0 1 1 4.5 4.5M12 7.5A4.5 4.5 0 1 0 7.5 12M12 7.5V9m4.5 3a4.5 4.5 0 1 1-4.5 4.5M16.5 12H15m-3 4.5a4.5 4.5 0 1 1-4.5-4.5M12 16.5V15m-4.5-3A4.5 4.5 0 1 1 12 7.5M7.5 12H9"/><circle cx="12" cy="12" r="2"/></svg>',
+  scroll: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/></svg>',
+  gamepad: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="6"/></svg>',
+  terminal: '<svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>',
+  orbit: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><path d="M10.4 21.9a10 10 0 0 0 9.94-8.4"/><path d="M13.6 2.1a10 10 0 0 0-9.94 8.4"/></svg>',
+  activity: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.48 12H2"/></svg>',
+  laptop: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></svg>',
+  triangle: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M3 21h18L12 3 3 21z"/></svg>',
+  languages: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>',
+  landmark: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="18"/><line x1="10" x2="10" y1="18" y2="18"/><line x1="14" x2="14" y1="18" y2="18"/><line x1="18" x2="18" y1="18" y2="18"/><polygon points="12 2 20 7 4 7"/></svg>',
+  shield: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  flask: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M10 2v7.31L4.12 18.23A2 2 0 0 0 5.79 21h12.42a2 2 0 0 0 1.67-2.77L14 9.31V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>',
+  barChart: '<svg class="lucide-icon" viewBox="0 0 24 24"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>',
+  wrench: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+  penTool: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>',
+  trophy: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+  checkCircle: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
+  crown: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>'
+};
+
+// ── CONFIG ──────────────────────────────
+const IS_CAPACITOR = Boolean(
+  window.Capacitor || 
+  window.location.protocol === 'capacitor:' || 
+  window.location.protocol === 'file:' ||
+  (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('CapacitorApp')) ||
+  (typeof window !== 'undefined' && window.location && window.location.search && window.location.search.includes('app=apk'))
+);
+const API = (IS_CAPACITOR && !['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.origin !== 'https://schedule.dadrik.ru') ? 'https://schedule.dadrik.ru/api' : '/api';
+const STORAGE_GROUP   = 'schedule_group_v2';
+const STORAGE_PARITY  = 'schedule_parity';
+const STORAGE_CACHE_PREFIX = 'schedule_cache_v2_';
+const AUTO_REFRESH_MS = 30_000;
+
+const DAYS = ['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
+const DAYS_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const DAYS_EN_ORDER = [1,2,3,4,5,6]; // Пн-Сб
+
+const MONTH_NAMES = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+];
+
+const DEFAULT_GROUPS = [
+  {"name": "ИИ11-26АП", "course": "1 курс"}, {"name": "ИИ11-26БП", "course": "1 курс"},
+  {"name": "ИИ9-26АП", "course": "1 курс"}, {"name": "ИИ9-26БП", "course": "1 курс"},
+  {"name": "ИИ9-26ВП", "course": "1 курс"}, {"name": "ИСС9-26", "course": "1 курс"},
+  {"name": "ОИБ11-26П", "course": "1 курс"}, {"name": "ОИБ9-26А", "course": "1 курс"},
+  {"name": "ОИБ9-26Б", "course": "1 курс"}, {"name": "ОИБ9-26П", "course": "1 курс"},
+  {"name": "РЛ11-26П", "course": "1 курс"}, {"name": "РЛ9-26П", "course": "1 курс"},
+  {"name": "РУП11-26П", "course": "1 курс"}, {"name": "РУП9-26А", "course": "1 курс"},
+  {"name": "РУП9-26АП", "course": "1 курс"}, {"name": "РУП9-26Б", "course": "1 курс"},
+  {"name": "РУП9-26БП", "course": "1 курс"}, {"name": "СР9-26", "course": "1 курс"},
+  {"name": "ССА11-26П", "course": "1 курс"}, {"name": "ССА9-26А", "course": "1 курс"},
+  {"name": "ССА9-26Б", "course": "1 курс"}, {"name": "ССА9-26П", "course": "1 курс"},
+  {"name": "ЭБ11-26П", "course": "1 курс"}, {"name": "ЭБ9-26П", "course": "1 курс"},
+  {"name": "ИИ9-25АП", "course": "2 курс"}, {"name": "ИИ9-25БП", "course": "2 курс"},
+  {"name": "ИИ9-25ВП", "course": "2 курс"}, {"name": "ИСП11-25П", "course": "2 курс"},
+  {"name": "ИСП11-25оз", "course": "Очно-заочное"}, {"name": "ИСП9-25", "course": "2 курс"},
+  {"name": "ИСП9-25АП", "course": "2 курс"}, {"name": "ИСП9-25БП", "course": "2 курс"},
+  {"name": "ИСП9-25ВП", "course": "2 курс"}, {"name": "ИСС9-25", "course": "2 курс"},
+  {"name": "ОИБ11-25П", "course": "2 курс"}, {"name": "ОИБ9-25", "course": "2 курс"},
+  {"name": "ОИБ9-25АП", "course": "2 курс"}, {"name": "ОИБ9-25БП", "course": "2 курс"},
+  {"name": "РЛ9-25П", "course": "2 курс"}, {"name": "СР9-25", "course": "2 курс"},
+  {"name": "ССА11-25П", "course": "2 курс"}, {"name": "ССА9-25А", "course": "2 курс"},
+  {"name": "ССА9-25Б", "course": "2 курс"}, {"name": "ССА9-25П", "course": "2 курс"},
+  {"name": "ЭБ9-25П", "course": "2 курс"}, {"name": "ИСП11-24П", "course": "3 курс"},
+  {"name": "ИСП11-24оз", "course": "Очно-заочное"}, {"name": "ИСП9-24А", "course": "3 курс"},
+  {"name": "ИСП9-24АП", "course": "3 курс"}, {"name": "ИСП9-24Б", "course": "3 курс"},
+  {"name": "ИСП9-24БП", "course": "3 курс"}, {"name": "ИСС9-24", "course": "3 курс"},
+  {"name": "ОИБ11-24П", "course": "3 курс"}, {"name": "ОИБ9-24А", "course": "3 курс"},
+  {"name": "ОИБ9-24Б", "course": "3 курс"}, {"name": "ОИБ9-24П", "course": "3 курс"},
+  {"name": "СР9-24", "course": "3 курс"}, {"name": "ССА9-24А", "course": "3 курс"},
+  {"name": "ССА9-24Б", "course": "3 курс"}, {"name": "ССА9-24П", "course": "3 курс"},
+  {"name": "ИСП11-23АПоз", "course": "Очно-заочное"}, {"name": "ИСП11-23ВПоз", "course": "Очно-заочное"},
+  {"name": "ИСП9-23А", "course": "4 курс"}, {"name": "ИСП9-23Б", "course": "4 курс"},
+  {"name": "ИСП9-23В", "course": "4 курс"}, {"name": "ИСП9-23Г", "course": "4 курс"},
+  {"name": "ИСС9-23", "course": "4 курс"}, {"name": "ОИБ9-23А", "course": "4 курс"},
+  {"name": "ОИБ9-23Б", "course": "4 курс"}, {"name": "ОИБ9-23В", "course": "4 курс"},
+  {"name": "СР9-23", "course": "4 курс"}, {"name": "ССА11-23оз", "course": "Очно-заочное"},
+  {"name": "ССА9-23А", "course": "4 курс"}, {"name": "ССА9-23Б", "course": "4 курс"},
+  {"name": "ССА9-23В", "course": "4 курс"}, {"name": "РУП11-26оз", "course": "Очно-заочное"},
+  {"name": "ССА11-26оз", "course": "Очно-заочное"}
+];
+
+const DEFAULT_GROUP = 'ИСС9-25';
+
+function sanitizeGroupName(name) {
+  if (!name || typeof name !== 'string') return DEFAULT_GROUP;
+  let clean = name.trim();
+  // Устранение ошибочного суффикса 'П' для группы ИСС9-25 (в колледже существует ИСС9-25)
+  if (/^ИСС9-25[пП]$/i.test(clean)) {
+    clean = 'ИСС9-25';
+  }
+  return clean || DEFAULT_GROUP;
+}
+
+// ── STATE ───────────────────────────────
+const S = {
+  group:              sanitizeGroupName(safeGetItem(STORAGE_GROUP, DEFAULT_GROUP)),
+  activeGid:          '',
+  parity:             'auto',
+  parityOverride:     null,         // 'num' | 'den' | null (ручное переключение чётности через чип в шапке)
+  weekOffset:         0,            // 0 = текущая неделя, 1 = следующая, -1 = предыдущая
+  view:               'today',      // today | week | teacher | classroom
+  selectedDay:        null,         // 1-6 (Пн-Сб), null = сегодня
+  data:               null,
+  groupsList:         DEFAULT_GROUPS,
+  teachersList:       [],
+  classroomsList:     [],
+  selectedTeacher:    null,
+  selectedClassroom:  null,
+  tabs:               [],
+  manualTabMode:      false,        // true = пользователь явно выбрал вкладку в сайдбаре
+  isNotPublished:     false,        // true = расписание на выбранную дату ещё не опубликовано
+  refreshTimer:       null,
+  isLoading:          false,        // true = запрос расписания в процессе
+  isNavigatingWeek:   false,        // true = переключение недели выполняется
+  hasInitiallyLoadedFreshData: false, // true = свежие данные от сервера уже успешно получены в текущей сессии
+  isAdmin:            false,
+  telegramId:         null,
+  telegramUsername:   null,
+};
+
+// ── FAULT TOLERANCE & NETWORK HELPERS ───
+function logApp(level, msg, data = null) {
+  const t = new Date().toLocaleTimeString('ru-RU');
+  const tag = `[Schedule ${t}]`;
+  if (level === 'error') console.error(tag, msg, data || '');
+  else if (level === 'warn') console.warn(tag, msg, data || '');
+  else console.log(tag, msg, data || '');
+}
+
+function showOfflineBanner(message, isWakingUp = false) {
+  logApp('info', `[OfflineStatus] ${message}`);
+  // Visual banner removed per user request - silent logging only
+}
+
+function hideOfflineBanner() {
+  // Visual banner removed per user request
+}
+
+// ── AUTH & TELEGRAM GATE ─────────────────
+const VALID_WEB_SECRETS = ['dadrik2026', 'dadrik'];
+
+// Сохранение и проверка секретного ключа для автономного браузерного доступа
+try {
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _sec = _urlParams.get('secret') || _urlParams.get('key') || _urlParams.get('access');
+  if (_sec && VALID_WEB_SECRETS.includes(_sec)) {
+    localStorage.setItem('web_secret_key', _sec);
+    localStorage.setItem('onboarding_completed', 'true');
+    document.cookie = `secret_key=${_sec}; path=/; max-age=31536000; SameSite=Lax; Secure`;
+  }
+} catch (_) {}
+
+function hasWebSecretAccess() {
+  try {
+    const saved = localStorage.getItem('web_secret_key');
+    if (saved && VALID_WEB_SECRETS.includes(saved)) return true;
+    const match = document.cookie.match(/(?:^|;\s*)secret_key=([^;]+)/);
+    if (match && VALID_WEB_SECRETS.includes(match[1])) {
+      localStorage.setItem('web_secret_key', match[1]);
+      localStorage.setItem('onboarding_completed', 'true');
+      return true;
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
+function getAuthHeaders() {
+  const headers = {};
+  const initData = window.Telegram?.WebApp?.initData || '';
+  if (initData) {
+    headers['X-Telegram-Init-Data'] = initData;
+  }
+  const linkedToken = localStorage.getItem('tg_auth_token');
+  if (linkedToken) {
+    headers['X-Telegram-Auth-Token'] = linkedToken;
+  }
+  const secret = localStorage.getItem('web_secret_key') || (document.cookie.match(/(?:^|;\s*)secret_key=([^;]+)/) || [])[1];
+  if (secret && VALID_WEB_SECRETS.includes(secret)) {
+    headers['X-Secret-Key'] = secret;
+  }
+  const adminKey = localStorage.getItem('schedule_admin_master_key');
+  if (adminKey) {
+    headers['X-Admin-Key'] = adminKey;
+  }
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (isLocalhost) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mock_user')) {
+      headers['X-Mock-User'] = params.get('mock_user');
+    } else if (params.get('dev') === '1') {
+      headers['X-Dev-Mode'] = '1';
+    }
+  }
+  return headers;
+}
+
+function renderTelegramGatePrompt() {
+  if (!els.scheduleView) return;
+  els.scheduleView.removeAttribute('aria-busy');
+  els.scheduleView.innerHTML = `
+    <div class="schedule-error-card" style="max-width:440px;margin:24px auto;padding:28px 20px;text-align:center;">
+      <div style="font-size:42px;margin-bottom:12px;line-height:1;">📱</div>
+      <div class="schedule-error-title" style="font-size:20px;margin-bottom:8px;">Расписание колледжа связи</div>
+      <div class="schedule-error-desc" style="font-size:14px;line-height:1.5;color:var(--text-muted,#8b949e);margin-bottom:20px;">
+        Для быстрого доступа используйте официального бота в Telegram или введите ключ доступа для работы в браузере.
+      </div>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:24px;">
+        <a href="https://t.me/Raddart_bot" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:14px;background:#2481cc;color:#fff;text-decoration:none;font-weight:600;font-size:15px;box-shadow:0 4px 12px rgba(36,129,204,0.3);transition:transform 0.15s;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+          <span>Открыть в Telegram</span>
+        </a>
+      </div>
+      <div style="padding-top:20px;border-top:1px solid var(--border,rgba(255,255,255,0.1));">
+        <div style="font-size:13px;color:var(--text-muted,#8b949e);margin-bottom:12px;">Вход по секретному ключу в браузере:</div>
+        <form onsubmit="handleSecretKeySubmit(event)" style="display:flex;gap:8px;justify-content:center;max-width:320px;margin:0 auto;">
+          <input type="password" id="manualSecretInput" placeholder="Введите ключ" autocomplete="current-password" style="flex:1;min-width:0;padding:10px 14px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid var(--border,rgba(255,255,255,0.15));color:var(--text,#fff);font-size:14px;outline:none;" />
+          <button type="submit" style="padding:10px 18px;border-radius:12px;background:var(--accent,#4f46e5);color:#fff;border:none;font-weight:600;cursor:pointer;white-space:nowrap;">Войти</button>
+        </form>
+        <div id="manualSecretError" style="font-size:12px;color:#f43f5e;margin-top:8px;display:none;">Неверный ключ доступа</div>
+      </div>
+    </div>
+  `;
+}
+
+window.handleSecretKeySubmit = function(e) {
+  if (e) e.preventDefault();
+  const inp = document.getElementById('manualSecretInput');
+  const err = document.getElementById('manualSecretError');
+  const val = (inp?.value || '').trim();
+  if (VALID_WEB_SECRETS.includes(val)) {
+    if (err) err.style.display = 'none';
+    localStorage.setItem('web_secret_key', val);
+    localStorage.setItem('onboarding_completed', 'true');
+    document.cookie = `secret_key=${val}; path=/; max-age=31536000; SameSite=Lax; Secure`;
+    if (typeof showToast === 'function') showToast('Ключ принят! Загрузка расписания...', 2000);
+    loadSchedule(true);
+  } else {
+    if (err) err.style.display = 'block';
+  }
+};
+
+
+function isCloudStorageSupported() {
+  try {
+    return Boolean(window.Telegram?.WebApp?.isVersionAtLeast?.('6.9') && window.Telegram?.WebApp?.CloudStorage);
+  } catch (_) {
+    return false;
+  }
+}
+
+function isTelegramGatePassed() {
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const isDev = isLocalhost && (window.location.search.includes('dev=1') || window.location.search.includes('mock_user='));
+  const isTgWebApp = Boolean(window.Telegram?.WebApp && (window.Telegram.WebApp.initData || window.Telegram.WebApp.platform !== 'unknown' || window.Telegram.WebApp.version));
+  const hasAuthToken = Boolean(localStorage.getItem('tg_auth_token'));
+  const isGuest = localStorage.getItem('tg_guest_mode') === '1';
+  return isTgWebApp || isDev || hasAuthToken || isGuest || hasWebSecretAccess() || IS_CAPACITOR;
+}
+
+// ── BAN LOCK & ENDLESS LOADER ──
+function triggerBanEndlessLoading() {
+  try { safeSetItem('is_banned_state', 'true'); } catch (_) {}
+  document.documentElement.classList.add('banned-lock');
+  const loader = document.getElementById('endlessBanLoader');
+  if (loader) loader.style.display = 'flex';
+
+  try { stopAutoRefresh(); } catch (_) {}
+  try { stopLiveCardClock(); } catch (_) {}
+  try { stopEnglishCountdown(); } catch (_) {}
+  S.data = null;
+
+  try { closeSidebar(); } catch (_) {}
+  try { if (typeof closeAdminModal === 'function') closeAdminModal(); } catch (_) {}
+  try { if (typeof closeSettingsModal === 'function') closeSettingsModal(); } catch (_) {}
+  logApp('warn', 'Active ban detected. Site locked in endless loading circle.');
+}
+
+function clearBanEndlessLoading() {
+  try { localStorage.removeItem('is_banned_state'); } catch (_) {}
+  document.documentElement.classList.remove('banned-lock');
+  const loader = document.getElementById('endlessBanLoader');
+  if (loader) loader.style.display = 'none';
+}
+
+// Intercept fetch for /api/* requests to automatically inject Telegram WebApp headers
+const _origFetch = window.fetch;
+window.fetch = function(resource, init = {}) {
+  const url = typeof resource === 'string' ? resource : (resource?.url || '');
+  if (url.includes('/api/')) {
+    const authHeaders = getAuthHeaders();
+    const headers = new Headers(init.headers || (resource instanceof Request ? resource.headers : {}));
+    for (const [k, v] of Object.entries(authHeaders)) {
+      if (!headers.has(k)) {
+        headers.set(k, v);
+      }
+    }
+    init = { ...init, headers };
+  }
+  return _origFetch.call(this, resource, init);
+};
+
+const escapeHtml = esc;
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8500) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  if (options.signal) {
+    if (options.signal.aborted) {
+      clearTimeout(timer);
+      throw new DOMException('Aborted', 'AbortError');
+    }
+    options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  try {
+    const fetchOptions = { ...options };
+    delete fetchOptions.signal;
+    fetchOptions.credentials = fetchOptions.credentials || 'include';
+    fetchOptions.headers = {
+      ...getAuthHeaders(),
+      ...(options.headers || {})
+    };
+    const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') {
+      if (options.signal?.aborted) {
+        throw err;
+      }
+      throw new Error(`Превышено время ожидания ответа сервера (${Math.round(timeoutMs / 1000)}с)`);
+    }
+    throw err;
+  }
+}
+
+// ── DOM REFS ────────────────────────────
+const $ = id => document.getElementById(id);
+
+const els = {
+  sidebar:              $('sidebar'),
+  sidebarOverlay:       $('sidebarOverlay'),
+  menuBtn:              $('menuBtn'),
+  sidebarGroupName:     $('sidebarGroupName'),
+  sidebarGroupAvatar:   $('sidebarGroupAvatar'),
+  sidebarGroupBadge:    $('sidebarGroupBadge'),
+  sidebarTabList:       $('sidebarTabList'),
+  sidebarSyncStatus:    $('sidebarSyncStatus'),
+  sidebarUpdated:       $('sidebarUpdated'),
+  sidebarFooter:        $('sidebarFooter'),
+  sidebarChangeGroup:   $('sidebarChangeGroup'),
+  sidebarRefresh:       $('sidebarRefresh'),
+  sidebarOnboardingBtn:   $('sidebarOnboardingBtn'),
+  sidebarGraduationBtn:   $('sidebarGraduationBtn'),
+  sidebarGraduationLabel: $('sidebarGraduationLabel'),
+  sidebarSettingsBtn:     $('sidebarSettingsBtn') || $('sidebarThemeBtn'),
+
+  topbarGroupName:      $('topbarGroupName'),
+  topbarParity:         $('topbarParity'),
+
+  liveCard:             $('liveCard'),
+  liveCardIcon:         $('liveCardIcon'),
+  liveCardTitle:        $('liveCardTitle'),
+  liveCardSub:          $('liveCardSub'),
+  liveCardProgress:     $('liveCardProgress'),
+  liveCardCloseBtn:     $('liveCardCloseBtn'),
+  liveCardRestoreBtn:   $('liveCardRestoreBtn'),
+  liveRestoreIcon:      $('liveRestoreIcon'),
+  liveRestoreText:      $('liveRestoreText'),
+
+  topbarThemeBtn:       $('topbarThemeBtn'),
+  sidebarThemeBtn:      $('sidebarThemeBtn'),
+  themeModal:           $('settingsModal') || $('themeModal'),
+  settingsModal:        $('settingsModal') || $('themeModal'),
+  closeThemeModal:      $('closeSettingsModal') || $('closeThemeModal'),
+  closeSettingsModal:   $('closeSettingsModal') || $('closeThemeModal'),
+  themesGrid:           $('themesGrid'),
+  settingsWeeksList:    $('settingsWeeksList'),
+  settingsTabsNav:      $('settingsTabsNav'),
+
+  dayStrip:             $('dayStrip'),
+  prevWeekBtn:          $('prevWeekBtn'),
+  nextWeekBtn:          $('nextWeekBtn'),
+  weekNavRange:         $('weekNavRange'),
+  weekNavBadge:         $('weekNavBadge'),
+
+  scheduleView:         $('scheduleView'),
+
+  // Преподаватели
+  teacherView:          $('teacherView'),
+  teacherSearchInput:   $('teacherSearchInput'),
+  teacherSearchBtn:     $('teacherSearchBtn'),
+  teacherSelectWrap:    $('teacherSelectWrap'),
+  teacherCountBadge:    $('teacherCountBadge'),
+  teachersGrid:         $('teachersGrid'),
+  teacherResult:        $('teacherResult'),
+  teacherContextBar:    $('teacherContextBar'),
+  teacherContextName:   $('teacherContextName'),
+
+  // Аудитории
+  classroomView:        $('classroomView'),
+  classroomSearchInput: $('classroomSearchInput'),
+  classroomSearchBtn:   $('classroomSearchBtn'),
+  classroomSelectWrap:  $('classroomSelectWrap'),
+  classroomCountBadge:  $('classroomCountBadge'),
+  classroomsGrid:       $('classroomsGrid'),
+  classroomResult:      $('classroomResult'),
+  classroomContextBar:  $('classroomContextBar'),
+  classroomContextName: $('classroomContextName'),
+
+  // Статистика
+  statsView:            $('statsView'),
+  statsContainer:       $('statsContainer'),
+
+  // Английский язык (Сигнализация тревоги)
+  englishView:          $('englishView'),
+  sidebarEnglish:       $('sidebarEnglish'),
+
+  // Модальные окна
+  groupModal:           $('groupModal'),
+  closeGroupModal:      $('closeGroupModal'),
+  groupSearchInput:     $('groupSearchInput'),
+  groupsGrid:           $('groupsGrid'),
+  courseChips:          $('courseChips'),
+
+  supportModal:         $('supportModal'),
+  closeSupportModal:    $('closeSupportModal'),
+  supportVideo:         $('supportVideo'),
+  sidebarSupportBtn:    $('sidebarSupportBtn'),
+
+  diaryModal:           $('diaryModal'),
+  closeDiaryModal:      $('closeDiaryModal'),
+  diaryIframe:          $('diaryIframe'),
+  diaryLoader:          $('diaryLoader'),
+  diaryReloadBtn:       $('diaryReloadBtn'),
+  diaryExternalBtn:     $('diaryExternalBtn'),
+  diaryTroubleBtn:      $('diaryTroubleBtn'),
+  sidebarDiaryBtn:      $('sidebarDiaryBtn'),
+  bottomNavDiary:       $('bottomNavDiary'),
+  topbarDiaryBtn:       $('topbarDiaryBtn'),
+
+  onboardModal:         $('onboardModal'),
+  onboardSearchInput:   $('onboardSearchInput'),
+  onboardGroupsGrid:    $('onboardGroupsGrid'),
+  onboardCourseChips:   $('onboardCourseChips'),
+
+  // Отказоустойчивость и оффлайн-баннер
+  offlineBanner:         $('offlineBanner'),
+  offlineBannerText:     $('offlineBannerText'),
+  offlineBannerRetryBtn: $('offlineBannerRetryBtn'),
+
+  // Конструктор интерфейса
+  mainFlowContainer:        $('mainFlowContainer'),
+  layoutEditorBar:          $('layoutEditorBar'),
+  layoutTabsNav:            $('layoutTabsNav'),
+  tabBtnScreen:             $('tabBtnScreen'),
+  tabBtnMenu:               $('tabBtnMenu'),
+  tabBtnCard:               $('tabBtnCard'),
+  presetsChipsRow:          $('presetsChipsRow'),
+  screenBlueprintBuilder:   $('screenBlueprintBuilder'),
+  blueprintTilesList:       $('blueprintTilesList'),
+  cardTemplateBuilder:      $('cardTemplateBuilder'),
+  cardTemplateDropzone:     $('cardTemplateDropzone'),
+  sidebarNav:               $('sidebarNav'),
+  sidebarLayoutEditorBtn:   $('sidebarLayoutEditorBtn'),
+  sidebarResetLayoutBtn:    $('sidebarResetLayoutBtn'),
+  modalOpenLayoutEditorBtn: $('modalOpenLayoutEditorBtn'),
+  modalOpenLayoutMenuBtn:   $('modalOpenLayoutMenuBtn'),
+  modalOpenLayoutCardBtn:   $('modalOpenLayoutCardBtn'),
+  modalResetLayoutBtn:      $('modalResetLayoutBtn'),
+  layoutSaveBtn:            $('layoutSaveBtn'),
+  layoutCancelBtn:          $('layoutCancelBtn'),
+  layoutResetBtn:           $('layoutResetBtn'),
+
+  // Админ-панель
+  adminModalBackdrop:   $('adminModalBackdrop'),
+  adminModal:           $('adminModal'),
+  adminModalCloseBtn:   $('adminModalCloseBtn'),
+  newBanId:             $('newBanId'),
+  newBanReason:         $('newBanReason'),
+  adminBansList:        $('adminBansList'),
+  sidebarAdminBtn:      $('sidebarAdminBtn'),
+};
+
+// ════════════════════════════════════════
+//  TELEGRAM WEBAPP INTEGRATION (MOB-01, MOB-02, MOB-03)
+// ════════════════════════════════════════
+function updateTelegramBackButton() {
+  const tg = window.Telegram?.WebApp;
+  if (!tg?.BackButton) return;
+
+  const isModalOpen = Boolean(
+    document.querySelector('.modal-backdrop.open, .modal.open, .drawer-backdrop.open') ||
+    els.adminModalBackdrop?.classList.contains('open') ||
+    els.groupModal?.classList.contains('open') ||
+    (els.settingsModal || els.themeModal)?.classList.contains('open') ||
+    els.onboardModal?.classList.contains('open') ||
+    els.diaryModal?.classList.contains('open')
+  );
+  const isSidebarOpen = Boolean(els.sidebar?.classList.contains('open'));
+  let isEditing = false;
+  try { isEditing = Boolean(isLayoutEditingMode); } catch (_) {}
+  const isNonDefaultView = Boolean(S.view && S.view !== 'today' && S.view !== 'week' && S.view !== 'schedule');
+  const hasEntitySelection = Boolean((S.view === 'teacher' && S.selectedTeacher) || (S.view === 'classroom' && S.selectedClassroom));
+  const isNonDefaultWeek = Boolean(S.weekOffset !== 0);
+
+  if (isEditing || isModalOpen || isSidebarOpen || isNonDefaultView || hasEntitySelection || isNonDefaultWeek) {
+    try { tg.BackButton.show(); } catch (_) {}
+  } else {
+    try { tg.BackButton.hide(); } catch (_) {}
+  }
+}
+
+function handleTelegramBackButtonClick() {
+  let isEditing = false;
+  try { isEditing = Boolean(isLayoutEditingMode); } catch (_) {}
+
+  if (isEditing) {
+    if (typeof exitLayoutEditor === 'function') exitLayoutEditor(false);
+  } else if (els.adminModalBackdrop?.classList.contains('open')) {
+    closeAdminModal();
+  } else if (els.diaryModal?.classList.contains('open')) {
+    closeDiaryModal();
+  } else if (document.getElementById('downloadModal')?.classList.contains('open')) {
+    if (typeof window.closeDownloadModal === 'function') window.closeDownloadModal(true);
+  } else if (document.getElementById('gamesModal')?.classList.contains('open')) {
+    const playView = document.getElementById('gamesPlayView');
+    if (playView && playView.style.display !== 'none') {
+      if (typeof window.backToGamesCatalog === 'function') window.backToGamesCatalog();
+    } else {
+      if (typeof window.closeGamesModal === 'function') window.closeGamesModal(true);
+    }
+  } else if (document.getElementById('leaderboardModal')?.classList.contains('open')) {
+    if (typeof window.closeLeaderboardModal === 'function') window.closeLeaderboardModal();
+  } else if (els.sidebar?.classList.contains('open')) {
+    closeSidebar();
+  } else if ((els.settingsModal || els.themeModal)?.classList.contains('open')) {
+    closeSettingsModal();
+  } else if (els.groupModal?.classList.contains('open')) {
+    closeGroupModal();
+  } else if (els.onboardModal?.classList.contains('open')) {
+    els.onboardModal.classList.remove('open');
+  } else if (document.querySelector('.modal-backdrop.open, .modal.open')) {
+    document.querySelectorAll('.modal-backdrop.open, .modal.open').forEach(m => m.classList.remove('open'));
+    document.body.style.overflow = '';
+  } else if (S.view === 'teacher' && S.selectedTeacher) {
+    if (typeof window.clearTeacherSelection === 'function') window.clearTeacherSelection();
+  } else if (S.view === 'classroom' && S.selectedClassroom) {
+    if (typeof window.clearClassroomSelection === 'function') window.clearClassroomSelection();
+  } else if (S.view && S.view !== 'today' && S.view !== 'week' && S.view !== 'schedule') {
+    if (typeof setView === 'function') setView('today');
+  } else if (S.weekOffset !== 0) {
+    if (typeof window.resetToCurrentWeek === 'function') window.resetToCurrentWeek();
+  }
+  updateTelegramBackButton();
+}
+
+function syncTelegramSafeArea() {
+  const tg = window.Telegram?.WebApp;
+  let topOffset = 0;
+  if (tg) {
+    if (typeof tg.contentSafeAreaInset?.top === 'number' && tg.contentSafeAreaInset.top > 0) {
+      topOffset = Math.max(topOffset, tg.contentSafeAreaInset.top);
+    }
+    if (typeof tg.safeAreaInset?.top === 'number' && tg.safeAreaInset.top > 0) {
+      topOffset = Math.max(topOffset, tg.safeAreaInset.top);
+    }
+  }
+  if (topOffset > 0) {
+    document.documentElement.style.setProperty('--tg-top-offset', `${topOffset}px`);
+  }
+}
+
+function setupTelegramWebApp() {
+  const tg = window.Telegram?.WebApp;
+  if (!tg) return;
+
+  try {
+    tg.ready();
+    tg.expand();
+    if (typeof tg.enableClosingConfirmation === 'function') {
+      tg.enableClosingConfirmation();
+    }
+    if (typeof tg.disableVerticalSwipes === 'function') {
+      tg.disableVerticalSwipes();
+    }
+    syncTelegramSafeArea();
+    tg.onEvent?.('safeAreaChanged', syncTelegramSafeArea);
+    tg.onEvent?.('contentSafeAreaChanged', syncTelegramSafeArea);
+    tg.onEvent?.('viewportChanged', syncTelegramSafeArea);
+
+    // Подстраиваем цвет шапки Telegram под тему приложения
+    const computedThemeBg = getComputedStyle(document.documentElement).getPropertyValue('--topbar-glass').trim() || '#0b0c16';
+    if (typeof tg.setHeaderColor === 'function') {
+      tg.setHeaderColor(computedThemeBg);
+    }
+    if (typeof tg.setBackgroundColor === 'function') {
+      tg.setBackgroundColor(computedThemeBg);
+    }
+  } catch (e) {
+    console.warn('Telegram WebApp init warning:', e);
+  }
+
+  if (tg.BackButton) {
+    try {
+      tg.BackButton.onClick(handleTelegramBackButtonClick);
+    } catch (e) {
+      console.warn('Telegram BackButton onClick error:', e);
+    }
+    updateTelegramBackButton();
+  }
+
+  try {
+    const observer = new MutationObserver(() => {
+      updateTelegramBackButton();
+    });
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
+      subtree: true
+    });
+  } catch (_) {}
+}
+
+window.syncTelegramSafeArea = syncTelegramSafeArea;
+window.updateTelegramBackButton = updateTelegramBackButton;
+window.handleTelegramBackButtonClick = handleTelegramBackButtonClick;
+
+// ════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════
+async function init() {
+  try {
+    ['JetBrains Mono', 'Manrope', 'Inter', 'Orbitron', 'Press Start 2P', 'IBM Plex Mono', 'VT323', 'Special Elite'].forEach(f => {
+      document.fonts.load(`16px "${f}"`);
+    });
+  } catch (_) {}
+  if (localStorage.getItem('is_banned_state') === 'true') {
+    triggerBanEndlessLoading();
+    // Проверяем сервер — если юзер уже разбанен, снимем лок
+    try {
+      await checkAuthStatus();
+    } catch (_) {}
+    if (localStorage.getItem('is_banned_state') === 'true') {
+      try {
+        const res = await fetchWithTimeout(`${API}/auth-status`, {}, 3000).catch(() => null);
+        if (res && res.ok) {
+          const d = await res.json().catch(() => null);
+          if (d && d.is_banned) {
+            return; // всё ещё забанен на сервере — не грузим ничего дальше
+          }
+        }
+      } catch (_) {}
+      clearBanEndlessLoading();
+    }
+  }
+  if (!isTelegramGatePassed()) {
+    renderTelegramGatePrompt();
+  }
+  try { setupTelegramWebApp(); } catch (e) { console.error('setupTelegramWebApp error:', e); }
+  try { if (typeof updateTelegramSyncUI === 'function') updateTelegramSyncUI(); } catch (_) {}
+  try { setupThemes(); } catch (e) { console.error('setupThemes error:', e); }
+  try { setupSidebar(); } catch (e) { console.error('setupSidebar error:', e); }
+  try { setupSidebarNav(); } catch (e) { console.error('setupSidebarNav error:', e); }
+  try { setupWeekNav(); } catch (e) { console.error('setupWeekNav error:', e); }
+  try { setupSearchInputs(); } catch (e) { console.error('setupSearchInputs error:', e); }
+  try { initLayoutManager(); } catch (e) { console.error('initLayoutManager error:', e); }
+  try { setupNavPosition(); } catch (e) { console.error('setupNavPosition error:', e); }
+  try { updateGraduationCountdown(); } catch (_) {}
+  try {
+    const isInsideApk = window.location.search.includes('app=apk') ||
+                        (navigator.userAgent && navigator.userAgent.includes('CapacitorApp')) ||
+                        window.Capacitor !== undefined;
+    if (isInsideApk) {
+      const sbBtn = document.getElementById('sidebarDownloadAppBtn');
+      if (sbBtn) sbBtn.style.display = 'none';
+      const tbBtn = document.getElementById('topbarDownloadBtn');
+      if (tbBtn) tbBtn.style.display = 'none';
+    }
+  } catch (_) {}
+  try {
+    if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        logApp('warn', 'Ошибка регистрации ServiceWorker:', err);
+      });
+    }
+  } catch (_) {}
+
+  // Привязка повтора в оффлайн-баннере
+  els.offlineBannerRetryBtn?.addEventListener('click', async () => {
+    if (els.offlineBannerRetryBtn.classList.contains('is-loading')) return;
+    const svg = els.offlineBannerRetryBtn.querySelector('svg');
+    if (svg) svg.classList.add('is-spinning');
+    els.offlineBannerRetryBtn.classList.add('is-loading');
+    try {
+      await loadSchedule(true);
+    } finally {
+      if (svg) svg.classList.remove('is-spinning');
+      els.offlineBannerRetryBtn?.classList.remove('is-loading');
+    }
+  });
+
+  // 1. Извлекаем группу с приоритетом на сохранённый выбор пользователя
+  let urlGroup = null;
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const rawUrl = urlParams.get('group') || urlParams.get('tgWebAppStartParam');
+    if (rawUrl) urlGroup = sanitizeGroupName(rawUrl);
+  } catch (_) {}
+
+  let savedGroup = null;
+  try {
+    const rawSaved = safeGetItem(STORAGE_GROUP) || safeGetItem('schedule_group');
+    if (rawSaved && rawSaved !== 'null' && rawSaved !== 'undefined' && rawSaved.trim()) {
+      savedGroup = sanitizeGroupName(rawSaved);
+    }
+  } catch (_) {}
+
+  // Определение группы:
+  // Если пользователь открыл прямую ссылку на ДРУГУЮ группу (не дефолтную и не сохранённую) — уважаем ссылку
+  if (urlGroup && urlGroup !== DEFAULT_GROUP && urlGroup !== savedGroup) {
+    S.group = urlGroup;
+  } else if (savedGroup) {
+    S.group = savedGroup;
+  } else if (urlGroup) {
+    S.group = urlGroup;
+  } else {
+    S.group = DEFAULT_GROUP;
+  }
+  S.group = sanitizeGroupName(S.group);
+
+  try {
+    safeSetItem(STORAGE_GROUP, S.group);
+    safeSetItem('schedule_group', S.group);
+    const u = new URL(window.location.href);
+    u.searchParams.set('group', S.group);
+    window.history.replaceState(null, '', u.toString());
+  } catch (_) {}
+
+  // 2. СРАЗУ (0 мс) обновляем шапку, сайдбар и карточку дня
+  updateSidebarGroupInfo();
+  try { buildDayStrip(); } catch (e) { console.error('buildDayStrip error:', e); }
+  try { updateTopbarParity(); } catch (e) { console.error('updateTopbarParity error:', e); }
+  try { startLiveCardClock(); } catch (e) { console.error('startLiveCardClock error:', e); }
+
+  // 3. Синхронизация с сервером Telegram и CloudStorage
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  if (tgUser?.id) {
+    try {
+      fetch(`/api/user-group?user_id=${tgUser.id}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && data.group) {
+            const cleanTg = sanitizeGroupName(data.group);
+            if (cleanTg !== S.group && !savedGroup) {
+              S.group = cleanTg;
+              try {
+                safeSetItem(STORAGE_GROUP, cleanTg);
+                safeSetItem('schedule_group', cleanTg);
+                const u = new URL(window.location.href);
+                u.searchParams.set('group', cleanTg);
+                window.history.replaceState(null, '', u.toString());
+              } catch (_) {}
+              updateSidebarGroupInfo();
+              loadSchedule();
+            }
+          }
+        })
+        .catch(() => {});
+    } catch (_) {}
+  }
+
+  if (isCloudStorageSupported()) {
+    try {
+      window.Telegram.WebApp.CloudStorage.getItem(STORAGE_GROUP, (err, val) => {
+        if (!err && val && val !== 'null' && val !== 'undefined') {
+          const cleanCloud = sanitizeGroupName(val);
+          if (cleanCloud !== S.group && !savedGroup) {
+            S.group = cleanCloud;
+            try {
+              safeSetItem(STORAGE_GROUP, cleanCloud);
+              safeSetItem('schedule_group', cleanCloud);
+              const u = new URL(window.location.href);
+              u.searchParams.set('group', cleanCloud);
+              window.history.replaceState(null, '', u.toString());
+            } catch (_) {}
+            updateSidebarGroupInfo();
+            loadSchedule();
+          }
+        } else if (S.group) {
+          window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, S.group);
+        }
+      });
+    } catch (_) {}
+  }
+
+  // Wire bottom live statusbar click
+  document.getElementById('bottomLiveStatusbar')?.addEventListener('click', () => {
+    const goingCard = document.querySelector('.pair-card.going') || document.querySelector('.pair-card');
+    if (goingCard) {
+      goingCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      goingCard.style.outline = '2px solid var(--accent)';
+      setTimeout(() => { goingCard.style.outline = ''; }, 1400);
+    } else {
+      loadSchedule(true);
+    }
+  });
+
+  // Wire topbar live ticker click
+  document.getElementById('topbarLiveTicker')?.addEventListener('click', () => {
+    const goingCard = document.querySelector('.pair-card.going') || document.querySelector('.pair-card');
+    if (goingCard) {
+      goingCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      goingCard.style.outline = '2px solid var(--accent)';
+      setTimeout(() => { goingCard.style.outline = ''; }, 1400);
+    } else {
+      const lc = document.getElementById('liveCard');
+      if (lc) lc.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
+
+  // Wire Admin button & Modal backdrop clicks
+  document.getElementById('sidebarAdminBtn')?.addEventListener('click', () => {
+    closeSidebar();
+    const adminKey = localStorage.getItem('schedule_admin_master_key');
+    const isTgAdmin = window.Telegram?.WebApp?.initData && S.isAdmin;
+    if (!adminKey && !isTgAdmin) {
+      openAdminLoginModal();
+      return;
+    }
+    openAdminModal();
+  });
+  document.getElementById('adminModalBackdrop')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('adminModalBackdrop')) closeAdminModal();
+  });
+
+  checkAuthStatus();
+
+  // 4. Загружаем данные расписания
+  loadSchedule();
+  startAutoRefresh();
+  try { sendClientActivity('Запуск приложения'); } catch (_) {}
+
+  // 5. Проверка наличия старой версии APK (без нативного виджета)
+  setTimeout(checkAndPromptApkUpdate, 1500);
+}
+
+function checkAndPromptApkUpdate() {
+  try {
+    const isInsideApk = window.location.search.includes('app=apk') ||
+                        (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('CapacitorApp')) ||
+                        window.Capacitor !== undefined;
+    
+    // Если пользователь запустил приложение из старого APK, где ещё нет моста AndroidWidget
+    const hasWidgetBridge = Boolean(window.AndroidWidget && typeof window.AndroidWidget.updateSchedule === 'function');
+    
+    if (isInsideApk && !hasWidgetBridge) {
+      const dismissedUntil = localStorage.getItem('schedule_update_dismissed_until');
+      if (dismissedUntil && Date.now() < parseInt(dismissedUntil, 10)) {
+        return; // Пользователь попросил напомнить позже (не спамим 24 часа)
+      }
+
+      const modal = document.getElementById('updateAppModal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+
+      // Перехватываем клик на кнопку скачивания обновления
+      const dlBtn = document.getElementById('btnInstallApkUpdate');
+      if (dlBtn && !dlBtn.dataset.bound) {
+        dlBtn.dataset.bound = 'true';
+        dlBtn.addEventListener('click', () => {
+          dlBtn.innerHTML = '<span>⏳ Загрузка APK...</span>';
+          setTimeout(() => {
+            dlBtn.innerHTML = '<span>✅ Откройте файл в шторке</span>';
+          }, 3000);
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('checkAndPromptApkUpdate error:', err);
+  }
+}
+
+window.dismissUpdateAppModal = function() {
+  const modal = document.getElementById('updateAppModal');
+  if (modal) modal.style.display = 'none';
+  // Напоминать не чаще 1 раза в сутки
+  localStorage.setItem('schedule_update_dismissed_until', (Date.now() + 24 * 3600 * 1000).toString());
+};
+
+// ════════════════════════════════════════
+//  THEMES & CUSTOMIZATION
+// ════════════════════════════════════════
+const THEMES = [
+  { id: 'obsidian',  name: 'Obsidian Night',   bg: '#0b0c16', sidebar: '#0f101c', card: '#131422', accent: '#4f8ef7', dot2: '#22c55e', text: '#f0f2fa' },
+  { id: 'carbon',    name: 'Midnight Carbon',  bg: '#09090b', sidebar: '#0d0d10', card: '#121215', accent: '#38bdf8', dot2: '#34d399', text: '#f4f4f6' },
+  { id: 'tokyo',     name: 'Cyber Tokyo',      bg: '#090a16', sidebar: '#0e1020', card: '#121427', accent: '#f43f5e', dot2: '#8b5cf6', text: '#fafafc' },
+  { id: 'crimson',   name: 'Crimson Dusk',     bg: '#0e0609', sidebar: '#17080c', card: '#180c12', accent: '#f43f5e', dot2: '#fb7185', text: '#fff1f2' },
+  { id: 'abyss',     name: 'Ocean Abyss',      bg: '#050c18', sidebar: '#071020', card: '#0a182c', accent: '#06b6d4', dot2: '#38bdf8', text: '#ecfeff' },
+  { id: 'synthwave', name: 'Sunset 80s',       bg: '#110720', sidebar: '#140926', card: '#1c0d33', accent: '#ff6b2b', dot2: '#d946ef', text: '#fff7ed' },
+  { id: 'matrix',    name: 'Matrix Neon',      bg: '#030904', sidebar: '#050e06', card: '#08160a', accent: '#00ff66', dot2: '#22c55e', text: '#dcfce7' },
+  { id: 'solar',     name: 'Solar Gold',       bg: '#11100e', sidebar: '#151311', card: '#1a1815', accent: '#eab308', dot2: '#f59e0b', text: '#fefce8' },
+  { id: 'forest',    name: 'Nord Forest',      bg: '#070e0d', sidebar: '#0a1715', card: '#0e1b19', accent: '#10b981', dot2: '#34d399', text: '#edfcf6' },
+  { id: 'emerald',   name: 'Cyber Emerald',    bg: '#05110e', sidebar: '#071511', card: '#0c201b', accent: '#14b8a6', dot2: '#2dd4bf', text: '#f0fdfa' },
+  { id: 'amethyst',  name: 'Amethyst Dusk',    bg: '#0d0b18', sidebar: '#130f24', card: '#18132e', accent: '#c084fc', dot2: '#a855f7', text: '#f5f3ff' },
+  { id: 'mocha',     name: 'Warm Mocha',       bg: '#120f0d', sidebar: '#17120e', card: '#1c1713', accent: '#f59e0b', dot2: '#d97706', text: '#fff7ed' },
+  { id: 'ice',       name: 'Arctic Ice',       bg: '#070f1a', sidebar: '#091321', card: '#0e1c2e', accent: '#38bdf8', dot2: '#67e8f9', text: '#f0f9ff' },
+  { id: 'terminal',  name: 'Amber CRT',        bg: '#050505', sidebar: '#090909', card: '#0b0b0b', accent: '#ffb000', dot2: '#4ade80', text: '#ffdf80' },
+  { id: 'light',     name: 'Nordic Light',     bg: '#f4f5f8', sidebar: '#ffffff', card: '#ffffff', accent: '#2563eb', dot2: '#16a34a', text: '#0f172a' },
+  { id: 'sakura',    name: 'Sakura Pastel',    bg: '#fbf5f8', sidebar: '#ffffff', card: '#ffffff', accent: '#ec4899', dot2: '#f43f5e', text: '#27121e' }
+];
+
+const STORAGE_MINIMAL = 'schedule_minimal_mode';
+const STORAGE_CARD_STYLE = 'schedule_card_style';
+const STORAGE_VIBE_PRESET = 'schedule_vibe_preset';
+
+const VIBE_PRESETS = [
+  {
+    id: 'terminal',
+    name: 'Терминал',
+    icon: ICONS.terminal,
+    sub: 'Matrix Neon · Моноширинный · Срез углов · Сканлайны',
+    tags: ['Киберпанк', 'Сканлайны', 'Уголок-срез'],
+    theme: 'matrix',
+    font: 'jetbrains',
+    minimal: false,
+    cardStyle: 'chamfer',
+    accent: '#00ff66',
+    glow: 'rgba(0, 255, 102, 0.45)'
+  },
+  {
+    id: 'minimal',
+    name: 'Уютный минимал',
+    icon: ICONS.coffee,
+    sub: 'Nord Forest · Без лишних рамок · Только чистый текст',
+    tags: ['Чистый воздух', 'Без плашек', 'Интер'],
+    theme: 'forest',
+    font: 'system',
+    minimal: true,
+    cardStyle: 'minimal',
+    accent: '#10b981',
+    glow: 'rgba(16, 185, 129, 0.4)'
+  },
+  {
+    id: 'light_day',
+    name: 'Светлый день',
+    icon: ICONS.sun,
+    sub: 'Nordic Light · Высокий контраст для солнца · Чистая бумага',
+    tags: ['Дневной', 'Контраст', 'Солнце'],
+    theme: 'light',
+    font: 'system',
+    minimal: false,
+    cardStyle: 'light_day',
+    accent: '#2563eb',
+    glow: 'rgba(37, 99, 235, 0.3)'
+  },
+  {
+    id: 'sakura_calm',
+    name: 'Пастельная сакура',
+    icon: ICONS.flower,
+    sub: 'Sakura Pastel · Мягкие скругления · Приятный теплый свет',
+    tags: ['Пастель', 'Нежный', 'Уют'],
+    theme: 'sakura',
+    font: 'lexend',
+    minimal: false,
+    cardStyle: 'sakura_calm',
+    accent: '#ec4899',
+    glow: 'rgba(236, 72, 153, 0.35)'
+  },
+  {
+    id: 'vintage_notes',
+    name: 'Винтажный конспект',
+    icon: ICONS.scroll,
+    sub: 'Warm Mocha · Шрифт печатной машинки · Тёплые крафтовые тона',
+    tags: ['Крафт', 'Машинка', 'Тёплый'],
+    theme: 'mocha',
+    font: 'typewriter',
+    minimal: false,
+    cardStyle: 'vintage_notes',
+    accent: '#f59e0b',
+    glow: 'rgba(245, 158, 11, 0.35)'
+  },
+  {
+    id: 'arcade',
+    name: 'Пиксель-аркада',
+    icon: ICONS.gamepad,
+    sub: 'Amber CRT · Тёплый янтарь · ЭЛТ-виньетка · Ретро монитор',
+    tags: ['Ретро CRT', 'Пиксели', 'Виньетка'],
+    theme: 'terminal',
+    font: 'vt323',
+    minimal: false,
+    cardStyle: 'crt',
+    accent: '#ffb000',
+    glow: 'rgba(255, 176, 0, 0.45)'
+  },
+  {
+    id: 'tokyo',
+    name: 'Кибер Токио',
+    icon: ICONS.zap,
+    sub: 'Neon Glass · Неоновый градиент · Глубокое матовое стекло',
+    tags: ['Неон', 'Стекло', 'Градиент'],
+    theme: 'tokyo',
+    font: 'chakra',
+    minimal: false,
+    cardStyle: 'neon',
+    accent: '#f43f5e',
+    glow: 'rgba(244, 63, 94, 0.45)'
+  },
+  {
+    id: 'midnight_carbon',
+    name: 'Глубокий космос',
+    icon: ICONS.orbit,
+    sub: 'Midnight Carbon · Чистый OLED чернее ночи · Энергосбережение',
+    tags: ['OLED Black', 'Строгий', 'Минимализм'],
+    theme: 'carbon',
+    font: 'system',
+    minimal: false,
+    cardStyle: 'midnight_carbon',
+    accent: '#38bdf8',
+    glow: 'rgba(56, 189, 248, 0.4)'
+  }
+];
+
+function getStoredTheme() {
+  return localStorage.getItem(STORAGE_THEME) || 'obsidian';
+}
+
+function getStoredCardStyle() {
+  return localStorage.getItem(STORAGE_CARD_STYLE) || 'default';
+}
+
+function applyCardStyle(styleId) {
+  if (styleId && styleId !== 'default') {
+    document.documentElement.setAttribute('data-card-style', styleId);
+  } else {
+    document.documentElement.removeAttribute('data-card-style');
+  }
+  localStorage.setItem(STORAGE_CARD_STYLE, styleId || 'default');
+}
+
+function getStoredVibePreset() {
+  return localStorage.getItem(STORAGE_VIBE_PRESET) || '';
+}
+
+function applyVibePreset(presetId) {
+  const preset = VIBE_PRESETS.find(p => p.id === presetId);
+  if (!preset) return;
+
+  localStorage.setItem(STORAGE_VIBE_PRESET, presetId);
+  document.documentElement.setAttribute('data-vibe-preset', presetId);
+  if (isCloudStorageSupported()) {
+    try { Telegram.WebApp.CloudStorage.setItem(STORAGE_VIBE_PRESET, presetId, () => {}); } catch (_) {}
+  }
+
+  applyTheme(preset.theme, true);
+  applyFontFamily(preset.font);
+  applyMinimalMode(preset.minimal);
+  applyCardStyle(preset.cardStyle);
+
+  renderVibePresets();
+  renderThemesGrid();
+  updateFontFamilyUI();
+}
+
+function renderVibePresets() {
+  const container = document.getElementById('vibePresetsGrid');
+  if (!container) return;
+
+  const curTheme = getStoredTheme();
+  const curFont = getStoredFontFamily();
+  const curMinimal = isMinimalMode();
+  const savedPreset = getStoredVibePreset();
+
+  container.innerHTML = '';
+
+  VIBE_PRESETS.forEach(p => {
+    const isExactMatch = (curTheme === p.theme && curFont === p.font && curMinimal === p.minimal);
+    const isActive = savedPreset === p.id || isExactMatch;
+
+    const card = document.createElement('div');
+    card.className = 'vibe-preset-card' + (isActive ? ' active' : '');
+    card.style.setProperty('--preset-accent', p.accent);
+    card.style.setProperty('--preset-glow', p.glow);
+
+    card.innerHTML = `
+      <div class="vibe-preset-header">
+        <span class="vibe-preset-icon">${p.icon}</span>
+        <span class="vibe-preset-name">${p.name}</span>
+      </div>
+      <div class="vibe-preset-sub">${p.sub}</div>
+      <div class="vibe-preset-tags">
+        ${p.tags.map(t => `<span class="vibe-preset-tag">${t}</span>`).join('')}
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      applyVibePreset(p.id);
+    });
+
+    container.appendChild(card);
+  });
+}
+
+function isMinimalMode() {
+  return localStorage.getItem(STORAGE_MINIMAL) === 'true';
+}
+
+function applyMinimalMode(enabled) {
+  if (enabled) {
+    document.documentElement.setAttribute('data-minimal', 'true');
+  } else {
+    document.documentElement.removeAttribute('data-minimal');
+  }
+  localStorage.setItem(STORAGE_MINIMAL, enabled ? 'true' : 'false');
+  if (isCloudStorageSupported()) {
+    try {
+      Telegram.WebApp.CloudStorage.setItem(STORAGE_MINIMAL, enabled ? 'true' : 'false', () => {});
+    } catch (_) {}
+  }
+  const toggle = document.getElementById('minimalModeToggle');
+  if (toggle && toggle.checked !== enabled) toggle.checked = enabled;
+}
+
+function applyTheme(themeId, fromPreset = false) {
+  document.documentElement.setAttribute('data-theme', themeId);
+  localStorage.setItem(STORAGE_THEME, themeId);
+
+  // Каждая тема связывается со своим макетом карточки и шрифтом по умолчанию
+  if (!fromPreset) {
+    document.documentElement.removeAttribute('data-vibe-preset');
+    localStorage.removeItem(STORAGE_VIBE_PRESET);
+    if (themeId === 'matrix') {
+      applyCardStyle('chamfer');
+      applyFontFamily('jetbrains');
+    } else if (themeId === 'terminal') {
+      applyCardStyle('crt');
+      applyFontFamily('vt323');
+    } else if (themeId === 'light') {
+      applyCardStyle('light_day');
+      applyFontFamily('system');
+    } else if (themeId === 'tokyo') {
+      applyCardStyle('neon');
+      applyFontFamily('chakra');
+    } else if (themeId === 'sakura') {
+      applyCardStyle('sakura_calm');
+      applyFontFamily('lexend');
+    } else if (themeId === 'mocha') {
+      applyCardStyle('vintage_notes');
+      applyFontFamily('typewriter');
+    } else if (themeId === 'carbon') {
+      applyCardStyle('midnight_carbon');
+      applyFontFamily('system');
+    } else {
+      applyCardStyle('default');
+    }
+  }
+
+  renderThemesGrid();
+  renderVibePresets();
+}
+
+// ── FONT FAMILY & SIZE MANAGEMENT ──
+function getStoredFontFamily() {
+  let val = localStorage.getItem(STORAGE_FONT_FAMILY) || 'system';
+  if (val === 'rounded' || val === 'comic') val = 'lexend';
+  if (val === 'tech' || val === 'courier') val = 'typewriter';
+  if (val === 'mono') val = 'jetbrains';
+  if (val === 'pixel') val = 'vt323';
+  if (val === 'gothic') val = 'chakra';
+  if (val === 'kursive') val = 'lexend';
+  return val;
+}
+
+function applyFontFamily(fontId) {
+  if (fontId === 'rounded' || fontId === 'comic') fontId = 'lexend';
+  if (fontId === 'tech' || fontId === 'courier') fontId = 'typewriter';
+  if (fontId === 'mono') fontId = 'jetbrains';
+  if (fontId === 'pixel') fontId = 'vt323';
+  if (fontId === 'gothic') fontId = 'chakra';
+  if (fontId === 'kursive') fontId = 'lexend';
+
+  document.documentElement.setAttribute('data-font', fontId);
+  localStorage.setItem(STORAGE_FONT_FAMILY, fontId);
+  if (isCloudStorageSupported()) {
+    try { Telegram.WebApp.CloudStorage.setItem(STORAGE_FONT_FAMILY, fontId, () => {}); } catch (_) {}
+  }
+  updateFontFamilyUI();
+}
+
+function updateFontFamilyUI() {
+  const cur = getStoredFontFamily();
+  document.querySelectorAll('#fontFamilyGrid .font-chip-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.font === cur);
+  });
+}
+
+function getStoredFontSize() {
+  return localStorage.getItem(STORAGE_FONT_SIZE) || 'normal';
+}
+
+function applyFontSize(sizeId) {
+  document.documentElement.setAttribute('data-font-size', sizeId);
+  localStorage.setItem(STORAGE_FONT_SIZE, sizeId);
+  if (isCloudStorageSupported()) {
+    try { Telegram.WebApp.CloudStorage.setItem(STORAGE_FONT_SIZE, sizeId, () => {}); } catch (_) {}
+  }
+  updateFontSizeUI();
+}
+
+function updateFontSizeUI() {
+  const cur = getStoredFontSize();
+  document.querySelectorAll('#fontSizeSegmented .font-size-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.size === cur);
+  });
+}
+
+// ── CARD DISPLAY OPTIONS ──
+const DISPLAY_OPTION_CONFIGS = [
+  { id: 'toggleShowTeacher', key: STORAGE_SHOW_TEACHER, attr: 'data-hide-teacher' },
+  { id: 'toggleShowRoom',    key: STORAGE_SHOW_ROOM,    attr: 'data-hide-room' },
+  { id: 'toggleShowBadges',  key: STORAGE_SHOW_BADGES,  attr: 'data-hide-badges' },
+  { id: 'toggleShowBreaks',  key: STORAGE_SHOW_BREAKS,  attr: 'data-hide-breaks' },
+];
+
+function getStoredDisplayOption(key, defaultVal = true) {
+  const val = localStorage.getItem(key);
+  if (val === null) return defaultVal;
+  return val === 'true';
+}
+
+function applyDisplayOption(storageKey, dataAttr, isVisible) {
+  if (isVisible) {
+    document.documentElement.removeAttribute(dataAttr);
+  } else {
+    document.documentElement.setAttribute(dataAttr, 'true');
+  }
+  localStorage.setItem(storageKey, isVisible ? 'true' : 'false');
+  if (isCloudStorageSupported()) {
+    try { Telegram.WebApp.CloudStorage.setItem(storageKey, isVisible ? 'true' : 'false', () => {}); } catch (_) {}
+  }
+}
+
+function setupDisplayOptions() {
+  DISPLAY_OPTION_CONFIGS.forEach(c => {
+    const isVis = getStoredDisplayOption(c.key, true);
+    applyDisplayOption(c.key, c.attr, isVis);
+    const el = document.getElementById(c.id);
+    if (el) {
+      el.checked = isVis;
+      el.onchange = e => {
+        applyDisplayOption(c.key, c.attr, e.target.checked);
+      };
+    }
+  });
+}
+
+function setupThemes() {
+  const savedVibe = getStoredVibePreset();
+  if (savedVibe) {
+    document.documentElement.setAttribute('data-vibe-preset', savedVibe);
+  }
+  applyTheme(getStoredTheme(), true);
+  applyCardStyle(getStoredCardStyle());
+  applyMinimalMode(isMinimalMode());
+  applyFontFamily(getStoredFontFamily());
+  applyFontSize(getStoredFontSize());
+  setupDisplayOptions();
+  renderVibePresets();
+
+  // Привязка кнопок шрифта
+  document.querySelectorAll('#fontFamilyGrid .font-chip-btn').forEach(btn => {
+    btn.onclick = () => applyFontFamily(btn.dataset.font);
+  });
+
+  // Привязка кнопок размера текста
+  document.querySelectorAll('#fontSizeSegmented .font-size-btn').forEach(btn => {
+    btn.onclick = () => applyFontSize(btn.dataset.size);
+  });
+
+  if (isCloudStorageSupported()) {
+    try {
+      Telegram.WebApp.CloudStorage.getItem(STORAGE_MINIMAL, (err, val) => {
+        if (!err && val !== null && val !== undefined) {
+          const cloudVal = (val === 'true');
+          if (cloudVal !== isMinimalMode()) {
+            applyMinimalMode(cloudVal);
+          }
+        }
+      });
+      Telegram.WebApp.CloudStorage.getItem(STORAGE_FONT_FAMILY, (err, val) => {
+        if (!err && val && val !== getStoredFontFamily()) applyFontFamily(val);
+      });
+      Telegram.WebApp.CloudStorage.getItem(STORAGE_FONT_SIZE, (err, val) => {
+        if (!err && val && val !== getStoredFontSize()) applyFontSize(val);
+      });
+    } catch (_) {}
+  }
+
+  const minToggle = document.getElementById('minimalModeToggle');
+  minToggle?.addEventListener('change', e => {
+    applyMinimalMode(e.target.checked);
+  });
+
+  els.topbarThemeBtn?.addEventListener('click', () => openSettingsModal('presets'));
+  (els.sidebarSettingsBtn || els.sidebarThemeBtn)?.addEventListener('click', () => {
+    closeSidebar();
+    openSettingsModal('presets');
+  });
+  (els.closeSettingsModal || els.closeThemeModal)?.addEventListener('click', closeSettingsModal);
+  const curModal = els.settingsModal || els.themeModal;
+  curModal?.addEventListener('click', e => {
+    if (e.target === curModal) closeSettingsModal();
+  });
+
+  // Переключение вкладок внутри модалки настроек
+  document.querySelectorAll('#settingsTabsNav .settings-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      switchSettingsTab(btn.dataset.settingsTab);
+    });
+  });
+
+  // Клик по блоку недели на главном экране открывает выбор недель в настройках
+  const weekOpener = $('weekNavInfo') || $('weekTitleBlock');
+  weekOpener?.addEventListener('click', () => {
+    openSettingsModal('weeks');
+  });
+}
+
+function openSettingsModal(initialTab = 'presets') {
+  renderVibePresets();
+  renderThemesGrid();
+  updateFontFamilyUI();
+  updateFontSizeUI();
+
+  const minToggle = document.getElementById('minimalModeToggle');
+  if (minToggle) minToggle.checked = isMinimalMode();
+
+  DISPLAY_OPTION_CONFIGS.forEach(c => {
+    const el = document.getElementById(c.id);
+    if (el) el.checked = getStoredDisplayOption(c.key, true);
+  });
+
+  switchSettingsTab(initialTab);
+
+  const modal = els.settingsModal || els.themeModal;
+  modal?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  updateTelegramBackButton();
+}
+
+function closeSettingsModal() {
+  const modal = els.settingsModal || els.themeModal;
+  modal?.classList.remove('open');
+  document.body.style.overflow = '';
+  updateTelegramBackButton();
+}
+
+// Алиасы для обратной совместимости
+const openThemeModal = (tab = 'themes') => openSettingsModal(tab);
+const closeThemeModal = () => closeSettingsModal();
+
+function switchSettingsTab(tabName) {
+  const validTabs = ['presets', 'themes', 'fonts', 'constructor', 'weeks'];
+  const targetTab = validTabs.includes(tabName) ? tabName : 'presets';
+
+  const paneMap = {
+    presets: $('panePresets'),
+    themes: $('paneThemes'),
+    fonts: $('paneFonts'),
+    constructor: $('paneConstructor'),
+    weeks: $('paneWeeks')
+  };
+
+  document.querySelectorAll('#settingsTabsNav .settings-tab-btn').forEach(btn => {
+    const isAct = (btn.dataset.settingsTab === targetTab);
+    btn.classList.toggle('active', isAct);
+  });
+
+  validTabs.forEach(t => {
+    const p = paneMap[t];
+    if (p) {
+      const isAct = (t === targetTab);
+      p.classList.toggle('active', isAct);
+      p.style.display = isAct ? 'flex' : 'none';
+      if (isAct) {
+        p.style.flexDirection = 'column';
+        p.style.width = '100%';
+      }
+    }
+  });
+
+  if (targetTab === 'weeks') {
+    renderSettingsWeeksList();
+  }
+}
+
+function renderSettingsWeeksList() {
+  const container = $('settingsWeeksList');
+  if (!container) return;
+  container.innerHTML = '';
+  const cleanTabs = (S.tabs || []).filter(tab => !isTestTab(tab.name));
+  if (cleanTabs.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">Расписание недель загружается...</div>';
+    return;
+  }
+
+  cleanTabs.forEach(tab => {
+    const isActive = (tab.gid === S.activeGid) || (!S.activeGid && tab.is_active);
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'settings-week-card' + (isActive ? ' active' : '');
+
+    let datesText = '';
+    if (tab.start_dm && tab.end_dm) {
+      datesText = `${tab.start_dm} – ${tab.end_dm}`;
+    } else if (tab.is_main) {
+      datesText = 'Резервная неделя';
+    } else {
+      datesText = 'Учебная неделя';
+    }
+
+    card.innerHTML = `
+      <div class="settings-week-card-top">
+        <div class="settings-week-icon">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+        </div>
+        <div class="settings-week-info">
+          <div class="settings-week-name">${esc(tab.name)}</div>
+          <div class="settings-week-dates">${datesText}</div>
+        </div>
+        ${isActive ? `
+          <span class="settings-week-badge">
+            <span class="badge-dot"></span>
+            Активная
+          </span>` : `
+          <span class="settings-week-select-hint">Выбрать</span>`
+        }
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      S.manualTabMode = true;
+      S.isNotPublished = false;
+      S.parityOverride = null;
+      S.activeGid = tab.gid;
+      closeSettingsModal();
+      loadSchedule(true);
+      if (S.view === 'teacher') initTeachersView(true);
+      if (S.view === 'classroom') initClassroomsView(true);
+    });
+
+    container.appendChild(card);
+  });
+}
+
+function renderThemesGrid() {
+  if (!els.themesGrid) return;
+  const curTheme = getStoredTheme();
+
+  els.themesGrid.innerHTML = THEMES.map(t => {
+    const isAct = (t.id === curTheme);
+    return `
+      <div class="theme-card${isAct ? ' active' : ''}" data-theme-id="${t.id}">
+        <div class="theme-preview-box" style="background:${t.bg}; border-color:${isAct ? t.accent : 'rgba(255,255,255,0.08)'}">
+          <div class="theme-preview-mini-sidebar" style="background:${t.sidebar}"></div>
+          <div class="theme-preview-mini-cards">
+            <div class="theme-preview-mini-card" style="background:${t.card}; border-color:${t.accent}40">
+              <div class="theme-preview-mini-dot" style="background:${t.accent}"></div>
+              <div class="theme-preview-mini-bar" style="background:${t.text}"></div>
+            </div>
+            <div class="theme-preview-mini-card" style="background:${t.card}">
+              <div class="theme-preview-mini-dot" style="background:${t.dot2}"></div>
+              <div class="theme-preview-mini-bar" style="background:${t.text}60"></div>
+            </div>
+          </div>
+          <span class="theme-card-badge">${ICONS.check}</span>
+        </div>
+        <div class="theme-card-info">
+          <span class="theme-card-title">${t.name}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  els.themesGrid.querySelectorAll('.theme-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const tid = card.dataset.themeId;
+      applyTheme(tid);
+    });
+  });
+}
+
+// ════════════════════════════════════════
+//  SIDEBAR
+// ════════════════════════════════════════
+function setupSidebar() {
+  els.menuBtn?.addEventListener('click', openSidebar);
+  els.sidebarOverlay?.addEventListener('click', closeSidebar);
+  els.sidebarChangeGroup?.addEventListener('click', () => { closeSidebar(); openGroupModal(); });
+  els.sidebarRefresh?.addEventListener('click', async () => {
+    if (els.sidebarRefresh.classList.contains('is-loading')) return;
+    const svg = els.sidebarRefresh.querySelector('svg');
+    if (svg) svg.classList.add('is-spinning');
+    els.sidebarRefresh.classList.add('is-loading');
+    closeSidebar();
+    try {
+      await loadSchedule(true);
+    } finally {
+      if (svg) svg.classList.remove('is-spinning');
+      els.sidebarRefresh?.classList.remove('is-loading');
+    }
+  });
+
+  els.sidebarOnboardingBtn?.addEventListener('click', () => {
+    closeSidebar();
+    if (window.Onboarding) {
+      window.Onboarding.start(true);
+    }
+  });
+
+  const topbarTitleWrap = $('topbarGroupBtn') || els.topbarGroupName?.closest('.topbar-title');
+  if (topbarTitleWrap) {
+    topbarTitleWrap.style.cursor = 'pointer';
+    topbarTitleWrap.addEventListener('click', () => {
+      openGroupModal();
+    });
+  }
+
+  const diaryBtn = document.getElementById('sidebarDiaryBtn');
+  diaryBtn?.addEventListener('click', () => {
+    closeSidebar();
+    openDiaryModal();
+  });
+
+  const gradBtn = $('sidebarGraduationBtn') || els.sidebarGraduationBtn;
+  gradBtn?.addEventListener('click', () => {
+    const days = getDaysUntilGraduation();
+    if (days < 0) {
+      showToast('Выпускной состоялся! Поздравляем!');
+    } else if (days === 0) {
+      showToast('Выпускной сегодня! Поздравляем!');
+    } else {
+      const abs = Math.abs(days);
+      const mod10 = abs % 10;
+      const mod100 = abs % 100;
+      let word = 'дней';
+      if (mod100 < 11 || mod100 > 19) {
+        if (mod10 === 1) word = 'день';
+        else if (mod10 >= 2 && mod10 <= 4) word = 'дня';
+      }
+      showToast(`До выпуска (31.08.2029): ${days} ${word}`);
+    }
+  });
+
+  let startX = 0;
+  els.sidebar?.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
+  els.sidebar?.addEventListener('touchmove', e => {
+    if (e.touches[0].clientX - startX < -50) closeSidebar();
+  }, { passive: true });
+}
+
+function openSidebar() {
+  updateGraduationCountdown();
+  buildSidebarTabs();
+  els.sidebar?.classList.add('open');
+  els.sidebarOverlay?.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  updateTelegramBackButton();
+}
+
+function closeSidebar() {
+  els.sidebar?.classList.remove('open');
+  els.sidebarOverlay?.classList.remove('active');
+  document.body.style.overflow = '';
+  updateTelegramBackButton();
+}
+
+function updateSidebarGroupInfo() {
+  if (!S.group) return;
+  if (els.sidebarGroupName) els.sidebarGroupName.textContent = S.group;
+  if (els.sidebarGroupAvatar) els.sidebarGroupAvatar.textContent = S.group.slice(0, 2).toUpperCase();
+  if (els.topbarGroupName) els.topbarGroupName.textContent = S.group;
+}
+
+// ════════════════════════════════════════
+//  GRADUATION COUNTDOWN (31.08.2029)
+// ════════════════════════════════════════
+const GRADUATION_TARGET_DATE = new Date(2029, 7, 31, 0, 0, 0); // 31.08.2029
+
+function getDaysUntilGraduation() {
+  const target = new Date(2029, 7, 31, 0, 0, 0);
+  const now = new Date();
+  const dTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const dNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffMs = dTarget.getTime() - dNow.getTime();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function formatGraduationCountdown() {
+  const days = getDaysUntilGraduation();
+  if (days < 0) {
+    return 'Выпуск состоялся!';
+  }
+  if (days === 0) {
+    return 'Выпуск сегодня!';
+  }
+  const abs = Math.abs(days);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  let word = 'дней';
+  if (mod100 < 11 || mod100 > 19) {
+    if (mod10 === 1) word = 'день';
+    else if (mod10 >= 2 && mod10 <= 4) word = 'дня';
+  }
+  return `До выпуска: ${days} ${word}`;
+}
+
+function updateGraduationCountdown() {
+  const labelEl = $('sidebarGraduationLabel') || els.sidebarGraduationLabel;
+  if (labelEl) {
+    labelEl.textContent = formatGraduationCountdown();
+  }
+}
+
+// ════════════════════════════════════════
+//  TOAST NOTIFICATIONS (GLOBAL)
+// ════════════════════════════════════════
+function showToast(msg) {
+  let toast = $('layoutToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'layoutToast';
+    toast.style.cssText = `
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: var(--bg-card, #1c1c28);
+      color: var(--text, #fff);
+      border: 1px solid var(--accent, #6366f1);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+      padding: 12px 20px;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 9999;
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 90vw;
+      text-align: center;
+    `;
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `<span style="display:inline-flex;color:var(--accent,#818cf8);"><svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> <span>${esc(msg)}</span>`;
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-20px)';
+  }, 3200);
+}
+
+function showToastWithAction(msg, actionText, onAction, duration = 4000) {
+  let toast = $('layoutToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'layoutToast';
+    document.body.appendChild(toast);
+  }
+  toast.style.cssText = `
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: var(--bg-card, #1c1c28);
+    color: var(--text, #fff);
+    border: 1px solid var(--accent, #6366f1);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.35;
+    z-index: 9999;
+    opacity: 0;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    box-sizing: border-box;
+    text-align: left;
+    pointer-events: auto;
+  `;
+
+  toast.innerHTML = `
+    <span style="display:inline-flex;color:var(--accent,#818cf8);flex-shrink:0;">
+      <svg style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    </span>
+    <span style="flex:1;word-break:break-word;">${esc(msg)}</span>
+    ${actionText ? `<button id="toastActionBtn" style="background:var(--accent,#6366f1);color:#fff;border:none;border-radius:10px;padding:6px 14px;min-height:36px;box-sizing:border-box;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;transition:transform 0.15s;">${esc(actionText)}</button>` : ''}
+  `;
+
+  if (actionText && onAction) {
+    const btn = toast.querySelector('#toastActionBtn');
+    btn?.addEventListener('click', () => {
+      onAction();
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(-20px)';
+    });
+  }
+
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-20px)';
+  }, duration);
+}
+window.showToastWithAction = showToastWithAction;
+
+
+
+function isTestTab(tabName) {
+  if (!tabName) return false;
+  return /тест|test|draft|черновик|шаблон|temp|sample|^лист\s*\d*$/i.test(String(tabName).trim());
+}
+
+// ════════════════════════════════════════
+//  AUTOMATIC DATE & WEEK RESOLUTION
+// ════════════════════════════════════════
+function getWeekDateRange(weekOffset = 0) {
+  const now = new Date();
+  const dow = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  // В воскресенье учебная неделя завершена; студенты смотрят расписание на наступающую неделю (с понедельника завтра)
+  const dayOffsetToMon = (dow === 0) ? 1 : -(dow - 1);
+  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffsetToMon + (weekOffset * 7));
+  mon.setHours(0, 0, 0, 0);
+  const sat = new Date(mon);
+  sat.setDate(mon.getDate() + 5);
+  sat.setHours(23, 59, 59, 999);
+  return { mon, sat };
+}
+
+function findTabForWeek(weekOffset = 0) {
+  const { mon, sat } = getWeekDateRange(weekOffset);
+  const targetParity = getActiveParity(); // 'num' or 'den'
+  // Фильтруем только вкладки с диапазонами дат (исключая «Основное», «Расписание 1 сентября», тестовые)
+  const datedTabs = (S.tabs || []).filter(t => t.has_date_range && !isTestTab(t.name));
+  const matching = [];
+
+  for (const tab of datedTabs) {
+    const startStr = tab.start_iso || tab.date_start;
+    const endStr = tab.end_iso || tab.date_end;
+    if (!startStr || !endStr) continue;
+    const tabStart = new Date(startStr);
+    const tabEnd = new Date(endStr);
+    // Проверка пересечения отрезков [mon, sat] и [tabStart, tabEnd]
+    if (mon <= tabEnd && sat >= tabStart) {
+      matching.push(tab);
+    }
+  }
+
+  if (matching.length === 0) {
+    // Fallback: для текущей недели, если диапазон ещё не попал в расписание, берём официальную активную вкладку
+    if (weekOffset === 0) {
+      const activeTab = (S.tabs || []).find(t => t.is_active && !isTestTab(t.name));
+      if (activeTab) return activeTab;
+    }
+    return null;
+  }
+
+  // 1. Точное совпадение: диапазон дат + тип недели (числитель/знаменатель)
+  const parityMatch = matching.find(t => t.parity === targetParity);
+  if (parityMatch) return parityMatch;
+
+  // 2. Вкладка без указания типа недели (fallback: parity === null)
+  const untypedMatch = matching.find(t => !t.parity);
+  if (untypedMatch) return untypedMatch;
+
+  // 3. Fallback: первая пересекающаяся вкладка
+  return matching[0];
+}
+
+function renderScheduleNotPublished() {
+  if (!els.scheduleView) return;
+  const { mon, sat } = getWeekDateRange(S.weekOffset || 0);
+  const mStr = `${mon.getDate()} ${MONTH_NAMES[mon.getMonth()]}`;
+  const sStr = `${sat.getDate()} ${MONTH_NAMES[sat.getMonth()]}`;
+  const rangeText = `${mStr} – ${sStr}`;
+
+  els.scheduleView.innerHTML = `
+    <div class="schedule-not-published-card">
+      <div class="not-published-icon">${ICONS.calendar}</div>
+      <div class="not-published-title">Расписание на эту неделю ещё не опубликовано</div>
+      <div class="not-published-desc">Колледж ещё не выложил расписание на период <strong>${rangeText}</strong>. Обычно расписание на новую неделю публикуется в конце текущей недели.</div>
+      <button class="not-published-btn" onclick="resetToCurrentWeek()">
+        ${ICONS.calendar}
+        <span>Вернуться к текущей неделе</span>
+      </button>
+    </div>
+  `;
+}
+
+window.resetToCurrentWeek = function() {
+  S.weekOffset = 0;
+  S.selectedDay = null;
+  S.manualTabMode = false;
+  S.isNotPublished = false;
+  S.parityOverride = null;
+
+  const autoTab = findTabForWeek(0);
+  if (autoTab) {
+    S.activeGid = autoTab.gid;
+  }
+  buildSidebarTabs();
+  buildDayStrip();
+  updateTopbarParity();
+  updateTelegramBackButton();
+  loadSchedule(false);
+};
+
+function buildSidebarTabs() {
+  try { renderSettingsWeeksList(); } catch (_) {}
+  if (!els.sidebarTabList) return;
+  els.sidebarTabList.innerHTML = '';
+  const cleanTabs = (S.tabs || []).filter(tab => !isTestTab(tab.name));
+  cleanTabs.forEach(tab => {
+    const btn = document.createElement('button');
+    const isActive = (tab.gid === S.activeGid) || (!S.activeGid && tab.is_active);
+    btn.className = 'sidebar-tab-btn' + (isActive ? ' active' : '');
+
+    let metaBadge = '';
+    if (tab.start_dm && tab.end_dm) {
+      metaBadge = `<span class="sidebar-tab-badge">${tab.start_dm}–${tab.end_dm}</span>`;
+    } else if (tab.is_main) {
+      metaBadge = `<span class="sidebar-tab-badge special">Резерв</span>`;
+    }
+
+    btn.innerHTML = `<span class="sidebar-tab-dot"></span><span class="sidebar-tab-name">${esc(tab.name)}</span>${metaBadge}`;
+    btn.addEventListener('click', () => {
+      S.manualTabMode = true;
+      S.isNotPublished = false;
+      S.parityOverride = null;
+      S.activeGid = tab.gid;
+      S.selectedDay = 1; // Всегда открывать понедельник при смене недели
+      closeSidebar();
+      loadSchedule(true);
+      if (S.view === 'teacher') initTeachersView(true);
+      if (S.view === 'classroom') initClassroomsView(true);
+    });
+    els.sidebarTabList.appendChild(btn);
+  });
+}
+
+// ════════════════════════════════════════
+//  SIDEBAR NAV
+// ════════════════════════════════════════
+function setupSidebarNav() {
+  document.querySelectorAll('.sidebar-nav-item[data-view]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      if (isLayoutEditingMode) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      setView(btn.dataset.view);
+      closeSidebar();
+    });
+  });
+
+  const sbGames = document.getElementById('sidebarGamesBtn');
+  if (sbGames) {
+    sbGames.addEventListener('click', (e) => {
+      if (isLayoutEditingMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.openGamesModal === 'function') window.openGamesModal();
+    });
+  }
+
+  const tbGames = document.getElementById('topbarGamesBtn');
+  if (tbGames) {
+    tbGames.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.openGamesModal === 'function') window.openGamesModal();
+    });
+  }
+
+  const sbLeaderboard = document.getElementById('sidebarLeaderboardBtn');
+  if (sbLeaderboard) {
+    sbLeaderboard.addEventListener('click', (e) => {
+      if (isLayoutEditingMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.openLeaderboardModal === 'function') window.openLeaderboardModal();
+    });
+  }
+}
+
+function setView(view) {
+  S.view = view;
+  const isSched = (view === 'today' || view === 'week' || view === 'schedule');
+  document.querySelectorAll('.sidebar-nav-item[data-view]').forEach(btn => {
+    const isAct = btn.dataset.view === view || (isSched && btn.dataset.view === 'schedule');
+    btn.classList.toggle('active', isAct);
+  });
+  updateBottomNavActive(view);
+  if (els.scheduleView) els.scheduleView.style.display = isSched ? 'block' : 'none';
+  if (els.teacherView) els.teacherView.style.display = view === 'teacher' ? 'block' : 'none';
+  if (els.classroomView) els.classroomView.style.display = view === 'classroom' ? 'block' : 'none';
+  if (els.statsView) els.statsView.style.display = view === 'stats' ? 'block' : 'none';
+  if (els.englishView) els.englishView.style.display = view === 'english' ? 'block' : 'none';
+  
+  const navWrap = document.querySelector('.week-nav-wrap');
+  if (navWrap) navWrap.style.display = isSched ? 'block' : 'none';
+  if (els.dayStrip?.parentElement) els.dayStrip.parentElement.style.display = isSched ? 'block' : 'none';
+
+  if (isSched) renderSchedule();
+  if (view === 'teacher') initTeachersView();
+  if (view === 'classroom') initClassroomsView();
+  if (view === 'stats') initStatsView();
+  if (view === 'english') startEnglishCountdown();
+  else stopEnglishCountdown();
+  updateTelegramBackButton();
+}
+window.setView = setView;
+window.switchView = setView;
+
+// ════════════════════════════════════════
+//  WEEK NAVIGATION & PARITY
+// ════════════════════════════════════════
+function getAcademicParityForDate(d) {
+  const target = new Date(d);
+  const m = target.getMonth(); // 0=янв, 7=авг, 8=сен
+  const y = (m >= 7) ? target.getFullYear() : target.getFullYear() - 1;
+  const septFirst = new Date(y, 8, 1);
+  const septFirstDay = (septFirst.getDay() + 6) % 7; // 0=пн, 6=вс
+  const septFirstMonday = new Date(septFirst);
+  septFirstMonday.setDate(septFirst.getDate() - septFirstDay);
+  septFirstMonday.setHours(0, 0, 0, 0);
+
+  const targetDay = new Date(target);
+  targetDay.setHours(0, 0, 0, 0);
+  const diffDays = Math.floor((targetDay - septFirstMonday) / (86400 * 1000));
+  const weekNum = Math.max(1, Math.floor(diffDays / 7) + 1);
+  return (weekNum % 2 === 1) ? 'num' : 'den';
+}
+
+function updateTopbarParity() {
+  const p = getActiveParity();
+  if (els.topbarParity) {
+    const isOverridden = Boolean(S.parityOverride);
+    const { mon, sat } = getWeekDateRange(S.weekOffset || 0);
+    const mStr = `${String(mon.getDate()).padStart(2, '0')}.${String(mon.getMonth() + 1).padStart(2, '0')}`;
+    const sStr = `${String(sat.getDate()).padStart(2, '0')}.${String(sat.getMonth() + 1).padStart(2, '0')}`;
+    const dateRange = `${mStr}–${sStr}`;
+    const isCurrent = (S.weekOffset === 0);
+
+    els.topbarParity.innerHTML = `
+      <span class="topbar-parity-text">${isCurrent ? 'Текущая нед.' : 'Неделя'} (${dateRange})</span>
+    `;
+    els.topbarParity.classList.toggle('overridden', isOverridden);
+    els.topbarParity.title = `${isCurrent ? 'Текущая неделя' : 'Выбранная неделя'} (${dateRange}, ${p === 'num' ? 'Числитель' : 'Знаменатель'}). Нажмите для смены недели`;
+  }
+}
+
+function getActiveParity() {
+  // 1. Ручное переключение через чип в шапке (если активировано)
+  if (S.parityOverride === 'num' || S.parityOverride === 'den') {
+    return S.parityOverride;
+  }
+
+  // 2. Если выбранная вкладка имеет явную чётность в названии («Числитель» / «Знаменатель»),
+  // её расписание ВСЕГДА отображается строго в соответствии с типом этой вкладки!
+  const currentTab = (S.tabs || []).find(t => t.gid === S.activeGid);
+  const tabParity = currentTab?.parity;
+  if (tabParity === 'num' || tabParity === 'den') {
+    return tabParity;
+  }
+  if (S.data?.tab_name) {
+    const tLower = S.data.tab_name.toLowerCase();
+    if (tLower.includes('числитель')) return 'num';
+    if (tLower.includes('знаменатель')) return 'den';
+  }
+
+  // 3. Для вкладок без явной чётности (например «Основное»):
+  // Чётность рассчитывается от даты просматриваемой недели!
+  const { mon } = getWeekDateRange(S.weekOffset || 0);
+  return getAcademicParityForDate(mon);
+}
+
+function updateWeekNav(monday, saturday) {
+  if (!els.weekNavRange || !els.weekNavBadge) return;
+
+  const mDay = monday.getDate();
+  const mMonth = monday.getMonth();
+  const sDay = saturday.getDate();
+  const sMonth = saturday.getMonth();
+
+  let rangeStr = '';
+  if (mMonth === sMonth) {
+    rangeStr = `${mDay} – ${sDay} ${MONTH_NAMES[mMonth]}`;
+  } else {
+    rangeStr = `${mDay} ${MONTH_NAMES[mMonth]} – ${sDay} ${MONTH_NAMES[sMonth]}`;
+  }
+  els.weekNavRange.textContent = rangeStr;
+
+  els.weekNavBadge.className = 'week-nav-badge';
+  if (S.weekOffset === 0) {
+    els.weekNavBadge.textContent = 'Эта неделя';
+  } else if (S.weekOffset === 1) {
+    els.weekNavBadge.textContent = 'След. неделя';
+    els.weekNavBadge.classList.add('next-week');
+  } else if (S.weekOffset === -1) {
+    els.weekNavBadge.textContent = 'Прошлая нед.';
+    els.weekNavBadge.classList.add('prev-week');
+  } else if (S.weekOffset > 1) {
+    els.weekNavBadge.textContent = `Через ${S.weekOffset} нед.`;
+    els.weekNavBadge.classList.add('next-week');
+  } else {
+    els.weekNavBadge.textContent = `${Math.abs(S.weekOffset)} нед. назад`;
+    els.weekNavBadge.classList.add('prev-week');
+  }
+}
+
+async function changeWeek(delta) {
+  if (S.isNavigatingWeek) return;
+  S.isNavigatingWeek = true;
+
+  if (els.prevWeekBtn) {
+    els.prevWeekBtn.disabled = true;
+    els.prevWeekBtn.classList.add('is-loading');
+  }
+  if (els.nextWeekBtn) {
+    els.nextWeekBtn.disabled = true;
+    els.nextWeekBtn.classList.add('is-loading');
+  }
+
+  try {
+    S.weekOffset += delta;
+    S.manualTabMode = false;
+    S.parityOverride = null;
+    S.selectedDay = 1; // Всегда открывать понедельник при смене недели (стрелки, свайпы)
+    updateTelegramBackButton();
+
+    const targetTab = findTabForWeek(S.weekOffset);
+    if (targetTab) {
+      S.isNotPublished = false;
+      const needFetch = (!S.data || S.data.gid !== targetTab.gid);
+      S.activeGid = targetTab.gid;
+      if (els.sidebar?.classList.contains('open')) buildSidebarTabs();
+      buildDayStrip();
+      updateTopbarParity();
+      if (needFetch) {
+        renderSkeleton();
+        await loadSchedule(false);
+      } else {
+        renderSchedule();
+        updateLiveCard();
+      }
+    } else {
+      S.isNotPublished = true;
+      if (els.sidebar?.classList.contains('open')) buildSidebarTabs();
+      buildDayStrip();
+      updateTopbarParity();
+      renderScheduleNotPublished();
+      updateLiveCard();
+    }
+  } catch (err) {
+    logApp('error', 'Ошибка при смене недели:', err);
+  } finally {
+    S.isNavigatingWeek = false;
+    if (els.prevWeekBtn) {
+      els.prevWeekBtn.disabled = false;
+      els.prevWeekBtn.classList.remove('is-loading');
+    }
+    if (els.nextWeekBtn) {
+      els.nextWeekBtn.disabled = false;
+      els.nextWeekBtn.classList.remove('is-loading');
+    }
+  }
+}
+
+function setupWeekNav() {
+  els.prevWeekBtn?.addEventListener('click', () => changeWeek(-1));
+  els.nextWeekBtn?.addEventListener('click', () => changeWeek(1));
+  els.topbarParity?.addEventListener('click', () => {
+    const current = getActiveParity();
+    const nextParity = (current === 'num') ? 'den' : 'num';
+    S.parityOverride = nextParity;
+    updateTopbarParity();
+    renderSchedule();
+    updateLiveCard();
+
+    const { mon, sat } = getWeekDateRange(S.weekOffset || 0);
+    const mStr = `${String(mon.getDate()).padStart(2, '0')}.${String(mon.getMonth() + 1).padStart(2, '0')}`;
+    const sStr = `${String(sat.getDate()).padStart(2, '0')}.${String(sat.getMonth() + 1).padStart(2, '0')}`;
+    const parityTitle = (nextParity === 'num') ? '1-ю неделю (Числитель)' : '2-ю неделю (Знаменатель)';
+
+    showToastWithAction(
+      `Показано расписание на ${parityTitle} (${mStr}–${sStr})`,
+      'К текущей',
+      () => {
+        S.parityOverride = null;
+        S.weekOffset = 0;
+        updateTopbarParity();
+        renderSchedule();
+        updateLiveCard();
+      }
+    );
+  });
+  setupSwipeGestures();
+}
+
+function setupSwipeGestures() {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let isIgnoredTarget = false;
+
+  const target = document.body;
+
+  function isInteractiveElement(targetEl) {
+    if (!targetEl) return false;
+    return Boolean(targetEl.closest(
+      'input, textarea, select, .day-strip, .day-strip-wrap, .week-nav-wrap, .teachers-grid, .classrooms-grid, .blueprint-tile, .widget-drag-handle, .sortable-handle, .menu-drag-handle, .sortable-ghost, .sortable-fallback'
+    ));
+  }
+
+  function triggerHaptic() {
+    try {
+      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
+    } catch (_) {}
+  }
+
+  function animateScheduleSwipe(direction) {
+    const view = els.scheduleView;
+    if (!view) return;
+    const animClass = (direction === 'left') ? 'swipe-transition-left' : 'swipe-transition-right';
+    view.classList.remove('swipe-transition-left', 'swipe-transition-right');
+    // Force reflow
+    void view.offsetWidth;
+    view.classList.add(animClass);
+    setTimeout(() => {
+      view.classList.remove(animClass);
+    }, 220);
+  }
+
+  target.addEventListener('touchstart', (e) => {
+    if (!e.changedTouches || !e.changedTouches[0]) return;
+    const touch = e.changedTouches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchStartTime = Date.now();
+    isIgnoredTarget = isInteractiveElement(e.target);
+  }, { passive: true });
+
+  target.addEventListener('touchend', (e) => {
+    if (!e.changedTouches || !e.changedTouches[0] || isIgnoredTarget) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+    const dt = Date.now() - touchStartTime;
+
+    // Игнорируем долгое удержание (> 650мс)
+    if (dt > 650) return;
+
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Жест должен быть строго горизонтальным (горизонталь больше вертикали в 1.6 раза)
+    if (absDx < 50 || absDx < absDy * 1.6) return;
+
+    // Не перехватываем, если открыты модальные окна
+    const isModalOpen = Boolean(
+      document.querySelector('.modal-backdrop.open, .modal.open') ||
+      els.groupModal?.classList.contains('open') ||
+      (els.settingsModal || els.themeModal)?.classList.contains('open') ||
+      els.onboardModal?.classList.contains('open')
+    );
+    if (isModalOpen) return;
+
+    // Не перехватываем в режиме редактирования конструктора
+    let isEditing = false;
+    try { isEditing = Boolean(isLayoutEditingMode); } catch (_) {}
+    if (isEditing || document.body.classList.contains('layout-editing-active')) return;
+
+    // 1. Если боковое меню открыто: свайп влево закрывает его
+    const isSidebarOpen = Boolean(els.sidebar?.classList.contains('open'));
+    if (isSidebarOpen) {
+      if (dx < -45) {
+        closeSidebar();
+        triggerHaptic();
+      }
+      return;
+    }
+
+    // 2. Свайп от самого левого края экрана (<= 38px) открывает боковое меню
+    if (touchStartX <= 38 && dx > 45) {
+      openSidebar();
+      triggerHaptic();
+      return;
+    }
+
+    // 3. Переключение дней в расписании (только в основном режиме расписания)
+    if (S.view && S.view !== 'today' && S.view !== 'week' && S.view !== 'schedule') {
+      return;
+    }
+
+    const currentDay = S.selectedDay || 1;
+
+    if (dx < 0) {
+      // Свайп влево -> следующий день (вперёд)
+      triggerHaptic();
+      if (currentDay < 6) {
+        animateScheduleSwipe('left');
+        selectDay(currentDay + 1);
+      } else {
+        // На субботе -> переход на понедельник следующей недели
+        animateScheduleSwipe('left');
+        changeWeek(1);
+        selectDay(1);
+      }
+    } else {
+      // Свайп вправо -> предыдущий день (назад)
+      triggerHaptic();
+      if (currentDay > 1) {
+        animateScheduleSwipe('right');
+        selectDay(currentDay - 1);
+      } else {
+        // На понедельнике -> переход на субботу предыдущей недели
+        animateScheduleSwipe('right');
+        changeWeek(-1);
+        selectDay(6);
+      }
+    }
+  }, { passive: true });
+}
+
+// ════════════════════════════════════════
+//  DAY STRIP
+// ════════════════════════════════════════
+function buildDayStrip() {
+  if (!els.dayStrip) return;
+  const today = new Date();
+  const todayDow = today.getDay(); // 0=вс
+
+  els.dayStrip.innerHTML = '';
+
+  const { mon: monday, sat: saturday } = getWeekDateRange(S.weekOffset || 0);
+  updateWeekNav(monday, saturday);
+
+  if (S.selectedDay === null) {
+    if (S.weekOffset === 0 && todayDow >= 1 && todayDow <= 6) {
+      S.selectedDay = todayDow;
+    } else {
+      S.selectedDay = 1; // понедельник
+    }
+  }
+
+  DAYS_EN_ORDER.forEach(dow => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + (dow - 1));
+    const isToday = (S.weekOffset === 0) && (d.toDateString() === today.toDateString());
+    const isActive = (S.selectedDay === dow);
+
+    const dayNum = String(d.getDate()).padStart(2, '0');
+    const dayName = DAYS[dow];
+    let pairCount = 0;
+    try {
+      if (typeof getGroupDayPairs === 'function' && S.data) {
+        const p = getGroupDayPairs(dayName);
+        pairCount = p ? p.length : 0;
+      }
+    } catch (_) {}
+
+    let countClass = 'count-few';
+    if (S.data) {
+      if (pairCount === 0) countClass = 'count-0';
+      else if (pairCount <= 2) countClass = 'count-few';
+      else if (pairCount <= 4) countClass = 'count-mid';
+      else countClass = 'count-high';
+    }
+
+    let tagHtml = '';
+    if (S.data) {
+      if (pairCount === 0) {
+        tagHtml = '<span class="day-chip-count-tag zero">0 пар</span>';
+      } else {
+        const word = pairCount === 1 ? 'пара' : (pairCount >= 2 && pairCount <= 4 ? 'пары' : 'пар');
+        tagHtml = `<span class="day-chip-count-tag">${pairCount} ${word}</span>`;
+      }
+    }
+
+    const chip = document.createElement('div');
+    chip.className = `day-chip ${countClass}` + (isActive ? ' active' : '') + (isToday ? ' today-chip' : '');
+    chip.dataset.dow = dow;
+    chip.dataset.count = pairCount;
+    chip.innerHTML = `
+      <span class="day-chip-name">${DAYS_SHORT[dow]}</span>
+      <span class="day-chip-num">${dayNum}</span>
+      ${tagHtml}
+    `;
+    chip.addEventListener('click', () => selectDay(dow));
+    els.dayStrip.appendChild(chip);
+  });
+
+  const activeChip = els.dayStrip.querySelector('.day-chip.active');
+  if (activeChip) activeChip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+let selectDayDebounceTimer = null;
+
+function selectDay(dow) {
+  if (S.selectedDay === dow) return;
+  S.selectedDay = dow;
+
+  // Немедленный визуальный отклик (0ms задержки для пользователя)
+  if (els.dayStrip) {
+    const chips = els.dayStrip.querySelectorAll('.day-chip');
+    chips.forEach(chip => {
+      const isActive = (String(chip.dataset.dow) === String(dow));
+      chip.classList.toggle('active', isActive);
+      if (isActive) {
+        chip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    });
+  }
+
+  // Debounce на рендеринг карточек и анимации для устранения наслоения (80мс)
+  if (selectDayDebounceTimer) clearTimeout(selectDayDebounceTimer);
+  selectDayDebounceTimer = setTimeout(() => {
+    renderSchedule();
+    updateLiveCard();
+  }, 80);
+}
+
+// ════════════════════════════════════════
+//  LIVE STATUS CARD
+// ════════════════════════════════════════
+const STORAGE_LIVE_HIDDEN = 'college_schedule_live_hidden';
+
+const BELL = [
+  null,
+  { s: 8 * 60,      e: 9 * 60 + 35  },  // 08:00 - 09:35 (95 мин)
+  { s: 9 * 60 + 45, e: 11 * 60 + 20 }, // 09:45 - 11:20 (95 мин)
+  { s: 11 * 60 + 50,e: 13 * 60 + 25 }, // 11:50 - 13:25 (95 мин)
+  { s: 13 * 60 + 55,e: 15 * 60 + 30 }, // 13:55 - 15:30 (95 мин)
+  { s: 15 * 60 + 40,e: 17 * 60 + 15 }, // 15:40 - 17:15 (95 мин)
+  { s: 17 * 60 + 25,e: 19 * 60 + 0  },  // 17:25 - 19:00 (95 мин)
+];
+
+const BREAKS = [
+  null,
+  { s: 9 * 60 + 35,  e: 9 * 60 + 45,  dur: 10, name: 'Маленькая перемена (10 мин)', time: '09:35 – 09:45' },
+  { s: 11 * 60 + 20, e: 11 * 60 + 50, dur: 30, name: 'Большая перемена (30 мин)',    time: '11:20 – 11:50' },
+  { s: 13 * 60 + 25, e: 13 * 60 + 55, dur: 30, name: 'Большая перемена (30 мин)',    time: '13:25 – 13:55' },
+  { s: 15 * 60 + 30, e: 15 * 60 + 40, dur: 10, name: 'Маленькая перемена (10 мин)', time: '15:30 – 15:40' },
+  { s: 17 * 60 + 15, e: 17 * 60 + 25, dur: 10, name: 'Маленькая перемена (10 мин)', time: '17:15 – 17:25' },
+];
+
+function fmtSec(totalSeconds) {
+  if (totalSeconds < 0) totalSeconds = 0;
+  if (totalSeconds > 300) {
+    const m = Math.round(totalSeconds / 60);
+    return `${m} мин`;
+  }
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  if (m > 0) {
+    return `${m} мин ${String(s).padStart(2, '0')} сек`;
+  }
+  return `${s} сек`;
+}
+
+function fmtHoursSec(totalSeconds) {
+  if (totalSeconds < 0) totalSeconds = 0;
+  if (totalSeconds > 300) {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    if (h > 0) {
+      return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
+    }
+    return `${Math.max(1, m)} мин`;
+  }
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  if (m > 0) {
+    return `${m} мин ${String(s).padStart(2, '0')} сек`;
+  }
+  return `${s} сек`;
+}
+
+function setupLiveCardToggle() {
+  const isHidden = safeGetItem(STORAGE_LIVE_HIDDEN) === '1';
+  if (isHidden) {
+    if (els.liveCard) els.liveCard.style.display = 'none';
+    if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'flex';
+  } else {
+    if (els.liveCard) els.liveCard.style.display = 'flex';
+    if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'none';
+  }
+
+  els.liveCardCloseBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (els.liveCard) els.liveCard.style.display = 'none';
+    if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'flex';
+    safeSetItem(STORAGE_LIVE_HIDDEN, '1');
+    showToastWithAction(
+      'Виджет пары свернут в компактный вид',
+      'Развернуть',
+      () => {
+        if (els.liveCard) els.liveCard.style.display = 'flex';
+        if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'none';
+        safeSetItem(STORAGE_LIVE_HIDDEN, '0');
+      }
+    );
+  });
+
+  els.liveCardRestoreBtn?.addEventListener('click', () => {
+    if (els.liveCard) els.liveCard.style.display = 'flex';
+    if (els.liveCardRestoreBtn) els.liveCardRestoreBtn.style.display = 'none';
+    safeSetItem(STORAGE_LIVE_HIDDEN, '0');
+  });
+}
+
+function updateActiveBreakDividers() {
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  document.querySelectorAll('.schedule-break-divider').forEach(div => {
+    const isDividerToday = (div.dataset.isToday === 'true') && (S.weekOffset === 0);
+    const sMin = parseInt(div.dataset.sMin, 10);
+    const eMin = parseInt(div.dataset.eMin, 10);
+    if (!isNaN(sMin) && !isNaN(eMin)) {
+      const sSec = sMin * 60;
+      const eSec = eMin * 60;
+      const isActive = isDividerToday && (nowSec >= sSec && nowSec < eSec);
+      div.classList.toggle('break-active-glow', isActive);
+      let badge = div.querySelector('.break-active-badge');
+      if (isActive) {
+        const leftSec = eSec - nowSec;
+        if (badge) {
+          badge.innerHTML = `${ICONS.play} Идёт сейчас (${fmtSec(leftSec)})`;
+        } else {
+          const right = div.querySelector('.break-info-right');
+          if (right) {
+            badge = document.createElement('span');
+            badge.className = 'break-active-badge';
+            badge.innerHTML = `${ICONS.play} Идёт сейчас (${fmtSec(leftSec)})`;
+            right.prepend(badge);
+          }
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    }
+  });
+}
+
+let _lastCalendarDate = new Date().toDateString();
+
+function checkMidnightRollover() {
+  const now = new Date();
+  const currentDateStr = now.toDateString();
+  if (_lastCalendarDate && currentDateStr !== _lastCalendarDate) {
+    console.log('[Midnight Rollover] Смена календарных суток:', _lastCalendarDate, '->', currentDateStr);
+    _lastCalendarDate = currentDateStr;
+
+    // Автоматически переключаем и обновляем расписание на новый день
+    buildDayStrip();
+    if (S.selectedDay === null) {
+      if (S.view === 'today' || S.view === 'week') {
+        renderSchedule();
+      }
+    }
+    updateLiveCard();
+  }
+}
+
+let _liveCardInterval = null;
+
+function _runLiveCardTick() {
+  checkMidnightRollover();
+  updateLiveCard();
+  if (S.view === 'today') {
+    updateActiveBreakDividers();
+  }
+}
+
+function startLiveCardClock() {
+  setupLiveCardToggle();
+  updateLiveCard();
+  if (_liveCardInterval) clearInterval(_liveCardInterval);
+  _liveCardInterval = setInterval(_runLiveCardTick, 1000);
+
+  // Оптимизация батареи: засыпание таймера при сворачивании вкладки / блокировке экрана
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      _runLiveCardTick();
+      if (!_liveCardInterval) {
+        _liveCardInterval = setInterval(_runLiveCardTick, 1000);
+      }
+      if (S.group) {
+        loadSchedule(false);
+      }
+    } else {
+      if (_liveCardInterval) {
+        clearInterval(_liveCardInterval);
+        _liveCardInterval = null;
+      }
+    }
+  });
+}
+
+function getGroupDayPairs(dayName) {
+  if (!S.data || !S.data.days) return [];
+  const raw = S.data.days[dayName] || [];
+  const activeParity = getActiveParity();
+  const pairs = [];
+
+  raw.forEach(slot => {
+    if (slot.is_empty) return;
+    const pn = slot.pair_num;
+    let lesson = null;
+
+    if (slot.is_split) {
+      if (activeParity === 'num') {
+        lesson = (slot.numerator && slot.numerator.subject) ? slot.numerator : null;
+      } else if (activeParity === 'den') {
+        lesson = (slot.denominator && slot.denominator.subject) ? slot.denominator : null;
+      } else {
+        lesson = slot.numerator || slot.denominator || null;
+      }
+    } else {
+      lesson = slot.both || slot.numerator || slot.denominator;
+    }
+
+    if (lesson && lesson.subject) {
+      pairs.push({
+        ...lesson,
+        pair_num: pn,
+        pair_number: pn,
+        start: slot.start,
+        end: slot.end,
+        time: slot.time
+      });
+    }
+  });
+
+  return pairs;
+}
+
+function updateLiveCard() {
+  if (!els.liveCard) return;
+  if (!S.group) {
+    setLiveCard('free', ICONS.coffee, 'Выберите группу', 'Нажмите "Сменить группу"', 'Выберите группу');
+    return;
+  }
+  if (!S.data) {
+    setLiveCard('free', ICONS.clock, S.group, 'Загрузка расписания...', S.group);
+    return;
+  }
+
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  const todayDow = now.getDay();
+
+  const dayName = DAYS[todayDow];
+  const pairs = getGroupDayPairs(dayName);
+
+  // Проверка: сегодня выходной (воскресенье) или у группы нет пар
+  const isWeekendOrNoPairs = (todayDow === 0) || (!pairs || pairs.length === 0);
+
+  // 1. Проверяем текущие пары сегодня (если сегодня учебный день с парами)
+  if (!isWeekendOrNoPairs && pairs && pairs.length > 0) {
+    for (const p of pairs) {
+      const pn = p.pair_num;
+      if (!pn || pn < 1 || pn > 6) continue;
+      const bell = BELL[pn];
+      const bellStartSec = bell.s * 60;
+      const bellEndSec = bell.e * 60;
+
+      if (nowSec >= bellStartSec && nowSec < bellEndSec) {
+        const elapsedSec = nowSec - bellStartSec;
+        const totalLeftSec = bellEndSec - nowSec;
+        const totalPct = Math.min(100, Math.max(0, (elapsedSec / (bellEndSec - bellStartSec)) * 100));
+        const subj = p.subject ? esc(p.subject.slice(0, 45)) : '';
+
+        updateBottomLiveStatusbar('Расписание синхронизировано', '');
+
+        if (elapsedSec < 45 * 60) {
+          // Первые 45 минут: два времени (до 5-минутки и до конца всей пары)
+          const to5minSec = (45 * 60) - elapsedSec;
+          setLiveCard('going', ICONS.book,
+            `Идёт ${pn} пара: ${subj}`,
+            `До 5-минутки: <b>${fmtSec(to5minSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
+            `<b>${pn} пара</b> • До 5-мин: <b>${fmtSec(to5minSec)}</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`);
+        } else if (elapsedSec < 50 * 60) {
+          // Пятиминутка внутри пары (45-50 мин)
+          const fiveLeftSec = (50 * 60) - elapsedSec;
+          setLiveCard('break', ICONS.coffee,
+            `Пятиминутка (${pn} пара): ${subj}`,
+            `Пятиминутный перерыв: <b>осталось ${fmtSec(fiveLeftSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
+            `<b>5-минутка (${pn} пара)</b>: осталось <b>${fmtSec(fiveLeftSec)}</b> • Конец: <b>${fmtSec(totalLeftSec)}</b>`,
+            fmtDigitalTimer(fiveLeftSec), 'до конца 5-минутки'
+          );
+        } else {
+          // Вторая половина пары (после 5-минутки)
+          setLiveCard('going', ICONS.book,
+            `Идёт ${pn} пара (2-я часть): ${subj}`,
+            `До конца пары: <b>${fmtSec(totalLeftSec)}</b> (до ${fmtTime(bell.e)})`,
+            `<b>${pn} пара (2-я часть)</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`);
+        }
+
+        if (els.liveCardProgress) els.liveCardProgress.style.width = totalPct.toFixed(1) + '%';
+        const activeCardFill = document.querySelector('.pair-card.going .pair-card-progress-fill, .split-pair-wrap.going .pair-card-progress-fill');
+        if (activeCardFill) activeCardFill.style.width = totalPct.toFixed(1) + '%';
+        return;
+      }
+
+      // Перемена между парами сегодня: ТОЛЬКО если сегодня ещё будут пары после текущей!
+      if (pn < 6) {
+        const hasNextPairToday = pairs.some(other => (other.pair_num || other.pair_number) > pn);
+        if (hasNextPairToday) {
+          const brk = BREAKS[pn];
+          if (brk) {
+            const brkStartSec = brk.s * 60;
+            const brkEndSec = brk.e * 60;
+            if (nowSec >= brkStartSec && nowSec < brkEndSec) {
+              const nextPairObj = pairs.find(other => (other.pair_num || other.pair_number) > pn);
+              const nextPn = nextPairObj ? (nextPairObj.pair_num || nextPairObj.pair_number) : (pn + 1);
+              const leftSec = brkEndSec - nowSec;
+              const pct = Math.min(100, Math.max(0, ((nowSec - brkStartSec) / (brk.dur * 60)) * 100));
+              updateBottomLiveStatusbar('Расписание синхронизировано', '');
+              setLiveCard('break', brk.dur >= 20 ? ICONS.utensils : ICONS.coffee,
+                `${brk.name} • до ${fmtTime(brk.e)}`,
+                `До начала ${nextPn} пары осталось <b>${fmtSec(leftSec)}</b>`,
+                `<b>${brk.name}</b>: осталось <b>${fmtSec(leftSec)}</b>`,
+                hudStr, `до ${nextPn} пары`
+              );
+              if (els.liveCardProgress) els.liveCardProgress.style.width = pct.toFixed(1) + '%';
+              return;
+            }
+          }
+        }
+      }
+    }
+
+    // 2. До начала первой пары сегодня (утром)
+    for (const p of pairs) {
+      const pn = p.pair_num;
+      if (!pn || pn < 1 || pn > 6) continue;
+      const bell = BELL[pn];
+      const bellStartSec = bell.s * 60;
+      if (nowSec < bellStartSec) {
+        const leftSec = bellStartSec - nowSec;
+        const subj = p.subject ? esc(p.subject.slice(0, 45)) : '';
+        updateBottomLiveStatusbar('Расписание синхронизировано', '');
+        setLiveCard('soon', ICONS.clock,
+          `Скоро начало занятий • ${pn} пара в ${fmtTime(bell.s)}`,
+          `До ${pn} пары осталось <b>${fmtHoursSec(leftSec)}</b> • ${subj}`,
+          `До ${pn} пары: <b>${fmtHoursSec(leftSec)}</b>`);
+        if (els.liveCardProgress) els.liveCardProgress.style.width = Math.max(0, 100 - (leftSec / 3600) * 100).toFixed(1) + '%';
+        return;
+      }
+    }
+  }
+
+  // 3. Пары на сегодня окончены или сегодня выходной -> Ищем следующий учебный день
+  const weekendTitle = todayDow === 0 ? 'Воскресенье — выходной' : (isWeekendOrNoPairs ? 'Сегодня пар нет' : 'Пары на сегодня окончены');
+
+  for (let offset = 1; offset <= 7; offset++) {
+    const nextDow = (todayDow + offset) % 7;
+    const nextDayName = DAYS[nextDow];
+    const nextPairs = getGroupDayPairs(nextDayName);
+    if (nextPairs && nextPairs.length > 0) {
+      const firstPair = nextPairs[0];
+      const pn = firstPair.pair_num;
+      const bell = pn >= 1 && pn <= 6 ? BELL[pn] : null;
+      if (bell) {
+        const targetDate = new Date(now);
+        targetDate.setDate(now.getDate() + offset);
+        targetDate.setHours(Math.floor(bell.s / 60), bell.s % 60, 0, 0);
+
+        const diffSec = Math.floor((targetDate.getTime() - now.getTime()) / 1000);
+        if (diffSec > 0) {
+          let dayLabel = `завтра (${nextDayName})`;
+          if (offset === 2) dayLabel = `послезавтра (${nextDayName})`;
+          else if (offset > 2) dayLabel = `в ${nextDayName}`;
+
+          const subj = firstPair.subject ? esc(firstPair.subject.slice(0, 45)) : '';
+          const timeStr = fmtHoursSec(diffSec);
+
+          updateBottomLiveStatusbar('Расписание синхронизировано', '');
+          setLiveCard('free', ICONS.moon,
+            `${weekendTitle}`,
+            `Следующие пары — ${dayLabel} в ${fmtTime(bell.s)} (через ${timeStr})`,
+            `${weekendTitle} • Следующие: ${dayLabel}`);
+          if (els.liveCardProgress) els.liveCardProgress.style.width = '0%';
+          return;
+        }
+      }
+    }
+  }
+
+  // 4. Если на неделю вперёд пар нет
+  setLiveCard('free', ICONS.moon, 'Пар нет', 'Хорошего отдыха!', 'Пар нет');
+}
+
+
+function fmtDigitalTimer(totalSeconds) {
+  if (totalSeconds < 0) totalSeconds = 0;
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  if (h > 0) {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function updateBottomLiveStatusbar(syncText = 'Расписание синхронизировано', dotClass = '') {
+  // Плашка синхронизации отключена по требованию пользователя
+  return;
+}
+
+function updateTopbarLiveTicker(type, label, timeStr) {
+  const ticker = document.getElementById('topbarLiveTicker');
+  const dot = document.getElementById('tickerPulseDot');
+  const lbl = document.getElementById('topbarTickerLabel');
+  const tim = document.getElementById('topbarTickerTime');
+  if (!ticker || !tim) return;
+
+  ticker.style.display = 'inline-flex';
+  if (dot) {
+    dot.className = 'ticker-pulse-dot ' + (type || 'going');
+  }
+  if (lbl) lbl.textContent = label || 'Пара';
+  tim.textContent = timeStr || '--:--';
+}
+function setLiveCard(type, icon, title, sub, restoreText = '') {
+  if (!els.liveCard) return;
+  els.liveCard.className = 'live-card ' + type;
+  if (els.liveCardIcon) els.liveCardIcon.innerHTML = icon;
+  if (els.liveCardTitle) els.liveCardTitle.innerHTML = title;
+  if (els.liveCardSub) els.liveCardSub.innerHTML = sub;
+  if (type === 'free' && els.liveCardProgress) els.liveCardProgress.style.width = '0';
+  if (els.liveRestoreIcon) els.liveRestoreIcon.innerHTML = icon;
+  if (els.liveRestoreText) els.liveRestoreText.innerHTML = restoreText || title;
+}
+
+function fmtTime(min) {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+// ════════════════════════════════════════
+//  LOAD DATA (FAULT TOLERANT & CACHED)
+// ════════════════════════════════════════
+function getAnyCachedScheduleForGroup(group, targetGid) {
+  if (!isTelegramGatePassed()) return null;
+  if (!group) return null;
+  // 1. По точному GID
+  if (targetGid) {
+    const exact = safeGetItem(STORAGE_CACHE_PREFIX + group + '_' + targetGid);
+    if (exact) {
+      try { return JSON.parse(exact); } catch (_) {}
+    }
+  }
+  // 2. По active-метке
+  const active = safeGetItem(STORAGE_CACHE_PREFIX + group + '_active');
+  if (active) {
+    try { return JSON.parse(active); } catch (_) {}
+  }
+  // 3. Сканируем localStorage на любую сохранённую вкладку этой группы
+  try {
+    const prefix = STORAGE_CACHE_PREFIX + group + '_';
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) {
+        const val = safeGetItem(k);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (parsed && (parsed.days || parsed.schedules)) return parsed;
+        }
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+let currentScheduleAbortController = null;
+
+async function loadSchedule(force = false) {
+  if (!isTelegramGatePassed()) {
+    renderTelegramGatePrompt();
+    return;
+  }
+  if (S.isLoading && !force) {
+    logApp('info', 'loadSchedule пропущен: предыдущий запрос ещё выполняется');
+    return;
+  }
+  if (currentScheduleAbortController) {
+    currentScheduleAbortController.abort();
+  }
+  currentScheduleAbortController = new AbortController();
+  const currentSignal = currentScheduleAbortController.signal;
+  S.isLoading = true;
+
+  if (!S.group) S.group = DEFAULT_GROUP;
+  S.group = sanitizeGroupName(S.group);
+  updateSidebarGroupInfo();
+
+  const cacheKey = STORAGE_CACHE_PREFIX + S.group + '_' + (S.activeGid || 'active');
+
+  if (localStorage.getItem('is_banned_state') === 'true') {
+    triggerBanEndlessLoading();
+    return;
+  }
+
+  // 1. ОФФЛАЙН-ПЕРВЫЙ: мгновенно рендерим сохранённую копию из localStorage, не дожидаясь сети
+  if (!S.data) {
+    const preCached = getAnyCachedScheduleForGroup(S.group, S.activeGid);
+    if (preCached) {
+      S.data = preCached;
+      updateSidebarGroupInfo();
+      buildDayStrip();
+      updateTopbarParity();
+      renderSchedule();
+      updateLiveCard();
+      updateSyncStatus(true, true);
+      logApp('info', `Расписание мгновенно загружено из оффлайн-кэша для ${S.group}`);
+    } else if (S.view === 'today' || S.view === 'week' || S.view === 'schedule') {
+      renderSkeleton();
+    }
+  }
+
+  // 2. Индикатор пробуждения убран по запросу пользователя (тихая фоновая загрузка)
+  const wakeupTimer = null;
+
+  // 3. СЕТЕВОЙ ЗАПРОС С ТАЙМАУТОМ (8.5 сек)
+  try {
+    // Вкладки загружаем только если они ещё не загружены или принудительно (экономия 1-3с на Render)
+    if (!S.tabs || S.tabs.length === 0 || force) {
+      try {
+        const tabsRes = await fetchWithTimeout(`${API}/tabs`, { signal: currentSignal }, 8500);
+        if (tabsRes.ok) {
+          const tabsData = await tabsRes.json();
+          S.tabs = (tabsData.tabs || []).filter(tab => !isTestTab(tab.name));
+        }
+      } catch (tabsErr) {
+        if (!currentSignal.aborted) {
+          logApp('warn', 'Не удалось обновить список вкладок:', tabsErr);
+        }
+      }
+    }
+
+    if (currentSignal.aborted) return;
+
+    // Автоматическое определение вкладки по датам недели, если не включен ручной выбор
+    if (!S.manualTabMode && S.tabs && S.tabs.length > 0) {
+      const targetTab = findTabForWeek(S.weekOffset || 0);
+      if (targetTab) {
+        S.activeGid = targetTab.gid;
+      } else if (S.weekOffset !== 0) {
+        // Целевая неделя ещё не опубликована
+        clearTimeout(wakeupTimer);
+        hideOfflineBanner();
+        S.isNotPublished = true;
+        buildSidebarTabs();
+        buildDayStrip();
+        renderScheduleNotPublished();
+        return;
+      } else if (!S.activeGid || S.activeGid === 'active') {
+        const foundActive = S.tabs.find(t => t.is_active && !isTestTab(t.name));
+        S.activeGid = foundActive ? foundActive.gid : (S.tabs[0]?.gid || '');
+      }
+    }
+
+    const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
+    const forceParam = force ? '&force=true' : '';
+    const url = `${API}/schedule?group=${encodeURIComponent(S.group)}${tabParam}${forceParam}`;
+    const res = await fetchWithTimeout(url, { signal: currentSignal }, 8500);
+    if (res.status === 404) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      if (els.scheduleView) {
+        els.scheduleView.removeAttribute('aria-busy');
+        els.scheduleView.innerHTML = `
+          <div class="schedule-error-card">
+            <div class="schedule-error-icon">${ICONS.search || ICONS.alert}</div>
+            <div class="schedule-error-title">Группа «${escapeHtml(S.group)}» не найдена</div>
+            <div class="schedule-error-desc">Проверьте правильность написания или выберите действующую группу колледжа:</div>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:16px;">
+              <button class="primary-btn" onclick="openGroupModal()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:12px;background:var(--accent,#6366f1);color:#fff;border:none;font-weight:600;cursor:pointer;">
+                <span>Выбрать группу</span>
+              </button>
+              <button class="secondary-btn" onclick="saveActiveGroup('ИСС9-25'); loadSchedule(true);" style="display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:12px;background:rgba(255,255,255,0.08);color:var(--text,#fff);border:1px solid var(--border,rgba(255,255,255,0.15));font-weight:600;cursor:pointer;">
+                <span>Сбросить на ИСС9-25</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const freshData = await res.json();
+
+    if (currentSignal.aborted) return;
+
+    if (freshData && freshData.is_banned) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      triggerBanEndlessLoading();
+      return;
+    } else {
+      clearBanEndlessLoading();
+    }
+
+    // 1. Проверка активного защитного шлюза / неавторизованной сессии
+    if (freshData && freshData.gate_active) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      S.data = null;
+      renderTelegramGatePrompt();
+      return;
+    }
+
+    // 2. Проверка реального отсутствия публикации расписания колледжем
+    if (freshData && freshData.published === false) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      S.isNotPublished = true;
+      buildSidebarTabs();
+      buildDayStrip();
+      renderScheduleNotPublished();
+      return;
+    }
+
+    if (freshData && (!freshData.days || (Object.keys(freshData.days).length === 0 && !freshData.schedules))) {
+      clearTimeout(wakeupTimer);
+      hideOfflineBanner();
+      S.data = null;
+      renderSkeleton();
+      return;
+    }
+
+    if (!freshData || (!freshData.days && !freshData.schedules)) {
+      throw new Error('Некорректный формат расписания от сервера');
+    }
+
+    clearTimeout(wakeupTimer);
+    hideOfflineBanner();
+
+    S.isNotPublished = false;
+    if (freshData.group) {
+      S.group = sanitizeGroupName(freshData.group);
+      safeSetItem(STORAGE_GROUP, S.group);
+      safeSetItem('schedule_group', S.group);
+    }
+    S.data = freshData;
+    S.hasInitiallyLoadedFreshData = true;
+
+    // Если список вкладок ещё не был заполнен — обновляем из ответа расписания
+    if ((!S.tabs || S.tabs.length === 0) && freshData.available_tabs) {
+      S.tabs = freshData.available_tabs.filter(tab => !isTestTab(tab.name));
+    }
+
+    try {
+      safeSetItem(cacheKey, JSON.stringify(freshData));
+      safeSetItem(STORAGE_CACHE_PREFIX + S.group + '_active', JSON.stringify(freshData));
+      safeSetItem('schedule_last_sync_time', freshData.last_updated || new Date().toLocaleString('ru-RU'));
+    } catch (err) {
+      logApp('warn', 'Ошибка записи в кэш:', err);
+    }
+
+    updateSidebarGroupInfo();
+    buildSidebarTabs();
+    buildDayStrip();
+    updateTopbarParity();
+    renderSchedule();
+    updateLiveCard();
+    updateSyncStatus(true, false);
+    // Синхронизация с нативным Android-виджетом (если запущено внутри APK)
+    try {
+      if (window.AndroidWidget && typeof window.AndroidWidget.updateSchedule === 'function') {
+        window.AndroidWidget.updateSchedule(S.group, JSON.stringify(freshData));
+      }
+    } catch (e) {
+      logApp('debug', 'Не удалось обновить нативный Android-виджет:', e);
+    }
+
+    if (S.view === 'stats') renderStatsView(currentStatsScope);
+    if (S.view === 'english') startEnglishCountdown();
+    logApp('info', `Расписание успешно синхронизировано для ${S.group}`);
+  } catch (e) {
+    clearTimeout(wakeupTimer);
+    if (!isTelegramGatePassed()) {
+      hideOfflineBanner();
+      renderSkeleton();
+      return;
+    }
+    if (currentSignal.aborted || e.name === 'AbortError') {
+      logApp('info', 'Запрос расписания отменён (переключение группы или вкладки)');
+      return;
+    }
+    logApp('error', `Сбой синхронизации расписания (${e.message}):`, e);
+
+    // Проверяем наличие оффлайн-кэша
+    let hasCachedData = Boolean(S.data);
+    if (!hasCachedData) {
+      const recovered = getAnyCachedScheduleForGroup(S.group, S.activeGid);
+      if (recovered) {
+        S.data = recovered;
+        hasCachedData = true;
+        updateSidebarGroupInfo();
+        buildDayStrip();
+        updateTopbarParity();
+        renderSchedule();
+        updateLiveCard();
+      }
+    }
+
+    updateSyncStatus(false, hasCachedData);
+
+    if (hasCachedData) {
+      showOfflineBanner('Офлайн-режим: показано сохранённое расписание', false);
+    } else if (els.scheduleView) {
+      hideOfflineBanner();
+      els.scheduleView.removeAttribute('aria-busy');
+      els.scheduleView.innerHTML = `
+        <div class="schedule-error-card">
+          <div class="schedule-error-icon">${ICONS.alert}</div>
+          <div class="schedule-error-title">Не удалось загрузить расписание</div>
+          <div class="schedule-error-desc">Сервер временно недоступен или отсутствует подключение к интернету.</div>
+          <button class="retry-btn" onclick="loadSchedule(true)">
+            ${ICONS.refresh}
+            <span>Попробовать снова</span>
+          </button>
+        </div>
+      `;
+    }
+  } finally {
+    clearTimeout(wakeupTimer);
+    S.isLoading = false;
+    if (els.scheduleView && S.data) els.scheduleView.removeAttribute('aria-busy');
+  }
+}
+
+function updateSyncStatus(ok, isCached = false) {
+  if (!els.sidebarSyncStatus) return;
+  if (!ok) {
+    els.sidebarSyncStatus.textContent = isCached ? '● Офлайн-копия (нет связи)' : '● Нет связи';
+    els.sidebarSyncStatus.style.color = isCached ? 'var(--yellow)' : 'var(--red)';
+  } else if (isCached) {
+    els.sidebarSyncStatus.textContent = '● Загружено из памяти';
+    els.sidebarSyncStatus.style.color = 'var(--accent)';
+  } else {
+    els.sidebarSyncStatus.textContent = '● Синхронизировано';
+    els.sidebarSyncStatus.style.color = 'var(--green)';
+  }
+  if (S.data?.last_updated && els.sidebarUpdated) {
+    els.sidebarUpdated.textContent = 'Обновлено: ' + S.data.last_updated;
+  }
+}
+
+function startAutoRefresh() {
+  clearInterval(S.refreshTimer);
+  S.refreshTimer = setInterval(() => loadSchedule(), AUTO_REFRESH_MS);
+}
+
+// ════════════════════════════════════════
+//  RENDER SKELETON (INSTANT GHOST CARDS)
+// ════════════════════════════════════════
+function renderSkeleton() {
+  if (!els.scheduleView) return;
+  els.scheduleView.setAttribute('aria-busy', 'true');
+  els.scheduleView.innerHTML = `
+    <div class="skeleton-schedule" id="skeletonLoader">
+      <div class="skeleton-sync-badge">
+        <span class="skeleton-spinner-dot"></span>
+        <span class="skeleton-sync-text">Синхронизация актуального расписания...</span>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-col-num">
+          <div class="skeleton-bar skeleton-num"></div>
+          <div class="skeleton-bar skeleton-time"></div>
+        </div>
+        <div class="skeleton-col-body">
+          <div class="skeleton-bar skeleton-title"></div>
+          <div class="skeleton-bar skeleton-title-sub"></div>
+          <div class="skeleton-meta-row">
+            <div class="skeleton-bar skeleton-pill"></div>
+            <div class="skeleton-bar skeleton-pill small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-col-num">
+          <div class="skeleton-bar skeleton-num"></div>
+          <div class="skeleton-bar skeleton-time"></div>
+        </div>
+        <div class="skeleton-col-body">
+          <div class="skeleton-bar skeleton-title" style="width:65%"></div>
+          <div class="skeleton-bar skeleton-title-sub" style="width:40%"></div>
+          <div class="skeleton-meta-row">
+            <div class="skeleton-bar skeleton-pill" style="width:110px"></div>
+            <div class="skeleton-bar skeleton-pill small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-col-num">
+          <div class="skeleton-bar skeleton-num"></div>
+          <div class="skeleton-bar skeleton-time"></div>
+        </div>
+        <div class="skeleton-col-body">
+          <div class="skeleton-bar skeleton-title" style="width:82%"></div>
+          <div class="skeleton-bar skeleton-title-sub" style="width:52%"></div>
+          <div class="skeleton-meta-row">
+            <div class="skeleton-bar skeleton-pill"></div>
+            <div class="skeleton-bar skeleton-pill small"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════
+//  RENDER SCHEDULE
+// ════════════════════════════════════════
+function renderSchedule() {
+  if (!els.scheduleView) return;
+  els.scheduleView.removeAttribute('aria-busy');
+  if (S.isNotPublished) {
+    renderScheduleNotPublished();
+    return;
+  }
+  if (!S.data || !S.group) {
+    els.scheduleView.innerHTML = `<div class="empty-pairs-hint">Группа не выбрана</div>`;
+    return;
+  }
+
+  if (S.view === 'week') {
+    renderWeek();
+  } else {
+    renderDay();
+  }
+}
+
+function getActiveDow() {
+  if (S.selectedDay !== null) return S.selectedDay;
+  const dow = new Date().getDay();
+  return dow === 0 ? 1 : dow;
+}
+
+function renderDay() {
+  const dow = getActiveDow();
+  const dayName = DAYS[dow];
+  const today = new Date();
+  const todayDow = today.getDay();
+  const isSunday = (todayDow === 0) && (S.weekOffset === 0);
+
+  let weekendBanner = '';
+  if (isSunday && dow === 1) {
+    weekendBanner = `
+      <div class="weekend-status-banner">
+        <div class="weekend-status-content">
+          <div class="weekend-status-icon">${ICONS.sun}</div>
+          <div class="weekend-status-text">
+            <div class="weekend-status-title">Сегодня воскресенье — выходной</div>
+            <div class="weekend-status-sub">Показано расписание на завтра (Понедельник). Можно заранее подготовиться к занятиям!</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const html = renderDayPairs(dayName);
+  els.scheduleView.innerHTML = weekendBanner + (html || `<div class="empty-pairs-hint">На ${dayName.toLowerCase()} пар нет</div>`);
+}
+
+function renderWeek() {
+  let html = '';
+  DAYS_EN_ORDER.forEach(dow => {
+    const dayName = DAYS[dow];
+    const today = new Date().getDay();
+    const isToday = dow === today;
+    const d = getDayDate(dow);
+    let dateStr = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (S.data?.day_dates && S.data.day_dates[dayName]) {
+      dateStr = S.data.day_dates[dayName];
+    }
+    html += `<div class="week-day-header">
+      <span class="week-day-name">${dayName}</span>
+      <span class="week-day-date">${dateStr}</span>
+      ${isToday ? '<span class="week-day-today-tag">Сегодня</span>' : ''}
+    </div>`;
+    const dayHtml = renderDayPairs(dayName);
+    html += dayHtml || `<div class="empty-pairs-hint" style="padding:12px 0">Пар нет</div>`;
+  });
+  els.scheduleView.innerHTML = html;
+}
+
+function getDayDate(dow) {
+  const { mon } = getWeekDateRange(S.weekOffset || 0);
+  const d = new Date(mon);
+  d.setDate(mon.getDate() + (dow - 1));
+  return d;
+}
+
+function renderDayPairs(dayName) {
+  if (!S.data || !S.data.days) return '';
+  const slots = S.data.days[dayName] || [];
+
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  const nowMin = Math.floor(nowSec / 60);
+  const isToday = (S.weekOffset === 0) && (DAYS[now.getDay()] === dayName);
+
+  const activeParity = getActiveParity();
+  let html = '';
+
+  const validSlots = [];
+  slots.forEach(slot => {
+    if (slot.is_empty) return;
+    if (slot.is_split) {
+      const hasNum = slot.numerator && slot.numerator.subject;
+      const hasDen = slot.denominator && slot.denominator.subject;
+      if (activeParity === 'num') {
+        if (hasNum) validSlots.push(slot);
+      } else if (activeParity === 'den') {
+        if (hasDen) validSlots.push(slot);
+      } else {
+        if (hasNum || hasDen) validSlots.push(slot);
+      }
+    } else {
+      const p = slot.both || slot.numerator || slot.denominator;
+      if (p && p.subject) {
+        validSlots.push(slot);
+      }
+    }
+  });
+
+  validSlots.forEach((slot, idx) => {
+    const pn = slot.pair_num;
+    const bell = pn >= 1 && pn <= 6 ? BELL[pn] : null;
+    const bellStartSec = bell ? bell.s * 60 : 0;
+    const bellEndSec = bell ? bell.e * 60 : 0;
+    const isGoing = bell && isToday && nowSec >= bellStartSec && nowSec < bellEndSec;
+
+    // Разделитель перемены между парами
+    if (idx > 0) {
+      const prevPn = validSlots[idx - 1].pair_num;
+      if (prevPn >= 1 && prevPn < pn && prevPn < 6) {
+        const brk = BREAKS[prevPn];
+        if (brk) {
+          const brkStartSec = brk.s * 60;
+          const brkEndSec = brk.e * 60;
+          const isBreakActive = isToday && (S.weekOffset === 0) && nowSec >= brkStartSec && nowSec < brkEndSec;
+          const leftSec = isBreakActive ? (brkEndSec - nowSec) : 0;
+          const glowClass = isBreakActive ? ' break-active-glow' : '';
+          const activeBadge = isBreakActive ? `<span class="break-active-badge">${ICONS.play} Идёт сейчас (${fmtSec(leftSec)})</span>` : '';
+          const breakIconSvg = brk.dur >= 20 ? ICONS.utensils : ICONS.coffee;
+
+          html += `<div class="schedule-break-divider${glowClass}" data-day="${esc(dayName)}" data-is-today="${isToday}" data-s-min="${brk.s}" data-e-min="${brk.e}">
+            <div class="break-info-left">
+              <span class="break-icon">${breakIconSvg}</span>
+              <span class="break-name">${brk.name}</span>
+            </div>
+            <div class="break-info-right">
+              ${activeBadge}
+              <span class="break-time">${brk.time}</span>
+            </div>
+          </div>`;
+        }
+      }
+    }
+
+    if (slot.is_split) {
+      const num = slot.numerator;
+      const den = slot.denominator;
+      if (activeParity === 'all') {
+        html += renderSplitCard(num, den, pn, bell, isGoing, idx, dayName);
+      } else if (activeParity === 'num') {
+        if (num && num.subject) {
+          html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx, dayName);
+        }
+      } else if (activeParity === 'den') {
+        if (den && den.subject) {
+          html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx, dayName);
+        }
+      } else if (num && num.subject) {
+        html += renderSingleCard(num, pn, bell, isGoing, 'I Числ.', idx, dayName);
+      } else if (den && den.subject) {
+        html += renderSingleCard(den, pn, bell, isGoing, 'II Знам.', idx, dayName);
+      } else {
+        html += renderSplitCard(num, den, pn, bell, isGoing, idx, dayName);
+      }
+      return;
+    }
+
+    const p = slot.both || slot.numerator || slot.denominator;
+    if (!p || !p.subject) return;
+
+    html += renderSingleCard(p, pn, bell, isGoing, '', idx, dayName);
+  });
+
+  return html;
+}
+
+function getSubjectIcon(subject) {
+  if (!subject) return ICONS.book;
+  const s = String(subject).toLowerCase();
+  if (/физическ|физра|спорт|культура|лфк/i.test(s)) return ICONS.activity;
+  if (/программир|информат|эвм|веб|web|баз.*данн|алгоритм|мдк|исрпо|сет[иь]|разработк|компьютер|ит|it|основы алгоритм/i.test(s)) return ICONS.laptop;
+  if (/математ|алгебр|геометр|дискретн|вычисл|твимс|статистик/i.test(s)) return ICONS.triangle;
+  if (/физик|электро|схемотех|радио|микроэлектрон/i.test(s)) return ICONS.zap;
+  if (/английск|иностран|немецк|француз|язык|русск|литератур/i.test(s)) return ICONS.languages;
+  if (/истор|общество|прав[оа]|философ|социолог/i.test(s)) return ICONS.landmark;
+  if (/бжд|безопасн|охрана труда/i.test(s)) return ICONS.shield;
+  if (/хим|биолог|эколог/i.test(s)) return ICONS.flask;
+  if (/эконом|менеджмент|маркетинг|бухгалтер|финанс/i.test(s)) return ICONS.barChart;
+  if (/практик|учебн.*практик|производств.*практик/i.test(s)) return ICONS.wrench;
+  if (/черчен|инженерн.*график|дизайн|моделирован/i.test(s)) return ICONS.penTool;
+  return ICONS.book;
+}
+
+window.toggleCardExpand = function(el, ev) {
+  if (ev) {
+    if (ev.target.closest('button.pair-room-btn, button.pair-teacher-btn, a, input, select, textarea, .admin-quick-ban-btn, .admin-resolve-btn, .admin-unban-btn')) {
+      return;
+    }
+  }
+  const card = el.closest('.expandable-card') || el;
+  card.classList.toggle('is-expanded');
+};
+
+function parseUserAgent(ua) {
+  if (!ua) return 'Неизвестно';
+  let browser = 'Браузер';
+  let os = 'Устройство';
+
+  if (/android/i.test(ua)) os = 'Android';
+  else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+  else if (/windows/i.test(ua)) os = 'Windows';
+  else if (/macintosh|mac os x/i.test(ua)) os = 'macOS';
+  else if (/linux/i.test(ua)) os = 'Linux';
+
+  if (/telegram/i.test(ua)) browser = 'Telegram';
+  else if (/edg/i.test(ua)) browser = 'Edge';
+  else if (/chrome|crios/i.test(ua)) browser = 'Chrome';
+  else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+  else if (/safari/i.test(ua)) browser = 'Safari';
+
+  return `${browser} · ${os}`;
+}
+
+function renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant, dayName = '') {
+  const cfg = getActiveCardTemplateConfig();
+  const timeStr = bell ? `${fmtTime(bell.s)}–${fmtTime(bell.e)}` : (p.time || '');
+  const classroom = p.classroom || p.room || '';
+  const teacher = p.teacher || '';
+
+  const badges = [
+    isGoing     ? `<span class="pair-badge badge-going">${ICONS.play} Идёт</span>` : '',
+    parityBadge ? `<span class="pair-badge badge-parity-tag">${esc(parityBadge)}</span>` : '',
+    cancelled   ? `<span class="pair-badge badge-cancelled">${ICONS.ban} Отмена</span>` : '',
+    replacement ? `<span class="pair-badge badge-replacement">${ICONS.swap} Замена</span>` : '',
+    distant     ? `<span class="pair-badge badge-distant">${ICONS.extLink} Дистант</span>` : '',
+  ].filter(Boolean).join('');
+
+  const teacherHtml = teacher
+    ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="event.stopPropagation(); openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(teacher)}</span></button>`
+    : '';
+  const roomHtml = classroom
+    ? `<button class="pair-room-btn" data-room="${esc(classroom)}" onclick="event.stopPropagation(); openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(classroom)}</span></button>`
+    : `<span class="pair-room-btn pair-room-unspecified" title="Аудитория не указана в расписании">${ICONS.mapPin} <span>Не указана</span></span>`;
+
+  // Зональный рендеринг полей с поддержкой сеток, размеров и цветов
+  const FIELD_MAP = {
+    'field-time': (item) => {
+      if (!pn && !timeStr) return '';
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      const liveDot = isGoing ? `<span class="pair-live-dot" title="Пара идёт прямо сейчас"></span>` : '';
+      return `<div class="card-field field-time${szCls}${colCls}">${liveDot}${pn ? `<span class="pair-num-badge">№${pn}</span>` : ''} <span class="pair-time-span">${timeStr}</span></div>`;
+    },
+    'field-subject': (item) => {
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      const icon = getSubjectIcon(p.subject);
+      return `<div class="card-field field-subject pair-subject${cancelled ? ' cancelled-text' : ''}${szCls}${colCls}"><span class="pair-subject-icon">${icon}</span>${esc(p.subject || '')}</div>`;
+    },
+    'field-teacher': (item) => {
+      if (!teacherHtml) return '';
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      return `<div class="card-field field-teacher${szCls}${colCls}">${teacherHtml}</div>`;
+    },
+    'field-room': (item) => {
+      if (!roomHtml) return '';
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      return `<div class="card-field field-room${szCls}${colCls}">${roomHtml}</div>`;
+    },
+    'field-badges': (item) => {
+      if (!badges) return '';
+      const szCls = item.size ? ` field-size-${item.size}` : '';
+      const colCls = (item.color && item.color !== 'default') ? ` field-color-${item.color}` : '';
+      return `<div class="card-field field-badges pair-badges-row${szCls}${colCls}">${badges}</div>`;
+    }
+  };
+
+  const zones = {
+    'top-left': [],
+    'top-right': [],
+    'main': [],
+    'bottom-left': [],
+    'bottom-right': []
+  };
+
+  cfg.forEach(item => {
+    if (item.id === 'field-subject' || item.visible) {
+      const fn = FIELD_MAP[item.id];
+      if (fn) {
+        const fieldHtml = fn(item);
+        if (fieldHtml) {
+          const z = item.zone && zones[item.zone] ? item.zone : (DEFAULT_CARD_ZONE_MAP[item.id] || 'main');
+          zones[z].push(fieldHtml);
+        }
+      }
+    }
+  });
+
+  let content = '';
+
+  // Ряд 1: Верх (левый и правый угол)
+  if (zones['top-left'].length > 0 || zones['top-right'].length > 0) {
+    content += `<div class="card-zone-row zone-row-top">
+      <div class="card-zone-col col-left">${zones['top-left'].join('')}</div>
+      <div class="card-zone-col col-right">${zones['top-right'].join('')}</div>
+    </div>`;
+  }
+
+  // Ряд 2: Центральная основная строка
+  if (zones['main'].length > 0) {
+    content += `<div class="card-zone-row zone-row-main">
+      ${zones['main'].join('')}
+    </div>`;
+  }
+
+  // Ряд 3: Низ (левый и правый угол)
+  if (zones['bottom-left'].length > 0 || zones['bottom-right'].length > 0) {
+    content += `<div class="card-zone-row zone-row-bottom">
+      <div class="card-zone-col col-left">${zones['bottom-left'].join('')}</div>
+      <div class="card-zone-col col-right">${zones['bottom-right'].join('')}<button class="card-expand-btn" type="button" aria-label="Детали"><svg class="card-expand-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button></div>
+    </div>`;
+  }
+
+  return content;
+}
+
+function formatLessonType(p, cancelled, replacement, distant) {
+  if (cancelled) return 'Отменено';
+  if (distant) return 'Дистанционный формат';
+  const raw = String(p.lesson_type || p.type || '').toLowerCase();
+  if (!raw || raw === 'regular') {
+    if (/лаб/i.test(p.subject || '')) return 'Лабораторная работа';
+    if (/практ/i.test(p.subject || '')) return 'Практическое занятие';
+    if (/лекц/i.test(p.subject || '')) return 'Лекция';
+    if (/зачет|экзамен|диф/i.test(p.subject || '')) return 'Контроль знаний';
+    return 'Обычное занятие';
+  }
+  if (raw === 'lecture' || raw.includes('лекц')) return 'Лекция';
+  if (raw === 'practice' || raw.includes('практ')) return 'Практическое занятие';
+  if (raw === 'lab' || raw.includes('лаб')) return 'Лабораторная работа';
+  return p.lesson_type || p.type;
+}
+
+function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0, dayName = '') {
+  const cancelled = p.is_cancelled || (p.subject && /отмена/i.test(p.subject));
+  const replacement = p.is_replacement || (p.subject && /замена/i.test(p.subject));
+  const classroom = p.classroom || p.room || '';
+  const distant = p.is_distant || /дист/i.test(classroom);
+  const isCustom = isCardTemplateCustom() || (isLayoutEditingMode && currentLayoutTab === 'card');
+
+  const cardClass = [
+    'pair-card',
+    'expandable-card',
+    isCustom ? 'custom-template' : '',
+    isGoing ? 'going' : '',
+    cancelled ? 'cancelled' : '',
+    replacement ? 'replacement' : '',
+  ].filter(Boolean).join(' ');
+
+  const content = renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant, dayName);
+
+  const teacher = p.teacher || '';
+  const teacherBtn = teacher
+    ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="event.stopPropagation(); openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(teacher)}</span></button>`
+    : '<span style="color:var(--text-tertiary)">Не указан</span>';
+
+  const lessonType = formatLessonType(p, cancelled, replacement, distant);
+  const notes = p.notes || p.comment || (cancelled ? 'Занятие отменено' : (replacement ? 'Замена в расписании' : (distant ? 'Дистанционный формат' : '')));
+
+  const expandedDetails = `
+    <div class="card-expanded-view">
+      <div class="pair-card-details-grid">
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Преподаватель:</span>
+          <span class="pair-detail-val">${teacherBtn}</span>
+        </div>
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Аудитория:</span>
+          <span class="pair-detail-val">${esc(classroom) || 'Не указана'}</span>
+        </div>
+        ${p.subgroup ? `
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Подгруппа:</span>
+          <span class="pair-detail-val">${esc(p.subgroup)}</span>
+        </div>` : ''}
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Тип занятия:</span>
+          <span class="pair-detail-val">${esc(lessonType)}</span>
+        </div>
+        ${notes ? `
+        <div class="pair-detail-row">
+          <span class="pair-detail-label">Заметки:</span>
+          <span class="pair-detail-val">${esc(notes)}</span>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+
+  let progressHtml = '';
+  if (isGoing && bell && bell.s && bell.e) {
+    const now = new Date();
+    const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    const sSec = bell.s * 60;
+    const eSec = bell.e * 60;
+    const pct = (eSec > sSec && nowSec >= sSec && nowSec <= eSec)
+      ? Math.min(100, Math.max(0, Math.round(((nowSec - sSec) / (eSec - sSec)) * 100)))
+      : (nowSec > eSec ? 100 : 0);
+    progressHtml = `<div class="pair-card-progress-bar"><div class="pair-card-progress-fill" style="width:${pct}%"></div></div>`;
+  }
+
+  return `<div class="${cardClass}" style="--card-index:${cardIndex}" onclick="toggleCardExpand(this, event)">
+    ${content}
+    ${expandedDetails}
+    ${progressHtml}
+  </div>`;
+}
+
+function renderSplitCard(num, den, pn, bell, isGoing, cardIndex = 0, dayName = '') {
+  const isCustom = isCardTemplateCustom() || (isLayoutEditingMode && currentLayoutTab === 'card');
+  const mkRow = (p, type, label) => {
+    if (!p || !p.subject) return '';
+    const cancelled = p.is_cancelled || (p.subject && /отмена/i.test(p.subject));
+    const replacement = p.is_replacement || (p.subject && /замена/i.test(p.subject));
+    const classroom = p.classroom || p.room || '';
+    const distant = p.is_distant || /дист/i.test(classroom);
+    const content = renderCardContentByTemplate(p, pn, bell, isGoing, label, cancelled, replacement, distant, dayName);
+
+    const teacher = p.teacher || '';
+    const teacherBtn = teacher
+      ? `<button class="pair-teacher-btn" data-teacher="${esc(teacher)}" onclick="event.stopPropagation(); openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(teacher)}</span></button>`
+      : '<span style="color:var(--text-tertiary)">Не указан</span>';
+    const lessonType = formatLessonType(p, cancelled, replacement, distant);
+    const notes = p.notes || p.comment || (cancelled ? 'Занятие отменено' : (replacement ? 'Замена в расписании' : (distant ? 'Дистанционный формат' : '')));
+
+    const expandedDetails = `
+      <div class="card-expanded-view">
+        <div class="pair-card-details-grid">
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Преподаватель:</span>
+            <span class="pair-detail-val">${teacherBtn}</span>
+          </div>
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Аудитория:</span>
+            <span class="pair-detail-val">${esc(classroom) || 'Не указана'}</span>
+          </div>
+          ${p.subgroup ? `
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Подгруппа:</span>
+            <span class="pair-detail-val">${esc(p.subgroup)}</span>
+          </div>` : ''}
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Тип занятия:</span>
+            <span class="pair-detail-val">${esc(lessonType)}</span>
+          </div>
+          ${notes ? `
+          <div class="pair-detail-row">
+            <span class="pair-detail-label">Заметки:</span>
+            <span class="pair-detail-val">${esc(notes)}</span>
+          </div>` : ''}
+        </div>
+      </div>
+    `;
+
+    return `<div class="split-row ${type}-row expandable-card${isCustom ? ' custom-template' : ''}" onclick="toggleCardExpand(this, event)">
+      ${content}
+      ${expandedDetails}
+    </div>`;
+  };
+
+  const numRow = mkRow(num, 'num', 'I Числ.');
+  const denRow = mkRow(den, 'den', 'II Знам.');
+
+  if (!numRow && !denRow) return '';
+
+  let progressHtml = '';
+  if (isGoing && bell && bell.s && bell.e) {
+    const now = new Date();
+    const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    const sSec = bell.s * 60;
+    const eSec = bell.e * 60;
+    const pct = (eSec > sSec && nowSec >= sSec && nowSec <= eSec)
+      ? Math.min(100, Math.max(0, Math.round(((nowSec - sSec) / (eSec - sSec)) * 100)))
+      : (nowSec > eSec ? 100 : 0);
+    progressHtml = `<div class="pair-card-progress-bar"><div class="pair-card-progress-fill" style="width:${pct}%"></div></div>`;
+  }
+
+  return `<div class="split-pair-wrap${isGoing ? ' going' : ''}" style="--card-index:${cardIndex}">
+    ${numRow}${denRow}
+    ${progressHtml}
+  </div>`;
+}
+
+// ════════════════════════════════════════
+//  TEACHER & ROOM SELECTION & SEARCH
+// ════════════════════════════════════════
+window.returnToGroupSchedule = function() {
+  if (typeof clearTeacherSelection === 'function') clearTeacherSelection();
+  if (typeof clearClassroomSelection === 'function') clearClassroomSelection();
+  setView('schedule');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.openTeacher = function(name) {
+  setView('teacher');
+  selectTeacher(name);
+  closeSidebar();
+};
+
+window.openRoom = function(room) {
+  setView('classroom');
+  selectClassroom(room);
+  closeSidebar();
+};
+
+window.clearTeacherSelection = function() {
+  S.selectedTeacher = null;
+  if (els.teacherSearchInput) els.teacherSearchInput.value = '';
+  if (els.teacherResult) els.teacherResult.innerHTML = '';
+  if (els.teacherContextBar) els.teacherContextBar.style.display = 'none';
+  renderTeachersList('');
+  updateTelegramBackButton();
+};
+
+window.clearClassroomSelection = function() {
+  S.selectedClassroom = null;
+  if (els.classroomSearchInput) els.classroomSearchInput.value = '';
+  if (els.classroomResult) els.classroomResult.innerHTML = '';
+  if (els.classroomContextBar) els.classroomContextBar.style.display = 'none';
+  renderClassroomsList('');
+  updateTelegramBackButton();
+};
+
+async function fetchEntityList(stateKey, endpoint, force = false) {
+  if (S[stateKey].length === 0 || force) {
+    try {
+      const tabParam = S.activeGid ? `?tab=${encodeURIComponent(S.activeGid)}` : '';
+      const res = await fetch(`${API}/${endpoint}${tabParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        S[stateKey] = data[endpoint] || [];
+      }
+    } catch (e) {
+      console.error(`Ошибка загрузки ${endpoint}:`, e);
+    }
+  }
+}
+
+function renderEntityScheduleByDay(byDay, metaType) {
+  let html = '';
+  let totalLessons = 0;
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+
+  days.forEach(day => {
+    const rows = byDay[day];
+    if (!rows || rows.length === 0) return;
+    totalLessons += rows.length;
+    html += `<div class="week-day-header"><span class="week-day-name">${day}</span></div>`;
+    rows.forEach(r => {
+      const pn = r.pair_num || '?';
+      const timeStr = r.time || '';
+      const metaBtn = metaType === 'teacher'
+        ? (r.classroom ? `<button class="pair-room-btn" data-room="${esc(r.classroom)}" onclick="openRoom(this.dataset.room)">${ICONS.mapPin} <span>${esc(r.classroom)}</span></button>` : '')
+        : (r.teacher ? `<button class="pair-teacher-btn" data-teacher="${esc(r.teacher)}" onclick="openTeacher(this.dataset.teacher)">${ICONS.user} <span>${esc(r.teacher)}</span></button>` : '');
+
+      html += `<div class="pair-card">
+        <div class="pair-num-col"><div class="pair-num">${pn}</div><div class="pair-time-small">${timeStr.split('-')[0] || ''}</div></div>
+        <div class="pair-body">
+          <div class="pair-subject">${esc(r.subject)}</div>
+          <div class="pair-meta">
+            <span class="pair-badge badge-going">${esc(r.group)}</span>
+            ${metaBtn}
+            ${r.week ? `<span class="pair-badge">${esc(r.week)}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+
+  return { html, totalLessons };
+}
+
+async function initTeachersView(force = false) {
+  await fetchEntityList('teachersList', 'teachers', force);
+  renderTeachersList(els.teacherSearchInput?.value || '');
+}
+
+function renderTeachersList(query = '') {
+  if (!els.teachersGrid) return;
+  const q = query.toLowerCase().trim();
+  const filtered = S.teachersList.filter(t => !q || t.toLowerCase().includes(q));
+
+  if (els.teacherCountBadge) {
+    els.teacherCountBadge.textContent = `${filtered.length} из ${S.teachersList.length}`;
+  }
+
+  if (filtered.length === 0) {
+    els.teachersGrid.innerHTML = `<div class="empty-pairs-hint" style="grid-column: 1/-1; padding: 16px 0;">Преподаватели не найдены</div>`;
+    return;
+  }
+
+  let html = '';
+  filtered.forEach(t => {
+    const isAct = (t === S.selectedTeacher);
+    html += `<button class="teacher-chip-btn${isAct ? ' active' : ''}" data-teacher="${esc(t)}">
+      <span class="teacher-chip-icon">${ICONS.gradCap}</span>
+      <span class="teacher-chip-name" title="${esc(t)}">${esc(t)}</span>
+    </button>`;
+  });
+
+  els.teachersGrid.innerHTML = html;
+
+  els.teachersGrid.querySelectorAll('.teacher-chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectTeacher(btn.dataset.teacher);
+    });
+  });
+}
+
+let currentTeacherAbortController = null;
+
+async function selectTeacher(teacherName) {
+  if (!teacherName) return;
+  if (currentTeacherAbortController) {
+    currentTeacherAbortController.abort();
+  }
+  currentTeacherAbortController = new AbortController();
+  const currentSignal = currentTeacherAbortController.signal;
+
+  S.selectedTeacher = teacherName;
+  updateTelegramBackButton();
+  if (els.teacherSearchInput) els.teacherSearchInput.value = teacherName;
+  renderTeachersList(teacherName);
+
+  if (els.teacherContextBar) {
+    els.teacherContextBar.style.display = 'flex';
+    if (els.teacherContextName) els.teacherContextName.textContent = teacherName;
+    document.querySelectorAll('.context-back-group-name').forEach(el => {
+      el.textContent = S.group || DEFAULT_GROUP;
+    });
+  }
+
+  if (!els.teacherResult) return;
+  els.teacherResult.innerHTML = '<div class="loading-placeholder"><div class="loading-spinner"></div><div>Загрузка расписания преподавателя...</div></div>';
+
+  try {
+    const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
+    const res = await fetch(`${API}/teacher-schedule?teacher=${encodeURIComponent(teacherName.trim())}${tabParam}`, { signal: currentSignal });
+    if (currentSignal.aborted) return;
+    if (!res.ok) {
+      els.teacherResult.innerHTML = `<div class="empty-pairs-hint">Преподаватель "${esc(teacherName)}" не найден</div>`;
+      return;
+    }
+
+    const data = await res.json();
+    if (currentSignal.aborted) return;
+    const { html: daysHtml, totalLessons } = renderEntityScheduleByDay(data.days || {}, 'teacher');
+
+    let html = `
+      <div class="selected-target-banner">
+        <div class="selected-target-left">
+          <button class="entity-back-btn" onclick="returnToGroupSchedule()" type="button" title="Вернуться к группе">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+            <span>К группе <strong>${esc(S.group || DEFAULT_GROUP)}</strong></span>
+          </button>
+          <div class="selected-target-title">
+            <span>${ICONS.gradCap} ${esc(teacherName)}</span>
+          </div>
+        </div>
+        <button class="selected-target-clear-btn" onclick="clearTeacherSelection()">${ICONS.x} Сбросить</button>
+      </div>
+    `;
+
+    html += (totalLessons > 0) ? daysHtml : '<div class="empty-pairs-hint">Занятий на текущую неделю не найдено</div>';
+    els.teacherResult.innerHTML = html;
+    els.teacherResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    if (currentSignal.aborted || e.name === 'AbortError') return;
+    els.teacherResult.innerHTML = `<div class="empty-pairs-hint">Ошибка поиска: ${esc(e.message)}</div>`;
+  }
+}
+
+async function initClassroomsView(force = false) {
+  await fetchEntityList('classroomsList', 'classrooms', force);
+  renderClassroomsList(els.classroomSearchInput?.value || '');
+}
+
+function renderClassroomsList(query = '') {
+  if (!els.classroomsGrid) return;
+  const q = query.toLowerCase().trim();
+  const filtered = S.classroomsList.filter(c => !q || c.toLowerCase().includes(q));
+
+  if (els.classroomCountBadge) {
+    els.classroomCountBadge.textContent = `${filtered.length} из ${S.classroomsList.length}`;
+  }
+
+  if (filtered.length === 0) {
+    els.classroomsGrid.innerHTML = '<div class="empty-pairs-hint">Аудитории не найдены</div>';
+    return;
+  }
+
+  let html = '';
+  filtered.forEach(c => {
+    const isAct = (c === S.selectedClassroom);
+    html += `<button class="classroom-chip-btn${isAct ? ' active' : ''}" data-room="${esc(c)}">
+      ${esc(c)}
+    </button>`;
+  });
+
+  els.classroomsGrid.innerHTML = html;
+
+  els.classroomsGrid.querySelectorAll('.classroom-chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectClassroom(btn.dataset.room);
+    });
+  });
+}
+
+let currentClassroomAbortController = null;
+
+async function selectClassroom(roomName) {
+  if (!roomName) return;
+  if (currentClassroomAbortController) {
+    currentClassroomAbortController.abort();
+  }
+  currentClassroomAbortController = new AbortController();
+  const currentSignal = currentClassroomAbortController.signal;
+
+  S.selectedClassroom = roomName;
+  updateTelegramBackButton();
+  if (els.classroomSearchInput) els.classroomSearchInput.value = roomName;
+  renderClassroomsList(roomName);
+
+  if (els.classroomContextBar) {
+    els.classroomContextBar.style.display = 'flex';
+    if (els.classroomContextName) els.classroomContextName.textContent = roomName;
+    document.querySelectorAll('.context-back-group-name').forEach(el => {
+      el.textContent = S.group || DEFAULT_GROUP;
+    });
+  }
+
+  if (!els.classroomResult) return;
+  els.classroomResult.innerHTML = '<div class="loading-placeholder"><div class="loading-spinner"></div><div>Загрузка занятости аудитории...</div></div>';
+
+  try {
+    const tabParam = S.activeGid ? `&tab=${encodeURIComponent(S.activeGid)}` : '';
+    const res = await fetch(`${API}/classroom-schedule?room=${encodeURIComponent(roomName.trim())}${tabParam}`, { signal: currentSignal });
+    if (currentSignal.aborted) return;
+    if (!res.ok) {
+      els.classroomResult.innerHTML = `<div class="empty-pairs-hint">Аудитория "${esc(roomName)}" не найдена</div>`;
+      return;
+    }
+
+    const data = await res.json();
+    if (currentSignal.aborted) return;
+    const { html: daysHtml, totalLessons } = renderEntityScheduleByDay(data.days || {}, 'classroom');
+
+    let html = `
+      <div class="selected-target-banner">
+        <div class="selected-target-left">
+          <button class="entity-back-btn" onclick="returnToGroupSchedule()" type="button" title="Вернуться к группе">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+            <span>К группе <strong>${esc(S.group || DEFAULT_GROUP)}</strong></span>
+          </button>
+          <div class="selected-target-title">
+            <span>${ICONS.door} Аудитория ${esc(roomName)}</span>
+          </div>
+        </div>
+        <button class="selected-target-clear-btn" onclick="clearClassroomSelection()">${ICONS.x} Сбросить</button>
+      </div>
+    `;
+
+    html += (totalLessons > 0) ? daysHtml : '<div class="empty-pairs-hint">Занятий в аудитории не найдено</div>';
+    els.classroomResult.innerHTML = html;
+    els.classroomResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) {
+    if (currentSignal.aborted || e.name === 'AbortError') return;
+    els.classroomResult.innerHTML = `<div class="empty-pairs-hint">Ошибка поиска: ${esc(e.message)}</div>`;
+  }
+}
+
+function setupSearchInputs() {
+  // Живая фильтрация преподавателей при вводе
+  els.teacherSearchInput?.addEventListener('input', () => {
+    renderTeachersList(els.teacherSearchInput.value);
+  });
+  els.teacherSearchInput?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const q = els.teacherSearchInput.value.trim();
+      if (q) selectTeacher(q);
+    }
+  });
+  els.teacherSearchBtn?.addEventListener('click', () => {
+    const q = els.teacherSearchInput?.value.trim();
+    if (q) selectTeacher(q);
+  });
+
+  // Живая фильтрация аудиторий при вводе
+  els.classroomSearchInput?.addEventListener('input', () => {
+    renderClassroomsList(els.classroomSearchInput.value);
+  });
+  els.classroomSearchInput?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const q = els.classroomSearchInput.value.trim();
+      if (q) selectClassroom(q);
+    }
+  });
+  els.classroomSearchBtn?.addEventListener('click', () => {
+    const q = els.classroomSearchInput?.value.trim();
+    if (q) selectClassroom(q);
+  });
+}
+
+// ════════════════════════════════════════
+//  EMERGENCY ENGLISH DEADLINE ALARM
+// ════════════════════════════════════════
+let englishCountdownInterval = null;
+let currentEnglishTargetDate = null;
+
+function findUpcomingEnglishInSchedule(data) {
+  if (!data || !data.days) return null;
+  const now = new Date();
+  const dayDates = data.day_dates || {};
+  let candidates = [];
+
+  for (const [dayName, pairs] of Object.entries(data.days)) {
+    const dm = dayDates[dayName];
+    if (!dm) continue;
+    const parts = dm.split('.');
+    if (parts.length < 2) continue;
+    const d = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const academicYearStart = (now.getMonth() >= 7) ? now.getFullYear() : now.getFullYear() - 1;
+    const year = (m >= 8) ? academicYearStart : academicYearStart + 1;
+
+    for (const p of pairs) {
+      if (p.is_empty) continue;
+      const pairInfo = p.both || p.numerator || p.denominator || {};
+      const subj = pairInfo.subject || p.subject || '';
+      if (!subj) continue;
+
+      if (/англ|иностр/i.test(subj)) {
+        const startStr = (p.start || (p.time ? p.time.split('-')[0] : '')).trim();
+        const [startH, startM] = startStr.split(':').map(Number);
+        let targetDate = new Date(year, m - 1, d, startH || 8, startM || 0, 0);
+
+        // Если пара на текущей неделе уже завершилась или прошла, она повторится на следующей (+7 дней)
+        if (targetDate.getTime() <= now.getTime()) {
+          targetDate = new Date(targetDate.getTime() + 7 * 86400 * 1000);
+        }
+
+        candidates.push({
+          dayName,
+          dateFormatted: `${String(targetDate.getDate()).padStart(2, '0')}.${String(targetDate.getMonth() + 1).padStart(2, '0')}.${targetDate.getFullYear()}`,
+          pairNum: p.pair_num || p.num || 1,
+          time: p.time || `${p.start} - ${p.end}`,
+          subject: subj,
+          teacher: pairInfo.teacher || p.teacher || '',
+          room: pairInfo.classroom || pairInfo.room || p.classroom || p.room || '',
+          targetDate
+        });
+      }
+    }
+  }
+
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => a.targetDate.getTime() - b.targetDate.getTime());
+  return candidates[0];
+}
+
+async function startEnglishCountdown() {
+  stopEnglishCountdown();
+
+  const daysEl = document.getElementById('alarmDays');
+  const hoursEl = document.getElementById('alarmHours');
+  const minsEl = document.getElementById('alarmMinutes');
+  const secsEl = document.getElementById('alarmSeconds');
+  const groupNoticeEl = document.getElementById('alarmGroupNotice');
+  const dateEl = document.getElementById('alarmPairDate');
+  const timeEl = document.getElementById('alarmPairTime');
+  const subjEl = document.getElementById('alarmPairSubject');
+  const teacherEl = document.getElementById('alarmPairTeacher');
+  const roomEl = document.getElementById('alarmPairRoom');
+  const countdownGrid = document.querySelector('.alarm-countdown-grid');
+
+  if (groupNoticeEl) groupNoticeEl.textContent = `Группа: ${S.group || '—'}`;
+
+  function applyAlarmData(info) {
+    if (dateEl) dateEl.textContent = info.display_date || `${info.dayName}, ${info.dateFormatted}`;
+    if (timeEl) timeEl.textContent = `${info.pair_num || info.pairNum} пара (${info.time})`;
+    if (subjEl) subjEl.textContent = info.subject;
+    if (teacherEl) teacherEl.textContent = info.teacher || 'Не указан';
+    if (roomEl) roomEl.textContent = info.classroom ? `ауд. ${info.classroom}` : (info.room ? `ауд. ${info.room}` : 'Не указана');
+    currentEnglishTargetDate = info.target_iso ? new Date(info.target_iso) : info.targetDate;
+    if (countdownGrid) countdownGrid.classList.remove('is-loading');
+    tick();
+  }
+
+  function tick() {
+    if (!currentEnglishTargetDate) return;
+    const now = new Date();
+    const diff = currentEnglishTargetDate.getTime() - now.getTime();
+    if (diff <= 0) {
+      if (daysEl) daysEl.textContent = '00';
+      if (hoursEl) hoursEl.textContent = '00';
+      if (minsEl) minsEl.textContent = '00';
+      if (secsEl) secsEl.textContent = '00';
+      if (dateEl && !dateEl.textContent.includes('ИДЁТ СЕЙЧАС')) {
+        dateEl.textContent += ' (ИДЁТ СЕЙЧАС ИЛИ ЗАВЕРШИЛСЯ)';
+      }
+      stopEnglishCountdown();
+      return;
+    }
+
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+    if (daysEl) daysEl.textContent = String(d).padStart(2, '0');
+    if (hoursEl) hoursEl.textContent = String(h).padStart(2, '0');
+    if (minsEl) minsEl.textContent = String(m).padStart(2, '0');
+    if (secsEl) secsEl.textContent = String(s).padStart(2, '0');
+  }
+
+  // 1. МГНОВЕННЫЙ ЛОКАЛЬНЫЙ ПОИСК (0 миллисекунд)
+  let localPair = findUpcomingEnglishInSchedule(S.data);
+
+  // Если нет в текущей вкладке, синхронно ищем по кэшу сохранённых вкладок
+  if (!localPair && S.tabs && S.tabs.length > 0) {
+    for (const tab of S.tabs) {
+      const cacheKey = `schedule_${S.group}_${tab.gid}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const tabData = JSON.parse(cached);
+          const c = findUpcomingEnglishInSchedule(tabData);
+          if (c) {
+            localPair = c;
+            break;
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  // Если найдено локально — рендерим и запускаем таймер СРАЗУ
+  if (localPair) {
+    applyAlarmData(localPair);
+    englishCountdownInterval = setInterval(tick, 1000);
+  } else {
+    // Временно показываем поиск
+    if (countdownGrid) countdownGrid.classList.add('is-loading');
+    if (daysEl) daysEl.textContent = '—';
+    if (hoursEl) hoursEl.textContent = '—';
+    if (minsEl) minsEl.textContent = '—';
+    if (secsEl) secsEl.textContent = '—';
+    if (dateEl) dateEl.textContent = 'Поиск английского языка...';
+    if (timeEl) timeEl.textContent = '—';
+  }
+
+  // 2. ФОНОВЫЙ ЗАПРОС К СЕРВЕРНОМУ API (без блокировки таймера)
+  try {
+    const res = await fetchWithTimeout(`${API}/english-alarm?group=${encodeURIComponent(S.group || 'ИСС9-25')}`, {}, 4000);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.found) {
+        applyAlarmData(data);
+        if (!englishCountdownInterval) {
+          englishCountdownInterval = setInterval(tick, 1000);
+        }
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('Фоновое обновление будильника:', err);
+  }
+
+  // Если пара не найдена вообще
+  if (!localPair && !currentEnglishTargetDate) {
+    if (countdownGrid) countdownGrid.classList.remove('is-loading');
+    if (dateEl) dateEl.textContent = 'В расписании группы пар не найдено';
+    if (timeEl) timeEl.textContent = '—';
+    if (subjEl) subjEl.textContent = 'Иностранный язык';
+    if (teacherEl) teacherEl.textContent = '—';
+    if (roomEl) roomEl.textContent = '—';
+    if (daysEl) daysEl.textContent = '00';
+    if (hoursEl) hoursEl.textContent = '00';
+    if (minsEl) minsEl.textContent = '00';
+    if (secsEl) secsEl.textContent = '00';
+  }
+}
+
+function stopEnglishCountdown() {
+  if (englishCountdownInterval) {
+    clearInterval(englishCountdownInterval);
+    englishCountdownInterval = null;
+  }
+}
+
+// ════════════════════════════════════════
+//  GROUP SCHEDULE STATISTICS VIEW (С 1 СЕНТЯБРЯ ПО СЕГОДНЯ)
+// ════════════════════════════════════════
+function initStatsView() {
+  renderStatsView();
+}
+
+function getPairWord(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'пар';
+  if (mod10 === 1) return 'пара';
+  if (mod10 >= 2 && mod10 <= 4) return 'пары';
+  return 'пар';
+}
+
+function calculateUnifiedSeptStats(arg1, arg2) {
+  let datasets = [];
+  if (Array.isArray(arg1)) {
+    datasets = arg1;
+  } else {
+    if (arg2) datasets.push({ tab: { name: 'Расписание 1 сентября' }, data: arg2, parity: null });
+    if (arg1) datasets.push({ tab: { name: 'Текущая неделя' }, data: arg1, parity: arg1.parity || null });
+  }
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  let totalPassed = 0;
+  let totalCancelled = 0;
+  const passedSubjectsMap = {};
+  const cancelledPairsList = [];
+  const uniqueDatesSet = new Set();
+  const processedSlotKeys = new Set();
+  const weekdayCounts = { 'Пн': 0, 'Вт': 0, 'Ср': 0, 'Чт': 0, 'Пт': 0, 'Сб': 0 };
+
+  function recordPassedPair(slot, pairInfo, subj, dateStr, dayName, shortDay) {
+    totalPassed++;
+    uniqueDatesSet.add(dateStr);
+    if (shortDay && weekdayCounts[shortDay] !== undefined) {
+      weekdayCounts[shortDay]++;
+    }
+
+    if (!passedSubjectsMap[subj]) {
+      passedSubjectsMap[subj] = {
+        name: subj,
+        count: 0,
+        sessions: [],
+        teacher: pairInfo.teacher || slot.teacher || '',
+        room: pairInfo.classroom || pairInfo.room || slot.classroom || slot.room || ''
+      };
+    }
+    const entry = passedSubjectsMap[subj];
+    entry.count++;
+    entry.sessions.push({
+      date: dateStr,
+      dayName,
+      num: slot.pair_num || slot.num || 1,
+      time: slot.time || `${slot.start || ''} - ${slot.end || ''}`.trim()
+    });
+    if (!entry.teacher && (pairInfo.teacher || slot.teacher)) {
+      entry.teacher = pairInfo.teacher || slot.teacher;
+    }
+    if (!entry.room && (pairInfo.classroom || slot.room)) {
+      entry.room = pairInfo.classroom || slot.room;
+    }
+  }
+
+  datasets.forEach(ds => {
+    if (!ds || !ds.data || !ds.data.days) return;
+    const data = ds.data;
+    const tabName = ds.tab ? (ds.tab.name || '') : '';
+    const tabParity = ds.parity || (ds.tab ? ds.tab.parity : null) || null;
+    const dayDates = data.day_dates || {};
+
+    for (const [dayName, pairs] of Object.entries(data.days)) {
+      let dm = dayDates[dayName];
+      if (!dm && /1\s*сентябр/i.test(tabName)) {
+        dm = '01.09';
+      }
+      if (!dm) continue;
+      const parts = dm.split('.');
+      if (parts.length < 2) continue;
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const academicYearStart = (now.getMonth() >= 7) ? now.getFullYear() : now.getFullYear() - 1;
+      const tabYear = (m >= 8) ? academicYearStart : academicYearStart + 1;
+      const dayDate = new Date(tabYear, m - 1, d, 0, 0, 0, 0);
+
+      // Учитываем только прошедшие дни и сегодня
+      if (dayDate.getTime() > todayStart.getTime()) {
+        continue;
+      }
+
+      // Определяем точную четность для даты (календарная)
+      const dateAcademicParity = getAcademicParityForDate(dayDate);
+      const effectiveParity = tabParity || dateAcademicParity;
+
+      const shortDayMap = {
+        'понедельник': 'Пн', 'вторник': 'Вт', 'среда': 'Ср',
+        'четверг': 'Чт', 'пятница': 'Пт', 'суббота': 'Сб'
+      };
+      const shortDay = shortDayMap[dayName.trim().toLowerCase()] || null;
+
+      for (const slot of pairs) {
+        if (!slot || slot.is_empty) continue;
+
+        const slotNum = slot.pair_num || slot.num || 1;
+        // Исключаем дублирование слотов из разных вкладок (Дата + Номер пары)
+        const uniqueSlotKey = `${tabYear}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}_p${slotNum}`;
+        if (processedSlotKeys.has(uniqueSlotKey)) {
+          continue;
+        }
+
+        // Строгое соблюдение четности (верхняя / нижняя ячейка таблицы):
+        let pairCandidate = null;
+        if (slot.is_split) {
+          // Если пара разделена по четности:
+          if (effectiveParity === 'num') {
+            pairCandidate = (slot.numerator && slot.numerator.subject) ? slot.numerator : null;
+          } else if (effectiveParity === 'den') {
+            pairCandidate = (slot.denominator && slot.denominator.subject) ? slot.denominator : null;
+          } else {
+            pairCandidate = slot.numerator || slot.denominator;
+          }
+        } else {
+          // Если пара на обе недели или задана в одной из ячеек:
+          if (slot.both && slot.both.subject) {
+            pairCandidate = slot.both;
+          } else if (effectiveParity === 'num' && slot.numerator && slot.numerator.subject) {
+            pairCandidate = slot.numerator;
+          } else if (effectiveParity === 'den' && slot.denominator && slot.denominator.subject) {
+            pairCandidate = slot.denominator;
+          } else {
+            pairCandidate = slot.both || slot.numerator || slot.denominator;
+          }
+        }
+
+        // Поддержка подгрупп (английский, лабораторные): студент посещает 1 пару в данный таймслот
+        if (!pairCandidate) {
+          if (slot.sub1 && slot.sub1.subject) pairCandidate = slot.sub1;
+          else if (slot.sub2 && slot.sub2.subject) pairCandidate = slot.sub2;
+        }
+
+        if (!pairCandidate) continue;
+
+        const subj = (pairCandidate.subject || slot.subject || '').trim();
+        if (!subj || /самостоятельн/i.test(subj)) continue;
+
+        // Фиксируем слот
+        processedSlotKeys.add(uniqueSlotKey);
+
+        // Точная проверка статуса отмены пары
+        const isCancelled = Boolean(
+          pairCandidate.is_cancelled ||
+          pairCandidate.type === 'cancelled' ||
+          slot.is_cancelled ||
+          /^(отмена|\d\d\.\d\d\s+отмена)/i.test(subj) ||
+          /отмена/i.test(pairCandidate.status_text || '')
+        );
+
+        if (isCancelled) {
+          totalCancelled++;
+          cancelledPairsList.push({
+            date: dm,
+            dayName,
+            num: slotNum,
+            subject: subj.replace(/^(отмена|\d\d\.\d\d\s+отмена)\s*/i, '').trim() || subj,
+            teacher: pairCandidate.teacher || slot.teacher || ''
+          });
+          continue;
+        }
+
+        let isPassed = false;
+        if (dayDate.getTime() < todayStart.getTime()) {
+          isPassed = true;
+        } else {
+          // Сегодня: проверяем время окончания пары
+          const endStr = (slot.end || (slot.time ? slot.time.split('-')[1] : '')).trim();
+          const endParts = endStr.split(':').map(Number);
+          const endMin = (endParts[0] || 0) * 60 + (endParts[1] || 0);
+          isPassed = (nowMinutes >= endMin);
+        }
+
+        if (isPassed) {
+          recordPassedPair(slot, pairCandidate, subj, dm, dayName, shortDay);
+        }
+      }
+    }
+  });
+
+  const subjectList = Object.values(passedSubjectsMap);
+  subjectList.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  return {
+    totalPassed,
+    totalCancelled,
+    uniqueDaysCount: uniqueDatesSet.size,
+    subjectList,
+    cancelledPairsList,
+    weekdayCounts
+  };
+}
+
+async function renderStatsView() {
+  if (!els.statsContainer) return;
+
+  if (!S.group) {
+    els.statsContainer.innerHTML = `
+      <div class="stats-header-wrap">
+        <h2 class="stats-view-title">Статистика пар: Группа не выбрана</h2>
+        <span class="stats-view-subtitle">Выберите группу в меню или шапке</span>
+      </div>
+    `;
+    return;
+  }
+
+  els.statsContainer.innerHTML = `
+    <div class="loading-placeholder">
+      <div class="loading-spinner"></div>
+      <div>Сбор актуальной статистики с 1 сентября по сегодняшний день...</div>
+    </div>
+  `;
+
+  // Убеждаемся, что список вкладок загружен
+  if (!S.tabs || S.tabs.length === 0) {
+    try {
+      const tabsRes = await fetchWithTimeout(`${API}/tabs`, {}, 4000);
+      if (tabsRes.ok) {
+        const tabsData = await tabsRes.json();
+        S.tabs = (tabsData.tabs || []).filter(tab => !isTestTab(tab.name));
+      }
+    } catch (_) {}
+  }
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+  // Находим все актуальные вкладки с 1 сентября по сегодня
+  const targetTabs = [];
+  const septFirstTab = (S.tabs || []).find(t => /1\s*сентябр/i.test(t.name) || t.gid === '731591268');
+  if (septFirstTab) {
+    targetTabs.push(septFirstTab);
+  } else {
+    targetTabs.push({ name: 'Расписание 1 сентября', gid: '731591268', parity: null });
+  }
+
+  (S.tabs || []).forEach(t => {
+    if (t.gid === '731591268' || /1\s*сентябр/i.test(t.name)) return;
+    if (t.has_date_range && t.date_start) {
+      const tStart = new Date(t.date_start);
+      if (tStart.getTime() <= todayStart.getTime()) {
+        targetTabs.push(t);
+      }
+    }
+  });
+
+  // Если целевых вкладок нет кроме 1 сентября, но есть S.data, добавляем текущую
+  if (targetTabs.length <= 1 && S.data && S.data.gid && S.data.group === S.group) {
+    const existing = targetTabs.find(t => t.gid === S.data.gid);
+    if (!existing) {
+      targetTabs.push({ name: S.data.name || 'Текущая неделя', gid: S.data.gid, parity: S.data.parity });
+    }
+  }
+
+  // Загружаем данные по всем вкладкам
+  const datasets = [];
+  await Promise.all(targetTabs.map(async (tab) => {
+    if (S.data && S.data.gid === tab.gid && S.data.group === S.group) {
+      datasets.push({ tab, data: S.data, parity: tab.parity || S.data.parity });
+      return;
+    }
+
+    const cacheKey = `${STORAGE_CACHE_PREFIX}${S.group}_${tab.gid}`;
+    let tabData = null;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) tabData = JSON.parse(cached);
+    } catch (_) {}
+
+    if (!tabData) {
+      try {
+        const res = await fetchWithTimeout(`${API}/schedule?group=${encodeURIComponent(S.group)}&tab=${encodeURIComponent(tab.gid)}`, {}, 5000);
+        if (res.ok) {
+          tabData = await res.json();
+          try { localStorage.setItem(cacheKey, JSON.stringify(tabData)); } catch (_) {}
+        }
+      } catch (err) {
+        logApp('warn', `Не удалось загрузить данные для вкладки ${tab.name}:`, err);
+      }
+    }
+
+    if (tabData && tabData.days) {
+      datasets.push({ tab, data: tabData, parity: tab.parity || tabData.parity });
+    }
+  }));
+
+  const stats = calculateUnifiedSeptStats(datasets);
+  const dayStr = String(now.getDate()).padStart(2, '0');
+  const monthStr = MONTH_NAMES[now.getMonth()];
+  const todayFormatted = `${now.getDate()} ${monthStr} ${now.getFullYear()} г.`;
+  const timeFormatted = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+  const STATS_PALETTE = [
+    '#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899',
+    '#8b5cf6', '#3b82f6', '#14b8a6', '#f97316', '#a855f7',
+    '#0ea5e9', '#84cc16', '#e11d48', '#d97706'
+  ];
+
+  const totalPassedCount = stats.totalPassed || 1;
+  const avgPerDay = stats.uniqueDaysCount > 0 ? (stats.totalPassed / stats.uniqueDaysCount).toFixed(1) : '0';
+  const totalAcademicHours = stats.totalPassed * 2;
+  const totalPairsPlanned = stats.totalPassed + stats.totalCancelled;
+  const completionRate = totalPairsPlanned > 0 ? Math.round((stats.totalPassed / totalPairsPlanned) * 100) : 100;
+
+  // SVG Donut calculation
+  const DONUT_R = 38;
+  const DONUT_C = 2 * Math.PI * DONUT_R;
+  let donutOffset = 0;
+  const donutSegments = stats.subjectList.map((item, idx) => {
+    const fraction = item.count / totalPassedCount;
+    const segLen = fraction * DONUT_C;
+    const color = STATS_PALETTE[idx % STATS_PALETTE.length];
+    const offset = donutOffset;
+    donutOffset += segLen;
+    return `
+      <circle class="stats-donut-slice"
+        cx="50" cy="50" r="${DONUT_R}"
+        fill="none"
+        stroke="${color}"
+        stroke-width="12"
+        stroke-dasharray="${segLen.toFixed(2)} ${DONUT_C.toFixed(2)}"
+        stroke-dashoffset="-${offset.toFixed(2)}"
+        transform="rotate(-90 50 50)"
+        data-subject-index="${idx}"
+        onclick="jumpToSubject(${idx})"
+        title="${esc(item.name)}: ${item.count} ${getPairWord(item.count)}"
+      />
+    `;
+  }).join('');
+
+  // Дни недели
+  const weekdaysList = [
+    { key: 'Пн', full: 'Понедельник' },
+    { key: 'Вт', full: 'Вторник' },
+    { key: 'Ср', full: 'Среда' },
+    { key: 'Чт', full: 'Четверг' },
+    { key: 'Пт', full: 'Пятница' },
+    { key: 'Сб', full: 'Суббота' }
+  ];
+  const maxDayCount = Math.max(1, ...weekdaysList.map(w => stats.weekdayCounts[w.key] || 0));
+
+  els.statsContainer.innerHTML = `
+    <div class="stats-header-wrap">
+      <h2 class="stats-view-title">Статистика пар с 1 сентября по сегодня</h2>
+      <div class="stats-view-subtitle">
+        Группа: <strong>${esc(S.group || '—')}</strong> • 01.09 – ${dayStr}.${String(now.getMonth() + 1).padStart(2, '0')} (${todayFormatted}, ${timeFormatted})
+      </div>
+    </div>
+
+    <!-- ПЕРВОЕ: Интерактивный визуальный график нагрузки -->
+    ${stats.subjectList.length > 0 ? `
+      <div class="stats-chart-card">
+        <div class="stats-chart-header">
+          <div class="stats-chart-header-left">
+            <div class="stats-chart-title-row">
+              <span class="stats-chart-icon">📊</span>
+              <span class="stats-chart-title">Аналитика и график нагрузки</span>
+            </div>
+            <span class="stats-chart-subtitle">Всего ${stats.totalPassed} ${getPairWord(stats.totalPassed)} • ${totalAcademicHours} ак. ч.</span>
+          </div>
+          <div class="stats-chart-toggle-group">
+            <button class="stats-chart-tab-btn active" id="chartTabSubjects" onclick="switchStatsChartTab('subjects')" type="button">По предметам</button>
+            <button class="stats-chart-tab-btn" id="chartTabDays" onclick="switchStatsChartTab('days')" type="button">По дням</button>
+          </div>
+        </div>
+
+        <!-- PANE 1: По предметам (Круговая диаграмма + прогресс-бары) -->
+        <div class="stats-chart-pane" id="statsChartSubjectsPane">
+          <div class="stats-donut-container">
+            <div class="stats-donut-wrapper">
+              <svg viewBox="0 0 100 100" class="stats-donut-svg">
+                ${donutSegments}
+              </svg>
+              <div class="stats-donut-center">
+                <span class="stats-donut-center-val">${stats.totalPassed}</span>
+                <span class="stats-donut-center-lbl">пар всего</span>
+              </div>
+            </div>
+            <div class="stats-donut-legend">
+              <div class="stats-donut-legend-row">
+                <span class="stats-donut-legend-pill">${totalAcademicHours} ак. часов</span>
+                <span class="stats-donut-legend-pill accent">${avgPerDay} пар/день</span>
+                <span class="stats-donut-legend-pill">${stats.uniqueDaysCount} дней с парами</span>
+                <span class="stats-donut-legend-pill ${stats.totalCancelled > 0 ? 'cancelled-pill' : 'good'}">${stats.totalCancelled > 0 ? `${stats.totalCancelled} отмен (${completionRate}%)` : `${completionRate}% без отмен`}</span>
+              </div>
+              <div class="stats-donut-hint">💡 Нажмите на любой предмет ниже или на сегмент графика, чтобы раскрыть его даты</div>
+            </div>
+          </div>
+
+          <!-- Многоцветный сегментированный прогресс-бар -->
+          <div class="stats-stacked-bar" title="Распределение нагрузки по предметам">
+            ${stats.subjectList.map((item, idx) => {
+              const pct = ((item.count / totalPassedCount) * 100).toFixed(1);
+              const color = STATS_PALETTE[idx % STATS_PALETTE.length];
+              return `<div class="stats-stacked-seg" style="width: ${pct}%; background: ${color};" onclick="jumpToSubject(${idx})" title="${esc(item.name)}: ${item.count} ${getPairWord(item.count)} (${pct}%)"></div>`;
+            }).join('')}
+          </div>
+
+          <!-- Рейтинг ключевых дисциплин (Кликабельные строки!) -->
+          <div class="stats-ranked-bars">
+            ${stats.subjectList.slice(0, 6).map((item, idx) => {
+              const pct = Math.round((item.count / totalPassedCount) * 100);
+              const color = STATS_PALETTE[idx % STATS_PALETTE.length];
+              return `
+                <div class="stats-ranked-row clickable" onclick="jumpToSubject(${idx})" title="Нажмите, чтобы раскрыть предмет в списке">
+                  <div class="stats-ranked-info">
+                    <div class="stats-ranked-label-wrap">
+                      <span class="stats-ranked-dot" style="background: ${color};"></span>
+                      <span class="stats-ranked-name">${esc(item.name)}</span>
+                    </div>
+                    <span class="stats-ranked-count"><strong>${item.count}</strong> ${getPairWord(item.count)} <span class="stats-ranked-pct">(${pct}%)</span> ➔</span>
+                  </div>
+                  <div class="stats-progress-track">
+                    <div class="stats-progress-fill" style="width: ${pct}%; background: ${color};"></div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- PANE 2: Нагрузка по дням недели -->
+        <div class="stats-chart-pane" id="statsChartDaysPane" style="display:none;">
+          <div class="stats-weekdays-grid">
+            ${weekdaysList.map(w => {
+              const count = stats.weekdayCounts[w.key] || 0;
+              const pct = maxDayCount > 0 ? Math.round((count / maxDayCount) * 100) : 0;
+              const totalPct = Math.round((count / totalPassedCount) * 100);
+              return `
+                <div class="stats-weekday-item">
+                  <div class="stats-weekday-head">
+                    <span class="stats-weekday-name">${w.full} (${w.key})</span>
+                    <span class="stats-weekday-badge ${count === 0 ? 'zero' : ''}">${count} ${getPairWord(count)} (${totalPct}%)</span>
+                  </div>
+                  <div class="stats-progress-track">
+                    <div class="stats-progress-fill" style="width: ${pct}%; background: ${count > 0 ? 'var(--accent)' : 'transparent'};"></div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- ВТОРОЕ: Отмененные пары (Свернуто по умолчанию как спойлер/аккордеон) -->
+    ${stats.cancelledPairsList.length > 0 ? `
+      <div class="stats-cancelled-accordion" id="statsCancelledAccordion">
+        <div class="stats-cancelled-header" onclick="toggleCancelledAccordion()">
+          <div class="stats-cancelled-header-left">
+            <span class="stats-cancelled-alert-badge">
+              <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </span>
+            <span class="stats-cancelled-header-title">Отменённые пары колледжа</span>
+            <span class="stats-cancelled-pill">${stats.cancelledPairsList.length}</span>
+          </div>
+          <div class="stats-cancelled-header-right">
+            <span class="stats-cancelled-chevron">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </span>
+          </div>
+        </div>
+        <div class="stats-cancelled-body">
+          <div class="stats-cancelled-list">
+            ${stats.cancelledPairsList.map(c => `
+              <div class="stats-cancelled-card">
+                <div class="stats-cancelled-info">
+                  <span class="stats-cancelled-name">${esc(c.subject)}</span>
+                  <span class="stats-cancelled-meta">${ICONS.calendar} ${esc(c.dayName)} ${esc(c.date)} • ${c.num} пара ${c.teacher ? `• ${ICONS.user} ${esc(c.teacher)}` : ''}</span>
+                </div>
+                <span class="stats-cancelled-badge">Отменена</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- ТРЕТЬЕ: Список предметов (По умолчанию свёрнуто, только названия) -->
+    <div class="stats-subjects-block">
+      <div class="stats-block-header">
+        <span class="stats-block-title">Список предметов (${stats.subjectList.length})</span>
+        ${stats.subjectList.length > 0 ? `
+          <button type="button" class="stats-toggle-all-btn" onclick="toggleAllStatsAccordions(this)" title="Развернуть или свернуть все">
+            <span class="stats-toggle-all-text">Развернуть все</span>
+            <svg class="stats-toggle-all-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        ` : ''}
+      </div>
+
+      <div class="stats-subjects-list" id="statsSubjectsList">
+        ${stats.subjectList.length === 0 ? `
+          <div class="schedule-error-card">
+            <p>За период с 1 сентября по сегодняшний день завершённых занятий для группы ${esc(S.group || '')} не найдено.</p>
+          </div>
+        ` : ''}
+        ${stats.subjectList.map((item, idx) => {
+          const color = STATS_PALETTE[idx % STATS_PALETTE.length];
+          const pct = ((item.count / totalPassedCount) * 100).toFixed(1);
+          const sessionsByDate = {};
+          item.sessions.forEach(s => {
+            if (!sessionsByDate[s.date]) sessionsByDate[s.date] = [];
+            sessionsByDate[s.date].push(s.num);
+          });
+          const sessionTags = Object.entries(sessionsByDate).map(([date, nums]) => {
+            nums.sort((a, b) => a - b);
+            return `<span class="stats-session-chip">${ICONS.calendar} ${date} (${nums.join(', ')} пара)</span>`;
+          }).join('');
+
+          return `
+            <div class="stats-acc-card" id="stats-acc-${idx}">
+              <div class="stats-acc-header" onclick="toggleStatsAccordion(${idx})">
+                <div class="stats-acc-header-left">
+                  <span class="stats-acc-dot" style="background: ${color};"></span>
+                  <span class="stats-acc-title">${esc(item.name)}</span>
+                </div>
+                <div class="stats-acc-header-right">
+                  <span class="stats-acc-chevron">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                  </span>
+                </div>
+              </div>
+              <div class="stats-acc-body">
+                <div class="stats-acc-content">
+                  <div class="stats-acc-stats-row">
+                    <div class="stats-acc-stat-badge">
+                      <span class="stats-acc-stat-icon">${ICONS.checkCircle}</span>
+                      <span>Пройдено <strong>${item.count}</strong> ${getPairWord(item.count)} (${item.count * 2} ак. ч.)</span>
+                    </div>
+                    <div class="stats-acc-pct-badge">${pct}% нагрузки</div>
+                  </div>
+                  ${(item.teacher || item.room) ? `
+                    <div class="stats-acc-meta">
+                      ${item.teacher ? `<span class="stats-acc-teacher">${ICONS.user} ${esc(item.teacher)}</span>` : ''}
+                      ${item.room ? `<span class="stats-acc-room">ауд. ${esc(item.room)}</span>` : ''}
+                    </div>
+                  ` : ''}
+                  <div class="stats-acc-sessions-section">
+                    <div class="stats-acc-sessions-title">Даты проведения занятий (${item.sessions.length}):</div>
+                    <div class="stats-sessions-chips">
+                      ${sessionTags}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ── Переключение вкладок графика (По предметам / По дням) ──
+window.switchStatsChartTab = function(mode) {
+  const paneSubjects = document.getElementById('statsChartSubjectsPane');
+  const paneDays = document.getElementById('statsChartDaysPane');
+  const btnSubjects = document.getElementById('chartTabSubjects');
+  const btnDays = document.getElementById('chartTabDays');
+
+  if (mode === 'days') {
+    if (paneSubjects) paneSubjects.style.display = 'none';
+    if (paneDays) paneDays.style.display = 'block';
+    if (btnSubjects) btnSubjects.classList.remove('active');
+    if (btnDays) btnDays.classList.add('active');
+  } else {
+    if (paneSubjects) paneSubjects.style.display = 'block';
+    if (paneDays) paneDays.style.display = 'none';
+    if (btnSubjects) btnSubjects.classList.add('active');
+    if (btnDays) btnDays.classList.remove('active');
+  }
+};
+
+// ── Интерактивный переход от графика к предмету ──
+window.jumpToSubject = function(idx) {
+  const card = document.getElementById(`stats-acc-${idx}`);
+  if (!card) return;
+  card.classList.add('open');
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.remove('highlight-pulse');
+  void card.offsetWidth;
+  card.classList.add('highlight-pulse');
+  setTimeout(() => {
+    card.classList.remove('highlight-pulse');
+  }, 2200);
+};
+
+// ── Сворачивание / разворачивание отменённых пар ──
+window.toggleCancelledAccordion = function() {
+  const acc = document.getElementById('statsCancelledAccordion');
+  if (acc) {
+    acc.classList.toggle('open');
+  }
+};
+
+// ── Сворачивание / разворачивание предмета ──
+window.toggleStatsAccordion = function(idx) {
+  const card = document.getElementById(`stats-acc-${idx}`);
+  if (card) {
+    card.classList.toggle('open');
+  }
+};
+
+// ── Развернуть / свернуть все ──
+window.toggleAllStatsAccordions = function(btn) {
+  const container = document.getElementById('statsSubjectsList');
+  if (!container) return;
+  const cards = container.querySelectorAll('.stats-acc-card');
+  const anyClosed = Array.from(cards).some(c => !c.classList.contains('open'));
+
+  cards.forEach(c => {
+    if (anyClosed) {
+      c.classList.add('open');
+    } else {
+      c.classList.remove('open');
+    }
+  });
+
+  if (btn) {
+    const textSpan = btn.querySelector('.stats-toggle-all-text');
+    if (textSpan) {
+      textSpan.textContent = anyClosed ? 'Свернуть все' : 'Развернуть все';
+    }
+    btn.classList.toggle('all-open', anyClosed);
+  }
+};
+
+// ════════════════════════════════════════
+//  GROUP SELECTION (ПЛИТКИ / КВАДРАТИКИ)
+// ════════════════════════════════════════
+function ensureGroupsLoaded() {
+  if (!S.groupsList || S.groupsList.length === 0) {
+    try {
+      const cached = localStorage.getItem('cached_groups_v2');
+      if (cached) S.groupsList = JSON.parse(cached);
+    } catch (_) {}
+    if (!S.groupsList || S.groupsList.length === 0) {
+      S.groupsList = DEFAULT_GROUPS;
+    }
+  }
+  // Фоновое обновление с сервера
+  try {
+    const tabParam = S.activeGid ? `?tab=${encodeURIComponent(S.activeGid)}` : '';
+    fetch(`${API}/groups${tabParam}`).then(res => {
+      if (res.ok) return res.json();
+    }).then(data => {
+      if (data && data.groups && data.groups.length > 0) {
+        S.groupsList = data.groups;
+        try { localStorage.setItem('cached_groups_v2', JSON.stringify(data.groups)); } catch (_) {}
+      }
+    }).catch(() => {});
+  } catch (_) {}
+  return S.groupsList || DEFAULT_GROUPS;
+}
+
+function saveActiveGroup(grp) {
+  const clean = sanitizeGroupName(grp);
+  S.group = clean;
+  try {
+    safeSetItem(STORAGE_GROUP, clean);
+    safeSetItem('schedule_group', clean);
+  } catch (_) {}
+  if (isCloudStorageSupported()) {
+    try {
+      window.Telegram.WebApp.CloudStorage.setItem(STORAGE_GROUP, clean);
+    } catch (_) {}
+  }
+  try {
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (tgUser?.id) {
+      fetch('/api/user-group', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({
+          user_id: Number(tgUser.id),
+          group: clean,
+          init_data: window.Telegram?.WebApp?.initData || ''
+        })
+      }).catch(() => {});
+    }
+  } catch (_) {}
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.set('group', clean);
+    window.history.replaceState(null, '', u.toString());
+  } catch (_) {}
+}
+
+function openGroupModal() {
+  ensureGroupsLoaded();
+  els.groupModal?.classList.add('open');
+  updateTelegramBackButton();
+  buildGroupGrid(els.groupsGrid, els.groupSearchInput, els.courseChips, (grp) => {
+    if (S.group === grp && S.data) {
+      closeGroupModal();
+      return;
+    }
+    saveActiveGroup(grp);
+    closeGroupModal();
+    updateSidebarGroupInfo();
+    renderSkeleton();
+    loadSchedule(true);
+    startAutoRefresh();
+  });
+}
+
+function closeGroupModal() {
+  els.groupModal?.classList.remove('open');
+  updateTelegramBackButton();
+}
+
+els.closeGroupModal?.addEventListener('click', closeGroupModal);
+els.groupModal?.addEventListener('click', e => { if (e.target === els.groupModal) closeGroupModal(); });
+
+function openSupportModal() {
+  if (els.supportModal) {
+    els.supportModal.classList.add('open');
+    if (els.supportVideo) {
+      try {
+        els.supportVideo.currentTime = 0;
+        els.supportVideo.play();
+      } catch (_) {}
+    }
+    updateTelegramBackButton();
+  }
+}
+
+function closeSupportModal() {
+  if (els.supportModal) {
+    els.supportModal.classList.remove('open');
+    if (els.supportVideo) {
+      try {
+        els.supportVideo.pause();
+      } catch (_) {}
+    }
+    updateTelegramBackButton();
+  }
+}
+
+els.closeSupportModal?.addEventListener('click', closeSupportModal);
+els.supportModal?.addEventListener('click', e => { if (e.target === els.supportModal) closeSupportModal(); });
+els.sidebarSupportBtn?.addEventListener('click', () => { closeSidebar(); openSupportModal(); });
+window.openSupportModal = openSupportModal;
+window.closeSupportModal = closeSupportModal;
+
+// ── ЭЛЕКТРОННЫЙ ДНЕВНИК 1С:КОЛЛЕДЖ ──
+// ── ЭЛЕКТРОННЫЙ ДНЕВНИК 1С:ОБРАЗОВАНИЕ ──
+const DIARY_1C_URL = 'https://online-obr-e5cloud-02-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi';
+
+let diaryState = {
+  loading: false,
+  authenticated: false,
+  student: '',
+  group: '',
+  overallAverage: null,
+  subjects: [],
+  lastSynced: ''
+};
+
+function openDiaryExternal() {
+  if (window.Telegram?.WebApp?.openLink) {
+    window.Telegram.WebApp.openLink(DIARY_1C_URL, { try_instant_view: false });
+  } else {
+    window.open(DIARY_1C_URL, '_blank', 'noopener,noreferrer');
+  }
+}
+
+function getDiaryDeviceId() {
+  let devId = localStorage.getItem('diary_device_id');
+  if (!devId) {
+    devId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36));
+    localStorage.setItem('diary_device_id', devId);
+  }
+  return devId;
+}
+
+async function openDiaryModal() {
+  const modal = document.getElementById('diaryModal');
+  if (!modal) return;
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  updateBottomNavActive('diary');
+
+  const groupInput = document.getElementById('diaryGroupInput');
+  if (groupInput) {
+    const curGrp = (typeof S !== 'undefined' && S.group) ? S.group : (typeof S !== 'undefined' && S.activeGroup ? S.activeGroup : 'ИСС9-25');
+    if (!groupInput.value || groupInput.value === 'ИСС9-225') {
+      groupInput.value = curGrp;
+    }
+  }
+
+  await loadDiaryGrades(false);
+}
+
+function closeDiaryModal() {
+  const modal = document.getElementById('diaryModal');
+  if (modal) {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  if (typeof currentView !== 'undefined') {
+    updateBottomNavActive(currentView);
+  }
+}
+
+function setDiaryLoading(isLoading, text = 'Загрузка дневника 1С...') {
+  const loader = document.getElementById('diaryLoader');
+  const loaderText = document.getElementById('diaryLoaderText');
+  if (!loader) return;
+  if (isLoading) {
+    if (loaderText) loaderText.textContent = text;
+    loader.classList.remove('hidden');
+    loader.style.display = 'flex';
+  } else {
+    loader.classList.add('hidden');
+    loader.style.display = 'none';
+  }
+}
+
+async function loadDiaryGrades(forceRefresh = false) {
+  setDiaryLoading(true, forceRefresh ? 'Синхронизация с 1С...' : 'Загрузка дневника 1С...');
+  const authView = document.getElementById('diaryAuthView');
+  const gradesView = document.getElementById('diaryGradesView');
+  const logoutBtn = document.getElementById('diaryLogoutBtn');
+
+  try {
+    const headers = {
+      'X-Diary-Device-Id': getDiaryDeviceId()
+    };
+    const tgToken = localStorage.getItem('tg_auth_token');
+    if (tgToken) headers['X-Telegram-Auth'] = tgToken;
+
+    const url = `/api/grades${forceRefresh ? '?force_refresh=true' : ''}`;
+    const resp = await fetch(url, { credentials: 'include', headers });
+    const data = await resp.json();
+
+    if (data && data.authenticated && data.grades) {
+      diaryState.authenticated = true;
+      diaryState.student = data.student || 'Студент';
+      diaryState.group = data.group || (typeof S !== 'undefined' && S.group) || 'ИСС9-25';
+      diaryState.overallAverage = data.grades.overall_average;
+      diaryState.subjects = data.grades.subjects || [];
+      diaryState.lastSynced = data.last_synced || data.grades.synced_at || '';
+
+      if (authView) authView.style.display = 'none';
+      if (gradesView) gradesView.style.display = 'flex';
+      if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+
+      renderDiaryGrades();
+    } else {
+      diaryState.authenticated = false;
+      if (authView) authView.style.display = 'flex';
+      if (gradesView) gradesView.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Ошибка загрузки дневника 1С:', err);
+    if (!diaryState.authenticated) {
+      if (authView) authView.style.display = 'flex';
+      if (gradesView) gradesView.style.display = 'none';
+    }
+  } finally {
+    setDiaryLoading(false);
+  }
+}
+
+async function submitDiaryAuth() {
+  const loginInput = document.getElementById('diaryLoginInput');
+  const passInput = document.getElementById('diaryPasswordInput');
+  const groupInput = document.getElementById('diaryGroupInput');
+  const errBox = document.getElementById('diaryAuthError');
+
+  const login = loginInput?.value?.trim();
+  const password = passInput?.value?.trim();
+  const group = groupInput?.value?.trim() || 'ИСС9-25';
+
+  if (!login) {
+    if (errBox) { errBox.textContent = 'Пожалуйста, введите вашу фамилию или ФИО'; errBox.style.display = 'block'; }
+    loginInput?.focus();
+    return;
+  }
+  if (!password) {
+    if (errBox) { errBox.textContent = 'Пожалуйста, введите пароль от 1С'; errBox.style.display = 'block'; }
+    passInput?.focus();
+    return;
+  }
+
+  if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+  setDiaryLoading(true, 'Проверка данных в системе 1С...');
+
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Diary-Device-Id': getDiaryDeviceId()
+    };
+    const tgToken = localStorage.getItem('tg_auth_token');
+    if (tgToken) headers['X-Telegram-Auth'] = tgToken;
+
+    const resp = await fetch('/api/grades/auth', {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ login, password, group })
+    });
+    const result = await resp.json();
+
+    if (resp.ok && result.success) {
+      if (passInput) passInput.value = '';
+      await loadDiaryGrades(false);
+      showToast('Успешный вход в дневник 1С! ✅');
+    } else {
+      setDiaryLoading(false);
+      const msg = result.error || result.detail || 'Неверная фамилия или пароль';
+      if (errBox) { errBox.textContent = msg; errBox.style.display = 'block'; }
+    }
+  } catch (err) {
+    setDiaryLoading(false);
+    if (errBox) { errBox.textContent = 'Ошибка соединения с сервером. Попробуйте позже.'; errBox.style.display = 'block'; }
+  }
+}
+
+async function logoutDiary() {
+  if (!confirm('Вы действительно хотите отвязать дневник 1С?')) return;
+  setDiaryLoading(true, 'Отвязка дневника...');
+  try {
+    await fetch('/api/grades/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-Diary-Device-Id': getDiaryDeviceId() }
+    });
+    diaryState.authenticated = false;
+    diaryState.subjects = [];
+    const authView = document.getElementById('diaryAuthView');
+    const gradesView = document.getElementById('diaryGradesView');
+    const logoutBtn = document.getElementById('diaryLogoutBtn');
+    if (authView) authView.style.display = 'flex';
+    if (gradesView) gradesView.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    showToast('Дневник 1С отвязан');
+  } catch (e) {
+    console.error(e);
+  } finally {
+    setDiaryLoading(false);
+  }
+}
+
+function getAvgClass(avg) {
+  if (avg == null || isNaN(avg)) return '';
+  const num = parseFloat(avg);
+  if (num >= 4.5) return 'avg-excellent';
+  if (num >= 3.5) return 'avg-good';
+  if (num >= 2.5) return 'avg-satisfactory';
+  return 'avg-bad';
+}
+
+function getGradeValClass(grade) {
+  const g = parseInt(grade, 10);
+  if (g === 5) return 'grade-5';
+  if (g === 4) return 'grade-4';
+  if (g === 3) return 'grade-3';
+  return 'grade-2';
+}
+
+function toggleDiarySubject(cardEl) {
+  if (!cardEl) return;
+  cardEl.classList.toggle('expanded');
+}
+
+function getGradesCountWord(n) {
+  const abs = Math.abs(n);
+  const m10 = abs % 10;
+  const m100 = abs % 100;
+  if (m100 >= 11 && m100 <= 19) return 'оценок';
+  if (m10 === 1) return 'оценка';
+  if (m10 >= 2 && m10 <= 4) return 'оценки';
+  return 'оценок';
+}
+
+function renderDiaryGrades() {
+  const nameEl = document.getElementById('diaryStudentName');
+  const grpEl = document.getElementById('diaryStudentGroup');
+  const syncEl = document.getElementById('diaryStudentSync');
+  const overallValEl = document.getElementById('diaryOverallScoreVal');
+  const listEl = document.getElementById('diarySubjectsList');
+
+  if (nameEl) nameEl.textContent = diaryState.student || 'Студент';
+  if (grpEl) grpEl.textContent = diaryState.group || '';
+  if (syncEl) syncEl.textContent = diaryState.lastSynced ? `Обновлено: ${diaryState.lastSynced}` : '';
+
+  if (overallValEl) {
+    const o = diaryState.overallAverage;
+    overallValEl.textContent = (o != null && !isNaN(o)) ? Number(o).toFixed(2) : '—';
+  }
+
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  const subjects = diaryState.subjects || [];
+  if (subjects.length === 0) {
+    listEl.innerHTML = '<div class="diary-grades-empty">В журнале пока нет предметов или оценок</div>';
+    return;
+  }
+
+  subjects.forEach((subj) => {
+    const card = document.createElement('div');
+    card.className = 'diary-subject-card';
+
+    const avgVal = subj.average_mark;
+    const avgClass = getAvgClass(avgVal);
+    const avgDisplay = (avgVal != null && !isNaN(avgVal)) ? `⭐ ${Number(avgVal).toFixed(2)}` : '—';
+    const grades = subj.grades || [];
+    const countText = grades.length > 0 ? `${grades.length} ${getGradesCountWord(grades.length)}` : 'нет оценок';
+
+    card.innerHTML = `
+      <div class="diary-subject-header">
+        <div class="diary-subject-left">
+          <span class="diary-subject-name">${escapeHtml(subj.subject || 'Дисциплина')}</span>
+          <span class="diary-subject-count">${countText}</span>
+        </div>
+        <div class="diary-subject-right">
+          <div class="diary-subject-avg-badge ${avgClass}">${avgDisplay}</div>
+          <svg class="diary-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+      <div class="diary-subject-details">
+        <div class="diary-grades-grid">
+          ${grades.length === 0 ? '<div class="diary-grades-empty">По этой паре пока нет выставленных оценок</div>' : ''}
+          ${grades.map(g => `
+            <div class="diary-grade-item">
+              <span class="diary-grade-val ${getGradeValClass(g.grade)}">${escapeHtml(String(g.grade || ''))}</span>
+              <div class="diary-grade-meta">
+                <span class="diary-grade-date">${escapeHtml(g.date || '')}</span>
+                ${g.topic ? `<span class="diary-grade-topic">${escapeHtml(g.topic)}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    const header = card.querySelector('.diary-subject-header');
+    header?.addEventListener('click', () => toggleDiarySubject(card));
+
+    listEl.appendChild(card);
+  });
+}
+
+// Слушатели событий окна дневника
+document.getElementById('closeDiaryModal')?.addEventListener('click', closeDiaryModal);
+document.getElementById('diaryReloadBtn')?.addEventListener('click', () => loadDiaryGrades(true));
+document.getElementById('diaryLogoutBtn')?.addEventListener('click', logoutDiary);
+document.getElementById('diaryExternalBtn')?.addEventListener('click', openDiaryExternal);
+document.getElementById('diaryAuthSubmitBtn')?.addEventListener('click', submitDiaryAuth);
+
+document.getElementById('diaryPasswordInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitDiaryAuth();
+});
+document.getElementById('diaryLoginInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitDiaryAuth();
+});
+
+// Автооткрытие при deep-link (?open=diary или #diary)
+if (typeof window !== 'undefined') {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('open') === 'diary' || window.location.hash === '#diary') {
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(openDiaryModal, 600);
+    });
+  }
+}
+
+window.openDiaryModal = openDiaryModal;
+window.openDiaryExternal = openDiaryExternal;
+window.closeDiaryModal = closeDiaryModal;
+
+function showOnboarding() {
+  ensureGroupsLoaded();
+  els.onboardModal?.classList.add('open');
+  updateTelegramBackButton();
+  buildGroupGrid(els.onboardGroupsGrid, els.onboardSearchInput, els.onboardCourseChips, (grp) => {
+    saveActiveGroup(grp);
+    els.onboardModal?.classList.remove('open');
+    updateTelegramBackButton();
+    updateSidebarGroupInfo();
+    loadSchedule(true);
+    startAutoRefresh();
+  });
+}
+
+function buildGroupGrid(gridEl, searchEl, chipsEl, onSelect) {
+  if (!gridEl) return;
+  const groups = S.groupsList || [];
+
+  if (groups.length === 0) {
+    gridEl.innerHTML = '<div class="empty-pairs-hint">Загрузка групп...</div>';
+    return;
+  }
+
+  let activeFilter = 'all';
+
+  function detectCourse(gName) {
+    if (!gName) return 'Другое';
+    const lower = gName.toLowerCase();
+    if (lower.includes('оз') || lower.includes('заоч')) return 'Очно-заочное';
+    if (gName.includes('-26')) return '1 курс';
+    if (gName.includes('-25')) return '2 курс';
+    if (gName.includes('-24')) return '3 курс';
+    if (gName.includes('-23') || gName.includes('-22')) return '4 курс';
+    if (gName.startsWith('10-') || gName.startsWith('1-')) return '1 курс';
+    if (gName.startsWith('20-') || gName.startsWith('2-')) return '2 курс';
+    if (gName.startsWith('30-') || gName.startsWith('3-')) return '3 курс';
+    if (gName.startsWith('40-') || gName.startsWith('4-')) return '4 курс';
+    return 'Другое';
+  }
+
+  const normalizedGroups = groups.map(item => {
+    const name = typeof item === 'string' ? item : item.name;
+    const course = (typeof item === 'object' && item.course) ? item.course : detectCourse(name);
+    return { name, course, lower: name.toLowerCase() };
+  });
+
+  function render(filter, query) {
+    const q = (query || '').toLowerCase().trim();
+    const filtered = normalizedGroups.filter(item => {
+      const matchQ = !q || item.lower.includes(q);
+      const matchF = filter === 'all' || item.course === filter;
+      return matchQ && matchF;
+    });
+
+    const byCourse = {};
+    filtered.forEach(item => {
+      (byCourse[item.course] = byCourse[item.course] || []).push(item);
+    });
+
+    let html = '<div class="groups-container">';
+    const order = ['1 курс', '2 курс', '3 курс', '4 курс', 'Очно-заочное', 'Другое'];
+    let anyGroups = false;
+
+    order.forEach(course => {
+      const items = byCourse[course];
+      if (!items || items.length === 0) return;
+      anyGroups = true;
+
+      if (filter === 'all') {
+        html += `<div class="course-section-title">${ICONS.gradCap} <span>${esc(course)}</span> <span class="course-section-count">(${items.length})</span></div>`;
+      }
+      html += '<div class="groups-tiles-grid">';
+      items.forEach(item => {
+        const isSel = (item.name === S.group);
+        html += `<button class="group-tile${isSel ? ' selected' : ''}" data-group="${esc(item.name)}">
+          <span class="group-tile-name">${esc(item.name)}</span>
+          <span class="group-tile-tag">${esc(item.course)}</span>
+        </button>`;
+      });
+      html += '</div>';
+    });
+
+    html += '</div>';
+
+    gridEl.innerHTML = anyGroups ? html : `<div class="empty-pairs-hint">Группы не найдены</div>`;
+
+    gridEl.querySelectorAll('.group-tile').forEach(btn => {
+      btn.addEventListener('click', () => onSelect(btn.dataset.group));
+    });
+  }
+
+  if (chipsEl) {
+    chipsEl.querySelectorAll('.course-chip').forEach(chip => {
+      chip.classList.toggle('active', chip.dataset.filter === 'all');
+      chip.onclick = () => {
+        activeFilter = chip.dataset.filter;
+        chipsEl.querySelectorAll('.course-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === activeFilter));
+        render(activeFilter, searchEl?.value);
+      };
+    });
+  }
+
+  if (searchEl) {
+    searchEl.value = '';
+    searchEl.oninput = () => render(activeFilter, searchEl.value);
+  }
+
+  render('all', '');
+}
+
+// ════════════════════════════════════════
+//  LAYOUT CONSTRUCTOR & REORDERING
+// ════════════════════════════════════════
+// ════════════════════════════════════════
+//  3-LEVEL LAYOUT CONSTRUCTOR & EDITOR
+// ════════════════════════════════════════
+
+// ── LEVEL 1: SCREEN (Крупные блоки экрана) ──
+const STORAGE_LAYOUT_ORDER = 'schedule_layout_order_v1';
+const MANDATORY_LAYOUT_WIDGET = 'widget-schedule-content';
+
+const DEFAULT_LAYOUT_CONFIG = [
+  { id: 'widget-live-status',      visible: true },
+  { id: 'widget-week-nav',         visible: true },
+  { id: 'widget-day-strip',        visible: true },
+  { id: 'widget-schedule-content', visible: true }
+];
+
+const DEFAULT_LAYOUT_ORDER = DEFAULT_LAYOUT_CONFIG.map(x => x.id);
+
+const PRESETS_LAYOUT = {
+  standard: [
+    { id: 'widget-live-status',      visible: true },
+    { id: 'widget-week-nav',         visible: true },
+    { id: 'widget-day-strip',        visible: true },
+    { id: 'widget-schedule-content', visible: true }
+  ],
+  daysFirst: [
+    { id: 'widget-day-strip',        visible: true },
+    { id: 'widget-live-status',      visible: true },
+    { id: 'widget-week-nav',         visible: true },
+    { id: 'widget-schedule-content', visible: true }
+  ],
+  scheduleFocus: [
+    { id: 'widget-schedule-content', visible: true },
+    { id: 'widget-live-status',      visible: true },
+    { id: 'widget-week-nav',         visible: true },
+    { id: 'widget-day-strip',        visible: true }
+  ]
+};
+
+const SCREEN_WIDGET_META = {
+  'widget-live-status': {
+    name: 'Статус пары (Live-карточка)',
+    icon: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    desc: 'Текущая пара, время до конца или перемены'
+  },
+  'widget-week-nav': {
+    name: 'Переключатель недели',
+    icon: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>',
+    desc: 'Листание недель и чип текущей недели'
+  },
+  'widget-day-strip': {
+    name: 'Полоса дней (Пн – Сб)',
+    icon: '<svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/></svg>',
+    desc: 'Выбор дня недели с датами'
+  },
+  'widget-schedule-content': {
+    name: 'Основное расписание (пары)',
+    icon: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 2v14l3-2 3 2V2"/></svg>',
+    desc: 'Карточки учебных занятий'
+  }
+};
+
+// ── LEVEL 2: SIDEBAR MENU (Пункты меню) ──
+const STORAGE_MENU_CONFIG = 'schedule_menu_config_v2';
+const MANDATORY_MENU_IDS = ['menu-refresh', 'menu-onboarding', 'menu-theme'];
+
+const DEFAULT_MENU_SECTION_MAP = {
+  'menu-refresh':       'frequent',
+  'menu-theme':         'frequent',
+  'menu-download-app':  'services',
+  'menu-diary':         'services',
+  'menu-stats':         'services',
+  'menu-leaderboard':   'services',
+  'menu-games':         'services',
+  'menu-graduation':    'services',
+  'menu-english':       'services',
+  'menu-onboarding':    'services',
+  'menu-support':       'services',
+  'menu-reset-layout':  'system',
+  'menu-sync-footer':   'system'
+};
+
+const DEFAULT_MENU_CONFIG = [
+  { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
+  { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+  { id: 'menu-download-app',  visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-games',         visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
+  { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
+  { id: 'menu-sync-footer',   visible: true,  section: 'system',   color: 'default' },
+];
+
+const PRESETS_MENU = {
+  standard: [
+    { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-download-app',  visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-games',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
+    { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
+    { id: 'menu-sync-footer',   visible: true,  section: 'system',   color: 'default' },
+  ],
+  servicesOnly: [
+    { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-download-app',  visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-games',         visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
+    { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
+    { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
+    { id: 'menu-sync-footer',   visible: true,  section: 'system',   color: 'default' },
+  ],
+  minimal: [
+    { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-download-app',  visible: false, section: 'services', color: 'default' },
+    { id: 'menu-diary',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-leaderboard',   visible: false, section: 'services', color: 'default' },
+    { id: 'menu-games',         visible: false, section: 'services', color: 'default' },
+    { id: 'menu-graduation',    visible: false, section: 'services', color: 'default' },
+    { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
+    { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
+    { id: 'menu-support',       visible: false, section: 'services', color: 'default' },
+    { id: 'menu-reset-layout',  visible: true,  section: 'system',   color: 'default' },
+    { id: 'menu-sync-footer',   visible: false, section: 'system',   color: 'default' },
+  ]
+};
+
+// ── LEVEL 3: PAIR CARD TEMPLATE (Поля карточки пары) ──
+const STORAGE_CARD_TEMPLATE = 'schedule_card_template_v1';
+const MANDATORY_CARD_FIELDS = ['field-subject'];
+
+const DEFAULT_CARD_ZONE_MAP = {
+  'field-time': 'top-left',
+  'field-badges': 'top-right',
+  'field-subject': 'main',
+  'field-teacher': 'bottom-left',
+  'field-room': 'bottom-right'
+};
+
+const DEFAULT_CARD_SIZE_MAP = {
+  'field-time': 'md',
+  'field-badges': 'md',
+  'field-subject': 'lg',
+  'field-teacher': 'md',
+  'field-room': 'md'
+};
+
+const DEFAULT_CARD_CONFIG = [
+  { id: 'field-time',    visible: true, zone: 'top-left',     size: 'md', color: 'default' },
+  { id: 'field-badges',  visible: true, zone: 'top-right',    size: 'md', color: 'default' },
+  { id: 'field-subject', visible: true, zone: 'main',         size: 'lg', color: 'default' },
+  { id: 'field-teacher', visible: true, zone: 'bottom-left',  size: 'md', color: 'default' },
+  { id: 'field-room',    visible: true, zone: 'bottom-right', size: 'md', color: 'default' }
+];
+
+const CARD_FIELD_LABELS = {
+  'field-time':    'Время и номер',
+  'field-subject': 'Предмет',
+  'field-teacher': 'Преподаватель',
+  'field-room':    'Аудитория',
+  'field-badges':  'Статус и бейджи'
+};
+
+const CARD_FIELD_ICONS = {
+  'field-time':    ICONS.clock,
+  'field-subject': ICONS.book,
+  'field-teacher': ICONS.user,
+  'field-room':    ICONS.door,
+  'field-badges':  ICONS.tag
+};
+
+const COLOR_CYCLE = ['default', 'danger', 'cyan', 'emerald', 'amber', 'purple'];
+const COLOR_NAMES = {
+  default: 'По теме',
+  danger: 'Красный',
+  cyan: 'Циан',
+  emerald: 'Изумруд',
+  amber: 'Янтарь',
+  purple: 'Фиолетовый'
+};
+const COLOR_VALUES = {
+  default: 'var(--accent, #6366f1)',
+  danger: '#f43f5e',
+  cyan: '#06b6d4',
+  emerald: '#10b981',
+  amber: '#f59e0b',
+  purple: '#a855f7'
+};
+
+const SIZE_CYCLE = ['sm', 'md', 'lg', 'xl'];
+
+const PRESETS_CARD = {
+  classic: [
+    { id: 'field-time',    visible: true,  zone: 'top-left',     size: 'md', color: 'default' },
+    { id: 'field-badges',  visible: true,  zone: 'top-right',    size: 'md', color: 'default' },
+    { id: 'field-subject', visible: true,  zone: 'main',         size: 'lg', color: 'default' },
+    { id: 'field-teacher', visible: true,  zone: 'bottom-left',  size: 'md', color: 'default' },
+    { id: 'field-room',    visible: true,  zone: 'bottom-right', size: 'md', color: 'default' }
+  ],
+  table: [
+    { id: 'field-time',    visible: true,  zone: 'top-left',     size: 'sm', color: 'default' },
+    { id: 'field-room',    visible: true,  zone: 'top-right',    size: 'sm', color: 'cyan' },
+    { id: 'field-subject', visible: true,  zone: 'main',         size: 'md', color: 'default' },
+    { id: 'field-badges',  visible: true,  zone: 'bottom-right', size: 'sm', color: 'default' },
+    { id: 'field-teacher', visible: false, zone: 'bottom-left',  size: 'sm', color: 'default' }
+  ],
+  heroSubject: [
+    { id: 'field-badges',  visible: true,  zone: 'top-right',    size: 'md', color: 'default' },
+    { id: 'field-subject', visible: true,  zone: 'main',         size: 'xl', color: 'cyan' },
+    { id: 'field-time',    visible: true,  zone: 'bottom-left',  size: 'sm', color: 'default' },
+    { id: 'field-room',    visible: true,  zone: 'bottom-right', size: 'sm', color: 'emerald' },
+    { id: 'field-teacher', visible: false, zone: 'bottom-left',  size: 'sm', color: 'default' }
+  ],
+  modular: [
+    { id: 'field-time',    visible: true,  zone: 'top-left',     size: 'md', color: 'default' },
+    { id: 'field-room',    visible: true,  zone: 'top-right',    size: 'lg', color: 'amber' },
+    { id: 'field-subject', visible: true,  zone: 'main',         size: 'lg', color: 'default' },
+    { id: 'field-teacher', visible: true,  zone: 'bottom-left',  size: 'md', color: 'default' },
+    { id: 'field-badges',  visible: true,  zone: 'bottom-right', size: 'md', color: 'default' }
+  ]
+};
+
+// Состояние конструктора
+let isLayoutEditingMode = false;
+let currentLayoutTab = 'screen'; // 'screen' | 'menu' | 'card'
+let isLayoutBarCollapsed = false;
+
+function setLayoutBarCollapsed(collapsed) {
+  isLayoutBarCollapsed = !!collapsed;
+  const bar = $('layoutEditorBar');
+  const inner = $('layoutEditorInner');
+  const collBar = $('layoutEditorCollapsedBar');
+  const badgeText = $('layoutCollapsedBadgeText');
+
+  if (bar) bar.classList.toggle('is-collapsed', isLayoutBarCollapsed);
+  document.body.classList.toggle('layout-bar-collapsed', isLayoutBarCollapsed);
+
+  if (inner) inner.style.display = isLayoutBarCollapsed ? 'none' : 'flex';
+  if (collBar) collBar.style.display = isLayoutBarCollapsed ? 'flex' : 'none';
+
+  if (badgeText) {
+    const names = { screen: 'Экран', menu: 'Меню', card: 'Карточка' };
+    badgeText.textContent = names[currentLayoutTab] || 'Меню';
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  HIGH-PERFORMANCE TOUCH DRAG ENGINE FOR MOBILE SORTABLE (60 FPS & 0 LAG)
+// ═════════════════════════════════════════════════════════════════════════════
+function setupSortablePerformanceEngine() {
+  if (!window.Sortable || window.__sortableEngineOptimized) return;
+  window.__sortableEngineOptimized = true;
+
+  const origTouchMove = Sortable.prototype._onTouchMove;
+  const origAppendGhost = Sortable.prototype._appendGhost;
+  const origOnDrop = Sortable.prototype._onDrop;
+
+  let rafId = null;
+  let lastMoveEvent = null;
+  let activeInstance = null;
+
+  // 1. Throttling move events via requestAnimationFrame (avoids synchronous layout thrashing)
+  Sortable.prototype._onTouchMove = function(evt) {
+    if (evt && evt.cancelable) {
+      evt.preventDefault();
+    }
+    lastMoveEvent = evt;
+    activeInstance = this;
+
+    if (!rafId) {
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (activeInstance && lastMoveEvent) {
+          origTouchMove.call(activeInstance, lastMoveEvent);
+        }
+      });
+    }
+  };
+
+  // 2. Cancellation of pending animation frames and clean drop
+  Sortable.prototype._onDrop = function(evt) {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    activeInstance = null;
+    lastMoveEvent = null;
+    origOnDrop.call(this, evt);
+  };
+
+  // 3. Lightweight Drag Ghost: replaces heavy cloned DOM tree with GPU-composited badge
+  Sortable.prototype._appendGhost = function() {
+    origAppendGhost.call(this);
+    try {
+      const ghost = document.body.querySelector('.sortable-fallback-active') || document.body.querySelector('.sortable-fallback');
+      if (ghost) {
+        ghost.classList.add('mobile-drag-ghost');
+
+        const origItem = this.el?.querySelector('.sortable-chosen') || document.querySelector('.sortable-chosen');
+        let title = '';
+        if (origItem) {
+          const tEl = origItem.querySelector('.blueprint-tile-name, .field-title, .sidebar-nav-label, .sidebar-group-name');
+          title = tEl ? tEl.textContent.trim() : '';
+        }
+        if (!title) {
+          const tEl = ghost.querySelector('.blueprint-tile-name, .field-title, .sidebar-nav-label, .sidebar-group-name');
+          title = tEl ? tEl.textContent.trim() : 'Элемент';
+        }
+
+        ghost.innerHTML = `
+          <div class="mobile-ghost-inner">
+            <span class="mobile-ghost-grip">⠿</span>
+            <span class="mobile-ghost-text">${esc(title)}</span>
+          </div>
+        `;
+        ghost.style.width = 'auto';
+        ghost.style.maxWidth = '220px';
+        ghost.style.height = '36px';
+        ghost.style.display = 'inline-flex';
+        ghost.style.alignItems = 'center';
+        ghost.style.padding = '0';
+        ghost.style.margin = '0';
+        ghost.style.border = 'none';
+        ghost.style.background = 'transparent';
+        ghost.style.boxShadow = 'none';
+        ghost.style.opacity = '1';
+        ghost.style.pointerEvents = 'none';
+        ghost.style.willChange = 'transform';
+      }
+    } catch (e) {
+      console.warn('Sortable ghost optimization warning:', e);
+    }
+  };
+}
+
+try { setupSortablePerformanceEngine(); } catch (_) {}
+
+let sortableScreenInstance = null;
+let sortableMenuInstances = [];
+let sortableCardInstances = [];
+
+// Снимки для отмены изменений
+let screenOrderBeforeEdit = null;
+let menuConfigBeforeEdit = null;
+let cardConfigBeforeEdit = null;
+
+// Текущие рабочие конфигурации
+// ── ВАЛИДАЦИЯ И ЧТЕНИЕ ИЗ STORAGE ──
+function validateLayoutConfig(input) {
+  if (!Array.isArray(input) || input.length === 0) {
+    return JSON.parse(JSON.stringify(DEFAULT_LAYOUT_CONFIG));
+  }
+  const validWidgets = new Set(DEFAULT_LAYOUT_ORDER);
+  const result = [];
+  const seen = new Set();
+
+  input.forEach(item => {
+    let id = '';
+    let visible = true;
+    if (typeof item === 'string') {
+      id = item;
+      visible = true;
+    } else if (item && typeof item === 'object') {
+      id = item.id;
+      visible = (item.visible !== false);
+    }
+    if (validWidgets.has(id) && !seen.has(id)) {
+      if (id === MANDATORY_LAYOUT_WIDGET) visible = true;
+      result.push({ id, visible });
+      seen.add(id);
+    }
+  });
+
+  DEFAULT_LAYOUT_CONFIG.forEach(item => {
+    if (!seen.has(item.id)) {
+      result.push({ id: item.id, visible: true });
+    }
+  });
+
+  return result;
+}
+
+function getStoredLayoutConfig() {
+  try {
+    const raw = localStorage.getItem(STORAGE_LAYOUT_ORDER);
+    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_LAYOUT_CONFIG));
+    return validateLayoutConfig(JSON.parse(raw));
+  } catch (_) {
+    return JSON.parse(JSON.stringify(DEFAULT_LAYOUT_CONFIG));
+  }
+}
+
+const validateLayoutOrder = (x) => validateLayoutConfig(x);
+const getStoredLayoutOrder = () => getStoredLayoutConfig();
+
+// Текущие рабочие конфигурации
+let activeScreenConfig = getStoredLayoutConfig();
+let activeScreenOrder = activeScreenConfig.map(x => x.id);
+let activeMenuConfig = JSON.parse(JSON.stringify(DEFAULT_MENU_CONFIG));
+let activeCardConfig = JSON.parse(JSON.stringify(DEFAULT_CARD_CONFIG));
+
+function validateMenuConfig(cfg) {
+  if (!Array.isArray(cfg) || cfg.length === 0) {
+    return JSON.parse(JSON.stringify(DEFAULT_MENU_CONFIG));
+  }
+  const validIds = new Set(DEFAULT_MENU_CONFIG.map(m => m.id));
+  const clean = [];
+  const seen = new Set();
+
+  const secMap = {
+    frequent: 'frequent',
+    services: 'services',
+    system: 'system',
+    study: 'services',
+    tools: 'services'
+  };
+
+  cfg.forEach(rawItem => {
+    if (!rawItem) return;
+    const item = { ...rawItem };
+    if (item.id === 'menu-settings') item.id = 'menu-theme';
+    if (validIds.has(item.id) && !seen.has(item.id)) {
+      seen.add(item.id);
+      const isMandatory = MANDATORY_MENU_IDS.includes(item.id);
+      clean.push({
+        id: item.id,
+        visible: isMandatory ? true : Boolean(item.visible),
+        section: secMap[item.section] || DEFAULT_MENU_SECTION_MAP[item.id] || 'services',
+        color: item.color || 'default'
+      });
+    }
+  });
+
+  DEFAULT_MENU_CONFIG.forEach(def => {
+    if (!seen.has(def.id)) {
+      clean.push({
+        id: def.id,
+        visible: def.visible,
+        section: def.section,
+        color: def.color
+      });
+    }
+  });
+
+  return clean;
+}
+
+function getStoredMenuConfig() {
+  try {
+    const raw = localStorage.getItem(STORAGE_MENU_CONFIG);
+    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_MENU_CONFIG));
+    return validateMenuConfig(JSON.parse(raw));
+  } catch (_) {
+    return JSON.parse(JSON.stringify(DEFAULT_MENU_CONFIG));
+  }
+}
+
+function validateCardConfig(cfg) {
+  if (!Array.isArray(cfg) || cfg.length === 0) {
+    return JSON.parse(JSON.stringify(DEFAULT_CARD_CONFIG));
+  }
+  const validIds = new Set(DEFAULT_CARD_CONFIG.map(c => c.id));
+  const clean = [];
+  const seen = new Set();
+
+  cfg.forEach(item => {
+    if (item && validIds.has(item.id) && !seen.has(item.id)) {
+      seen.add(item.id);
+      const isMandatory = MANDATORY_CARD_FIELDS.includes(item.id);
+      clean.push({
+        id: item.id,
+        visible: isMandatory ? true : Boolean(item.visible),
+        zone: item.zone || DEFAULT_CARD_ZONE_MAP[item.id] || 'main',
+        size: item.size || DEFAULT_CARD_SIZE_MAP[item.id] || 'md',
+        color: item.color || 'default'
+      });
+    }
+  });
+
+  DEFAULT_CARD_CONFIG.forEach(def => {
+    if (!seen.has(def.id)) {
+      clean.push({
+        id: def.id,
+        visible: def.visible,
+        zone: def.zone,
+        size: def.size,
+        color: def.color
+      });
+    }
+  });
+
+  return clean;
+}
+
+function getStoredCardConfig() {
+  try {
+    const raw = localStorage.getItem(STORAGE_CARD_TEMPLATE);
+    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_CARD_CONFIG));
+    return validateCardConfig(JSON.parse(raw));
+  } catch (_) {
+    return JSON.parse(JSON.stringify(DEFAULT_CARD_CONFIG));
+  }
+}
+
+function getActiveCardTemplateConfig() {
+  return activeCardConfig || getStoredCardConfig();
+}
+
+function isCardTemplateCustom() {
+  const current = getActiveCardTemplateConfig();
+  if (current.length !== DEFAULT_CARD_CONFIG.length) return true;
+  for (let i = 0; i < current.length; i++) {
+    const cur = current[i];
+    const def = DEFAULT_CARD_CONFIG[i];
+    if (cur.id !== def.id || cur.visible !== def.visible || cur.zone !== def.zone || cur.size !== def.size || cur.color !== def.color) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function areArraysEqual(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function areConfigsEqual(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id || a[i].visible !== b[i].visible) return false;
+    if (a[i].section && b[i].section && a[i].section !== b[i].section) return false;
+    if (a[i].zone && b[i].zone && a[i].zone !== b[i].zone) return false;
+    if (a[i].size && b[i].size && a[i].size !== b[i].size) return false;
+    if (a[i].color && b[i].color && a[i].color !== b[i].color) return false;
+  }
+  return true;
+}
+
+// ── СХЕМАТИЧНЫЙ РЕДАКТОР ЭКРАНА (BLUEPRINT MODE) ──
+let sortableBlueprintInstance = null;
+
+function renderBlueprintTiles() {
+  const container = els.blueprintTilesList || $('blueprintTilesList');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  activeScreenConfig.forEach((item, idx) => {
+    const meta = SCREEN_WIDGET_META[item.id] || { name: item.id, icon: '', desc: '' };
+    const isMandatory = (item.id === MANDATORY_LAYOUT_WIDGET);
+    const isVis = isMandatory ? true : (item.visible !== false);
+
+    const tile = document.createElement('div');
+    tile.className = `blueprint-tile${isVis ? '' : ' is-hidden'}`;
+    tile.dataset.widget = item.id;
+    tile.dataset.index = idx;
+
+    const isFirst = (idx === 0);
+    const isLast = (idx === activeScreenConfig.length - 1);
+
+    const eyeIconHtml = isMandatory
+      ? `<svg class="lucide-icon" viewBox="0 0 24 24" title="Обязательный блок"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`
+      : (isVis
+          ? `<svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`
+          : `<svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>`
+        );
+
+    tile.innerHTML = `
+      <div class="blueprint-tile-grip" title="Хватайте за ⠿ для перемещения"><span class="drag-grip-icon">⠿</span></div>
+      <div class="blueprint-tile-icon">${meta.icon}</div>
+      <div class="blueprint-tile-info">
+        <span class="blueprint-tile-num">Блок ${idx + 1}</span>
+        <span class="blueprint-tile-name">${esc(meta.name)}</span>
+      </div>
+      <div class="blueprint-tile-actions">
+        <button type="button" class="blueprint-btn-vis ${isVis ? '' : 'is-hidden'}" data-action="vis" title="${isMandatory ? 'Обязательный блок (нельзя скрыть)' : (isVis ? 'Скрыть блок' : 'Показать блок')}" ${isMandatory ? 'disabled' : ''}>
+          ${eyeIconHtml}
+        </button>
+      </div>
+    `;
+
+    // Кнопка Глаз (видимость)
+    tile.querySelector('[data-action="vis"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (isMandatory) return;
+      item.visible = !isVis;
+      applyLayoutOrder(activeScreenConfig, false);
+      renderBlueprintTiles();
+      updatePresetsUI();
+    });
+
+    container.appendChild(tile);
+  });
+
+  // Инициализируем плавный SortableJS на мини-плитках схемы
+  if (sortableBlueprintInstance) {
+    try { sortableBlueprintInstance.destroy(); } catch (_) {}
+    sortableBlueprintInstance = null;
+  }
+
+  if (window.Sortable && container) {
+    sortableBlueprintInstance = Sortable.create(container, {
+      animation: 160,
+      handle: '.blueprint-tile-grip',
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      forceFallback: true,
+      fallbackOnBody: true,
+      fallbackClass: 'sortable-fallback-active',
+      fallbackTolerance: 3,
+      delay: 0,
+      delayOnTouchOnly: false,
+      touchStartThreshold: 2,
+      scroll: false,
+      onStart: () => {
+        document.body.classList.add('sortable-dragging-active');
+      },
+      onEnd: () => {
+        document.body.classList.remove('sortable-dragging-active');
+        const newConfig = [];
+        container.querySelectorAll('.blueprint-tile').forEach(t => {
+          const wid = t.dataset.widget;
+          const existing = activeScreenConfig.find(x => x.id === wid);
+          if (existing) {
+            newConfig.push(existing);
+          }
+        });
+        activeScreenConfig = validateLayoutConfig(newConfig);
+        activeScreenOrder = activeScreenConfig.map(x => x.id);
+        applyLayoutOrder(activeScreenConfig, false);
+        renderBlueprintTiles();
+        updatePresetsUI();
+      }
+    });
+  }
+}
+
+// ── ПРИМЕНЕНИЕ КОНФИГУРАЦИЙ ──
+function applyLayoutOrder(order, persist = false) {
+  const validated = validateLayoutConfig(order);
+  activeScreenConfig = validated;
+  activeScreenOrder = validated.map(x => x.id);
+  const container = els.mainFlowContainer || $('mainFlowContainer');
+  if (!container) return;
+
+  validated.forEach(item => {
+    const el = container.querySelector(`.flow-widget[data-widget="${item.id}"]`);
+    if (el) {
+      container.appendChild(el);
+      const isVis = (item.id === MANDATORY_LAYOUT_WIDGET) ? true : (item.visible !== false);
+      el.classList.toggle('flow-widget-hidden', !isVis);
+      const toggleBtn = el.querySelector('.widget-vis-toggle-btn');
+      if (toggleBtn) {
+        toggleBtn.classList.toggle('is-visible', isVis);
+        toggleBtn.classList.toggle('is-hidden', !isVis);
+        toggleBtn.title = isVis ? 'Скрыть блок' : 'Показать блок';
+      }
+    }
+  });
+
+  if (persist) {
+    try { localStorage.setItem(STORAGE_LAYOUT_ORDER, JSON.stringify(validated)); } catch (_) {}
+  }
+
+  updateResetButtonsVisibility();
+}
+
+function applyMenuConfig(cfg, persist = false) {
+  const validated = validateMenuConfig(cfg);
+  activeMenuConfig = validated;
+  const container = els.sidebarNav || $('sidebarNav');
+  if (!container) return;
+
+  const secMap = {
+    frequent: 'frequent',
+    services: 'services',
+    system: 'system',
+    study: 'services',
+    tools: 'services'
+  };
+
+  validated.forEach(item => {
+    let el = container.querySelector(`.sidebar-nav-item[data-menu-id="${item.id}"]`);
+    if (!el) {
+      el = document.querySelector(`[data-menu-id="${item.id}"]`);
+    }
+    if (el) {
+      if (item.id !== 'menu-group-badge' && item.id !== 'menu-sync-footer') {
+        const rawSec = item.section || DEFAULT_MENU_SECTION_MAP[item.id] || 'frequent';
+        const secName = secMap[rawSec] || 'services';
+        const secContainer = container.querySelector(`.sidebar-section-container[data-section="${secName}"]`);
+        if (secContainer) {
+          secContainer.appendChild(el);
+        }
+        el.dataset.section = secName;
+      }
+
+      el.classList.toggle('menu-item-hidden', !item.visible);
+
+      // Снимаем старые акцентные классы и вешаем актуальный
+      ['danger', 'cyan', 'emerald', 'amber', 'purple'].forEach(c => el.classList.remove(`menu-color-${c}`));
+      if (item.color && item.color !== 'default') {
+        el.classList.add(`menu-color-${item.color}`);
+      }
+
+      const toggleBtn = el.querySelector('.menu-vis-toggle-btn');
+      if (toggleBtn) {
+        toggleBtn.title = item.visible ? 'Скрыть пункт' : 'Показать пункт';
+      }
+    }
+  });
+
+  if (persist) {
+    try { localStorage.setItem(STORAGE_MENU_CONFIG, JSON.stringify(validated)); } catch (_) {}
+  }
+
+  updateResetButtonsVisibility();
+}
+
+function applyCardConfig(cfg, persist = false, shouldRenderSchedule = true) {
+  const validated = validateCardConfig(cfg);
+  activeCardConfig = validated;
+
+  if (persist) {
+    try { localStorage.setItem(STORAGE_CARD_TEMPLATE, JSON.stringify(validated)); } catch (_) {}
+  }
+
+  if (shouldRenderSchedule && (!isLayoutEditingMode || persist)) {
+    try { renderSchedule(); } catch (_) {}
+  }
+  updateResetButtonsVisibility();
+}
+
+function updateResetButtonsVisibility() {
+  if (els.sidebarResetLayoutBtn) {
+    els.sidebarResetLayoutBtn.style.display = 'flex';
+  }
+  if (els.modalResetLayoutBtn) {
+    els.modalResetLayoutBtn.style.display = 'flex';
+  }
+}
+
+// ── РЕНДЕРИНГ ДРОПЗОНЫ ШАБЛОНА КАРТОЧКИ (MULTI-ZONE GRID) ──
+function renderCardTemplateDropzone() {
+  const ZONE_ELS = {
+    'top-left': $('zoneTopLeft'),
+    'top-right': $('zoneTopRight'),
+    'main': $('zoneMain'),
+    'bottom-left': $('zoneBottomLeft'),
+    'bottom-right': $('zoneBottomRight')
+  };
+
+  // Очищаем зоны
+  Object.values(ZONE_ELS).forEach(el => {
+    if (el) el.innerHTML = '';
+  });
+
+  activeCardConfig.forEach(item => {
+    const isMandatory = MANDATORY_CARD_FIELDS.includes(item.id);
+    const label = CARD_FIELD_LABELS[item.id] || item.id;
+    const iconSvg = CARD_FIELD_ICONS[item.id] || '';
+    const zoneName = item.zone || DEFAULT_CARD_ZONE_MAP[item.id] || 'main';
+    const targetZoneEl = ZONE_ELS[zoneName] || ZONE_ELS['main'];
+    if (!targetZoneEl) return;
+
+    const curSize = item.size || 'md';
+    const curColor = item.color || 'default';
+    const isVis = item.visible !== false;
+
+    const itemEl = document.createElement('div');
+    itemEl.className = `card-template-field-item${isVis ? '' : ' field-hidden'}`;
+    itemEl.dataset.fieldId = item.id;
+    itemEl.innerHTML = `
+      <span class="field-drag-grip" title="Хватайте и перетаскивайте в любую зону">⠿</span>
+      <span class="field-title">${iconSvg} <span class="field-title-text">${esc(label)}</span></span>
+      <div class="field-controls-group">
+        <button class="field-size-btn" type="button" data-size-field="${item.id}" title="Размер: ${curSize.toUpperCase()} (нажмите для смены)">
+          <span class="size-btn-text">${curSize.toUpperCase()}</span>
+        </button>
+        <button class="field-color-btn" type="button" data-color-field="${item.id}" title="Цвет: ${COLOR_NAMES[curColor]} (нажмите для смены)">
+          <span class="color-btn-dot" style="background: ${COLOR_VALUES[curColor]}"></span>
+        </button>
+        ${isMandatory
+          ? `<span class="menu-lock-icon" title="Обязательное поле">${ICONS.lock}</span>`
+          : `<button class="field-vis-btn${isVis ? ' is-visible' : ' is-hidden'}" type="button" data-toggle-field="${item.id}" title="${isVis ? 'Скрыть поле' : 'Показать поле'}">${isVis ? ICONS.eye : ICONS.eyeOff}</button>`
+        }
+      </div>
+    `;
+
+    // 1. Клик по кнопке размера (SM -> MD -> LG -> XL -> SM)
+    const sizeBtn = itemEl.querySelector('.field-size-btn');
+    if (sizeBtn) {
+      sizeBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = activeCardConfig.find(x => x.id === item.id) || item;
+        const curIdx = SIZE_CYCLE.indexOf(target.size || 'md');
+        const nextIdx = (curIdx + 1) % SIZE_CYCLE.length;
+        target.size = SIZE_CYCLE[nextIdx];
+        applyCardConfig(activeCardConfig, false);
+        renderCardTemplateDropzone();
+        updatePresetsUI();
+      };
+    }
+
+    // 2. Клик по кнопке цвета (цикл цветов)
+    const colorBtn = itemEl.querySelector('.field-color-btn');
+    if (colorBtn) {
+      colorBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = activeCardConfig.find(x => x.id === item.id) || item;
+        const curIdx = COLOR_CYCLE.indexOf(target.color || 'default');
+        const nextIdx = (curIdx + 1) % COLOR_CYCLE.length;
+        target.color = COLOR_CYCLE[nextIdx];
+        applyCardConfig(activeCardConfig, false);
+        renderCardTemplateDropzone();
+        updatePresetsUI();
+      };
+    }
+
+    // 3. Клик по кнопке видимости
+    const visBtn = itemEl.querySelector('.field-vis-btn');
+    if (visBtn) {
+      visBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = activeCardConfig.find(x => x.id === item.id) || item;
+        target.visible = !target.visible;
+        applyCardConfig(activeCardConfig, false);
+        renderCardTemplateDropzone();
+        updatePresetsUI();
+      };
+    }
+
+    targetZoneEl.appendChild(itemEl);
+  });
+
+  // Инициализация / переподключение Sortable для всех 5 зон
+  initCardZonesSortable();
+
+  // Обновление живого предпросмотра
+  updateCardLivePreview();
+}
+
+function initCardZonesSortable() {
+  sortableCardInstances.forEach(inst => {
+    try { inst.destroy(); } catch (_) {}
+  });
+  sortableCardInstances = [];
+
+  const zoneIds = ['zoneTopLeft', 'zoneTopRight', 'zoneMain', 'zoneBottomLeft', 'zoneBottomRight'];
+  zoneIds.forEach(zid => {
+    const zEl = $(zid);
+    if (zEl && window.Sortable) {
+      const inst = Sortable.create(zEl, {
+        group: 'card-template-zones',
+        animation: 160,
+        handle: '.field-drag-grip, .field-title',
+        filter: 'button, select, input, .field-controls-group',
+        preventOnFilter: false,
+        ghostClass: 'field-sortable-ghost',
+        chosenClass: 'field-sortable-chosen',
+        forceFallback: true,
+        fallbackOnBody: true,
+        fallbackClass: 'sortable-fallback-active',
+        fallbackTolerance: 3,
+        delay: 0,
+        delayOnTouchOnly: false,
+        touchStartThreshold: 2,
+        scroll: false,
+        disabled: currentLayoutTab !== 'card',
+        onStart: () => {
+          document.body.classList.add('sortable-dragging-active');
+        },
+        onEnd: () => {
+          document.body.classList.remove('sortable-dragging-active');
+          syncActiveCardConfigFromDOM();
+          updateCardLivePreview();
+        }
+      });
+      sortableCardInstances.push(inst);
+    }
+  });
+}
+
+function syncActiveCardConfigFromDOM() {
+  const zoneNames = ['top-left', 'top-right', 'main', 'bottom-left', 'bottom-right'];
+  const newConfig = [];
+
+  zoneNames.forEach(zn => {
+    const box = document.querySelector(`.card-builder-zone[data-zone="${zn}"]`);
+    if (box) {
+      box.querySelectorAll('.card-template-field-item').forEach(el => {
+        const fid = el.dataset.fieldId;
+        const existing = activeCardConfig.find(c => c.id === fid);
+        if (existing) {
+          existing.zone = zn;
+          newConfig.push(existing);
+        }
+      });
+    }
+  });
+
+  activeCardConfig = validateCardConfig(newConfig);
+  applyCardConfig(activeCardConfig, false);
+  updateCardLivePreview();
+  updatePresetsUI();
+}
+
+function updateCardLivePreview() {
+  const stage = $('cardTemplateLivePreviewStage');
+  if (!stage) return;
+
+  const mockLesson = {
+    subject: 'Разработка программных модулей',
+    teacher: 'Смирнов А. В.',
+    classroom: 'каб. 402',
+    is_replacement: true
+  };
+  const mockBell = { s: 510, e: 600 }; // 08:30 – 10:00
+
+  const content = renderCardContentByTemplate(mockLesson, '1', mockBell, true, 'I Числ.', false, true, false);
+
+  stage.innerHTML = `
+    <div class="pair-card custom-template going replacement preview-live-card" style="margin: 0; width: 100%;">
+      ${content}
+    </div>
+  `;
+}
+
+function syncActiveMenuConfigFromDOM() {
+  const newCfg = [];
+
+  // 1. Плашка группы
+  const badgeEl = document.querySelector('[data-menu-id="menu-group-badge"]');
+  if (badgeEl) {
+    const existing = activeMenuConfig.find(m => m.id === 'menu-group-badge');
+    newCfg.push({
+      id: 'menu-group-badge',
+      visible: !badgeEl.classList.contains('menu-item-hidden'),
+      section: 'study',
+      color: existing ? existing.color : 'default'
+    });
+  }
+
+  // 2. Пункты навигации по секциям
+  const sectionContainers = document.querySelectorAll('#sidebarNav .sidebar-section-container');
+  sectionContainers.forEach(secEl => {
+    const secName = secEl.dataset.section || 'study';
+    secEl.querySelectorAll('.sidebar-nav-item[data-menu-id]').forEach(item => {
+      const mid = item.dataset.menuId;
+      if (mid === 'menu-group-badge' || mid === 'menu-sync-footer') return;
+      const existing = activeMenuConfig.find(m => m.id === mid);
+      const isVis = !item.classList.contains('menu-item-hidden');
+      newCfg.push({
+        id: mid,
+        visible: isVis,
+        section: secName,
+        color: existing ? existing.color : 'default'
+      });
+    });
+  });
+
+  // 3. Футер синхронизации
+  const footerEl = document.querySelector('[data-menu-id="menu-sync-footer"]');
+  if (footerEl) {
+    const existing = activeMenuConfig.find(m => m.id === 'menu-sync-footer');
+    newCfg.push({
+      id: 'menu-sync-footer',
+      visible: !footerEl.classList.contains('menu-item-hidden'),
+      section: 'system',
+      color: existing ? existing.color : 'default'
+    });
+  }
+
+  activeMenuConfig = validateMenuConfig(newCfg);
+  updatePresetsUI();
+}
+
+// ── НАВИГАЦИОННОЕ РАСПОЛОЖЕНИЕ (По умолчанию и только снизу: Bottom Tab Bar) ──
+function getStoredNavPosition() {
+  return 'bottom';
+}
+
+function applyNavPosition(pos = 'bottom', persist = false) {
+  document.documentElement.setAttribute('data-nav-position', 'bottom');
+
+  // Обновляем кнопки в панели конструктора
+  document.querySelectorAll('#layoutNavPosChips .nav-pos-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.navPos === 'bottom');
+  });
+
+  // Обновляем карточки в модальном окне настроек
+  document.querySelectorAll('#modalNavPosSelectorGrid .nav-pos-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.navPos === 'bottom');
+  });
+
+  if (persist) {
+    try {
+      localStorage.setItem(STORAGE_NAV_POSITION, 'bottom');
+    } catch (_) {}
+    showToast('Меню: Снизу (мобильный Tab Bar)');
+  }
+}
+
+function setupNavPosition() {
+  applyNavPosition('bottom', false);
+
+  // Кнопки в панели конструктора
+  document.querySelectorAll('#layoutNavPosChips .nav-pos-btn').forEach(btn => {
+    btn.onclick = () => {
+      applyNavPosition('bottom', true);
+    };
+  });
+
+  // Карточки в окне настроек
+  document.querySelectorAll('#modalNavPosSelectorGrid .nav-pos-card').forEach(card => {
+    card.onclick = () => {
+      applyNavPosition('bottom', true);
+    };
+  });
+
+  // Кнопки нижнего Tab Bar (5 основных пунктов)
+  const bSchedule = $('bottomNavSchedule');
+  const bTeacher = $('bottomNavTeacher');
+  const bDiary = $('bottomNavDiary');
+  const bClassroom = $('bottomNavClassroom');
+  const bMore = $('bottomNavMore');
+
+  if (bSchedule) bSchedule.onclick = () => { setView('schedule'); updateBottomNavActive('schedule'); };
+  if (bTeacher) bTeacher.onclick = () => { setView('teacher'); updateBottomNavActive('teacher'); };
+  if (bDiary) bDiary.onclick = () => { openDiaryModal(); };
+  if (bClassroom) bClassroom.onclick = () => { setView('classroom'); updateBottomNavActive('classroom'); };
+  if (bMore) bMore.onclick = () => { openSidebar(); };
+}
+
+function updateBottomNavActive(viewName) {
+  document.querySelectorAll('#bottomNavBar .bottom-nav-item').forEach(item => {
+    if (item.dataset.view) {
+      item.classList.toggle('active', item.dataset.view === viewName);
+    }
+  });
+}
+
+// ── ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК И ПРЕСЕТЫ ──
+function updatePresetsUI() {
+  const row = els.presetsChipsRow || $('presetsChipsRow');
+  if (!row) return;
+
+  if (currentLayoutTab === 'screen') {
+    const isStd = areConfigsEqual(activeScreenConfig, PRESETS_LAYOUT.standard);
+    const isDays = areConfigsEqual(activeScreenConfig, PRESETS_LAYOUT.daysFirst);
+    const isFocus = areConfigsEqual(activeScreenConfig, PRESETS_LAYOUT.scheduleFocus);
+
+    row.innerHTML = `
+      <button class="preset-chip${isStd ? ' active' : ''}" type="button" data-preset="standard">Стандарт</button>
+      <button class="preset-chip${isDays ? ' active' : ''}" type="button" data-preset="daysFirst">Дни сверху</button>
+      <button class="preset-chip${isFocus ? ' active' : ''}" type="button" data-preset="scheduleFocus">Пары в фокусе</button>
+    `;
+
+    row.querySelectorAll('.preset-chip').forEach(btn => {
+      btn.onclick = () => {
+        const p = btn.dataset.preset;
+        if (PRESETS_LAYOUT[p]) {
+          applyLayoutOrder(PRESETS_LAYOUT[p], false);
+          renderBlueprintTiles();
+          updatePresetsUI();
+        }
+      };
+    });
+  } else if (currentLayoutTab === 'menu') {
+    const isStd = areConfigsEqual(activeMenuConfig, PRESETS_MENU.standard);
+    const isStudy = areConfigsEqual(activeMenuConfig, PRESETS_MENU.studyOnly);
+    const isMin = areConfigsEqual(activeMenuConfig, PRESETS_MENU.minimal);
+
+    row.innerHTML = `
+      <button class="preset-chip${isStd ? ' active' : ''}" type="button" data-preset="standard">Стандарт</button>
+      <button class="preset-chip${isStudy ? ' active' : ''}" type="button" data-preset="studyOnly">Только учёба</button>
+      <button class="preset-chip${isMin ? ' active' : ''}" type="button" data-preset="minimal">Минимум</button>
+    `;
+
+    row.querySelectorAll('.preset-chip').forEach(btn => {
+      btn.onclick = () => {
+        const p = btn.dataset.preset;
+        if (PRESETS_MENU[p]) {
+          applyMenuConfig(PRESETS_MENU[p], false);
+          updatePresetsUI();
+        }
+      };
+    });
+  } else if (currentLayoutTab === 'card') {
+    const isClassic = areConfigsEqual(activeCardConfig, PRESETS_CARD.classic);
+    const isTable = areConfigsEqual(activeCardConfig, PRESETS_CARD.table);
+    const isHero = areConfigsEqual(activeCardConfig, PRESETS_CARD.heroSubject);
+    const isMod = areConfigsEqual(activeCardConfig, PRESETS_CARD.modular);
+
+    row.innerHTML = `
+      <button class="preset-chip${isClassic ? ' active' : ''}" type="button" data-preset="classic">Классика</button>
+      <button class="preset-chip${isTable ? ' active' : ''}" type="button" data-preset="table">Таблица</button>
+      <button class="preset-chip${isHero ? ' active' : ''}" type="button" data-preset="heroSubject">Акцент</button>
+      <button class="preset-chip${isMod ? ' active' : ''}" type="button" data-preset="modular">Блочный</button>
+    `;
+
+    row.querySelectorAll('.preset-chip').forEach(btn => {
+      btn.onclick = () => {
+        const p = btn.dataset.preset;
+        if (PRESETS_CARD[p]) {
+          applyCardConfig(PRESETS_CARD[p], false);
+          renderCardTemplateDropzone();
+          updateCardLivePreview();
+          updatePresetsUI();
+        }
+      };
+    });
+  }
+}
+
+function switchLayoutTab(tabName) {
+  currentLayoutTab = tabName;
+
+  document.querySelectorAll('.layout-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+
+  // Показываем/скрываем селектор позиции меню в панели конструктора
+  const navPosContainer = $('layoutNavPosContainer');
+  if (navPosContainer) {
+    navPosContainer.style.display = (tabName === 'menu') ? 'flex' : 'none';
+  }
+
+  const blueprintEl = els.screenBlueprintBuilder || $('screenBlueprintBuilder');
+  const cardBuilderEl = els.cardTemplateBuilder || $('cardTemplateBuilder');
+
+  if (tabName === 'screen') {
+    closeSidebar();
+    document.body.classList.remove('menu-editing-active');
+    if (cardBuilderEl) cardBuilderEl.style.display = 'none';
+    if (blueprintEl) blueprintEl.style.display = 'block';
+    renderBlueprintTiles();
+
+    if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
+    sortableMenuInstances.forEach(inst => inst.option('disabled', true));
+    sortableCardInstances.forEach(inst => inst.option('disabled', true));
+    if (window.innerWidth <= 768) {
+      setLayoutBarCollapsed(true);
+    } else {
+      setLayoutBarCollapsed(false);
+    }
+  } else if (tabName === 'menu') {
+    openSidebar();
+    document.body.classList.add('menu-editing-active');
+    if (cardBuilderEl) cardBuilderEl.style.display = 'none';
+    if (blueprintEl) blueprintEl.style.display = 'none';
+
+    if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
+    sortableMenuInstances.forEach(inst => inst.option('disabled', false));
+    sortableCardInstances.forEach(inst => inst.option('disabled', true));
+
+    // На телефонах сразу сворачиваем панель, чтобы окно НЕ закрывало меню
+    if (window.innerWidth <= 768) {
+      setLayoutBarCollapsed(true);
+    } else {
+      setLayoutBarCollapsed(false);
+    }
+  } else if (tabName === 'card') {
+    closeSidebar();
+    document.body.classList.remove('menu-editing-active');
+    if (blueprintEl) blueprintEl.style.display = 'none';
+    if (cardBuilderEl) cardBuilderEl.style.display = 'block';
+    renderCardTemplateDropzone();
+    updateCardLivePreview();
+    if (window.innerWidth <= 600) {
+      $('cardLivePreviewWrap')?.classList.remove('is-expanded');
+      const hint = $('cardLivePreviewHint');
+      if (hint) hint.textContent = 'Нажмите, чтобы развернуть';
+    }
+
+    if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
+    sortableMenuInstances.forEach(inst => inst.option('disabled', true));
+    sortableCardInstances.forEach(inst => inst.option('disabled', false));
+    if (window.innerWidth <= 768) {
+      setLayoutBarCollapsed(true);
+    } else {
+      setLayoutBarCollapsed(false);
+    }
+  }
+
+  const badgeText = $('layoutCollapsedBadgeText');
+  if (badgeText) {
+    const names = { screen: 'Экран', menu: 'Меню', card: 'Карточка' };
+    badgeText.textContent = names[tabName] || 'Меню';
+  }
+
+  updatePresetsUI();
+}
+
+// ── ВХОД И ВЫХОД ИЗ РЕДАКТОРА ──
+function enterLayoutEditor(initialTab = 'screen') {
+  if (isLayoutEditingMode) {
+    switchLayoutTab(initialTab);
+    return;
+  }
+  isLayoutEditingMode = true;
+
+  try { closeThemeModal(); } catch (_) {}
+
+  // Сохраняем начальные снимки для отмены
+  screenOrderBeforeEdit = JSON.parse(JSON.stringify(activeScreenConfig));
+  menuConfigBeforeEdit = JSON.parse(JSON.stringify(activeMenuConfig));
+  cardConfigBeforeEdit = JSON.parse(JSON.stringify(activeCardConfig));
+
+  document.body.classList.add('layout-editing-active');
+  updateTelegramBackButton();
+  if (els.layoutEditorBar) els.layoutEditorBar.style.display = 'block';
+
+  // 1. Инициализация Sortable для экрана (отключен в пользу лёгкого Blueprint-режима)
+  const flowContainer = els.mainFlowContainer || $('mainFlowContainer');
+  if (flowContainer && window.Sortable && !sortableScreenInstance) {
+    sortableScreenInstance = Sortable.create(flowContainer, {
+      animation: 180,
+      handle: '.widget-drag-handle',
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      dragClass: 'sortable-drag',
+      forceFallback: true,
+      fallbackOnBody: true,
+      fallbackClass: 'sortable-fallback-active',
+      fallbackTolerance: 3,
+      delay: 0,
+      delayOnTouchOnly: false,
+      touchStartThreshold: 2,
+      scroll: false,
+      disabled: true,
+      onStart: () => {
+        document.body.classList.add('sortable-dragging-active');
+      },
+      onEnd: () => {
+        document.body.classList.remove('sortable-dragging-active');
+        const newConfig = [];
+        flowContainer.querySelectorAll('.flow-widget').forEach(w => {
+          const wid = w.dataset.widget;
+          if (wid) {
+            const existing = activeScreenConfig.find(x => x.id === wid);
+            newConfig.push({
+              id: wid,
+              visible: existing ? existing.visible !== false : true
+            });
+          }
+        });
+        activeScreenConfig = validateLayoutConfig(newConfig);
+        activeScreenOrder = activeScreenConfig.map(x => x.id);
+        renderBlueprintTiles();
+        updatePresetsUI();
+      }
+    });
+  }
+
+  // 2. Инициализация Sortable для меню по секциям
+  sortableMenuInstances.forEach(inst => {
+    try { inst.destroy(); } catch (_) {}
+  });
+  sortableMenuInstances = [];
+
+  const sectionContainers = document.querySelectorAll('#sidebarNav .sidebar-section-container');
+  sectionContainers.forEach(secEl => {
+    if (window.Sortable) {
+      const inst = Sortable.create(secEl, {
+        group: 'sidebar-menu-sections',
+        animation: 160,
+        handle: '.menu-drag-handle',
+        ghostClass: 'menu-sortable-ghost',
+        chosenClass: 'menu-sortable-chosen',
+        forceFallback: true,
+        fallbackOnBody: true,
+        fallbackClass: 'sortable-fallback-active',
+        fallbackTolerance: 3,
+        delay: 0,
+        delayOnTouchOnly: false,
+        touchStartThreshold: 2,
+        scroll: false,
+        disabled: true,
+        onStart: () => {
+          document.body.classList.add('sortable-dragging-active');
+        },
+        onEnd: () => {
+          document.body.classList.remove('sortable-dragging-active');
+          syncActiveMenuConfigFromDOM();
+        }
+      });
+      sortableMenuInstances.push(inst);
+    }
+  });
+
+  // 3. Инициализация Sortable для карточки
+  initCardZonesSortable();
+
+  switchLayoutTab(initialTab);
+}
+
+function exitLayoutEditor(save = false) {
+  if (!isLayoutEditingMode) return;
+
+  if (save) {
+    applyLayoutOrder(activeScreenConfig, true);
+    applyMenuConfig(activeMenuConfig, true);
+    applyCardConfig(activeCardConfig, true);
+    showLayoutNotification('Все настройки интерфейса сохранены!');
+  } else {
+    // Отмена: восстанавливаем снимки до редактирования
+    if (screenOrderBeforeEdit) applyLayoutOrder(screenOrderBeforeEdit, false);
+    if (menuConfigBeforeEdit) applyMenuConfig(menuConfigBeforeEdit, false);
+    if (cardConfigBeforeEdit) applyCardConfig(cardConfigBeforeEdit, false);
+  }
+
+  isLayoutEditingMode = false;
+  setLayoutBarCollapsed(false);
+  document.body.classList.remove('layout-editing-active');
+  document.body.classList.remove('menu-editing-active');
+  document.body.classList.remove('layout-bar-collapsed');
+  if (els.layoutEditorBar) els.layoutEditorBar.style.display = 'none';
+  if (els.cardTemplateBuilder) els.cardTemplateBuilder.style.display = 'none';
+  const blueprintEl = els.screenBlueprintBuilder || $('screenBlueprintBuilder');
+  if (blueprintEl) blueprintEl.style.display = 'none';
+
+  if (sortableBlueprintInstance) {
+    try { sortableBlueprintInstance.destroy(); } catch (_) {}
+    sortableBlueprintInstance = null;
+  }
+  if (sortableScreenInstance) sortableScreenInstance.option('disabled', true);
+  sortableMenuInstances.forEach(inst => inst.option('disabled', true));
+  sortableCardInstances.forEach(inst => inst.option('disabled', true));
+
+  // Гарантируем возврат к расписанию и полную видимость всех блоков
+  if (S.view !== 'week' && S.view !== 'today' && S.view !== 'schedule') {
+    S.view = 'today';
+  }
+  if (els.scheduleView) {
+    els.scheduleView.style.display = 'block';
+  }
+  const schedWidget = document.querySelector('.flow-widget[data-widget="widget-schedule-content"]');
+  if (schedWidget) {
+    schedWidget.classList.remove('flow-widget-hidden');
+  }
+  const navWrap = document.querySelector('.week-nav-wrap');
+  if (navWrap) navWrap.style.display = 'block';
+  if (els.dayStrip?.parentElement) els.dayStrip.parentElement.style.display = 'block';
+
+  try {
+    buildDayStrip();
+    updateTopbarParity();
+    renderSchedule();
+    updateLiveCard();
+  } catch (err) {
+    console.error('Ошибка отрисовки расписания при выходе из конструктора:', err);
+  }
+
+  closeSidebar();
+  updateTelegramBackButton();
+}
+
+function resetLayoutOrder() {
+  if (isLayoutEditingMode) {
+    if (currentLayoutTab === 'screen') {
+      applyLayoutOrder(DEFAULT_LAYOUT_CONFIG, false);
+      renderBlueprintTiles();
+      showLayoutNotification('Расположение экрана сброшено');
+    } else if (currentLayoutTab === 'menu') {
+      applyMenuConfig(DEFAULT_MENU_CONFIG, false);
+      showLayoutNotification('Боковое меню сброшено');
+    } else if (currentLayoutTab === 'card') {
+      applyCardConfig(DEFAULT_CARD_CONFIG, false);
+      renderCardTemplateDropzone();
+      showLayoutNotification('Шаблон карточки сброшен');
+    }
+    updatePresetsUI();
+    return;
+  }
+
+  // Полный заводской сброс всего интерфейса до самого первого варианта:
+  // 1. Очищаем все сохранённые ключи кастомизации
+  const keysToRemove = [
+    STORAGE_THEME,
+    STORAGE_FONT_FAMILY,
+    STORAGE_FONT_SIZE,
+    STORAGE_MINIMAL,
+    STORAGE_SHOW_TEACHER,
+    STORAGE_SHOW_ROOM,
+    STORAGE_SHOW_BADGES,
+    STORAGE_SHOW_BREAKS,
+    STORAGE_NAV_POSITION,
+    STORAGE_LAYOUT_ORDER,
+    STORAGE_MENU_CONFIG,
+    STORAGE_CARD_TEMPLATE,
+    STORAGE_LIVE_HIDDEN,
+    'schedule_layout_preset_screen',
+    'schedule_layout_preset_menu',
+    'schedule_layout_preset_card'
+  ];
+
+  keysToRemove.forEach(k => {
+    try { localStorage.removeItem(k); } catch (_) {}
+    if (isCloudStorageSupported()) {
+      try { window.Telegram.WebApp.CloudStorage.removeItem(k, () => {}); } catch (_) {}
+    }
+  });
+
+  // 2. Сбрасываем тему, шрифт, размер шрифта и компактный режим на заводские
+  applyTheme('obsidian');
+  applyFontFamily('system');
+  applyFontSize('normal');
+  applyMinimalMode(false);
+
+  // 3. Сбрасываем отображение деталей карточки (все включены)
+  if (Array.isArray(DISPLAY_OPTION_CONFIGS)) {
+    DISPLAY_OPTION_CONFIGS.forEach(c => {
+      document.documentElement.removeAttribute(c.attr);
+      const cb = document.getElementById(c.id);
+      if (cb) cb.checked = true;
+    });
+  }
+
+  // 4. Сбрасываем все 3 уровня конструктора (экран, меню, карточка)
+  applyLayoutOrder(DEFAULT_LAYOUT_CONFIG, false);
+  applyMenuConfig(DEFAULT_MENU_CONFIG, false);
+  applyCardConfig(DEFAULT_CARD_CONFIG, false);
+
+  updatePresetsUI();
+  updateResetButtonsVisibility();
+  showLayoutNotification('Интерфейс полностью сброшен к заводским настройкам');
+}
+
+function showLayoutNotification(msg) {
+  showToast(msg);
+}
+
+function initLayoutManager() {
+  // 1. Восстанавливаем сохранённые настройки всех 3 уровней
+  applyLayoutOrder(getStoredLayoutOrder(), false);
+  applyMenuConfig(getStoredMenuConfig(), false);
+  applyCardConfig(getStoredCardConfig(), false);
+
+  // 2. Обработчики кликов по кнопкам в сайдбаре
+  els.sidebarLayoutEditorBtn?.addEventListener('click', () => {
+    enterLayoutEditor('menu');
+  });
+  els.sidebarResetLayoutBtn?.addEventListener('click', () => {
+    resetLayoutOrder();
+    closeSidebar();
+  });
+
+  // Переключение видимости блоков экрана по клику на глаз
+  document.querySelectorAll('.widget-vis-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const wid = btn.dataset.widgetId;
+      if (wid === MANDATORY_LAYOUT_WIDGET) return;
+      const target = activeScreenConfig.find(w => w.id === wid);
+      if (target) {
+        target.visible = !target.visible;
+        applyLayoutOrder(activeScreenConfig, false);
+        updatePresetsUI();
+      }
+    });
+  });
+
+  // Переключение видимости пунктов меню по клику на глаз (включая шапку группы и футер)
+  const handleMenuVisToggle = (btn, e) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    const itemEl = btn.closest('.sidebar-nav-item') || btn.closest('[data-menu-id]');
+    if (!itemEl) return;
+    const mid = itemEl.dataset.menuId;
+    if (MANDATORY_MENU_IDS.includes(mid)) return;
+
+    let target = activeMenuConfig.find(m => m.id === mid);
+    if (!target) {
+      target = {
+        id: mid,
+        visible: !itemEl.classList.contains('menu-item-hidden'),
+        section: itemEl.dataset.section || DEFAULT_MENU_SECTION_MAP[mid] || 'services',
+        color: 'default'
+      };
+      activeMenuConfig.push(target);
+    }
+    target.visible = !target.visible;
+    itemEl.classList.toggle('menu-item-hidden', !target.visible);
+    btn.title = target.visible ? 'Скрыть пункт' : 'Показать пункт';
+    updatePresetsUI();
+  };
+
+  $('sidebar')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.menu-vis-toggle-btn');
+    if (btn) {
+      handleMenuVisToggle(btn, e);
+    }
+  });
+
+  document.querySelectorAll('#sidebar .menu-vis-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => handleMenuVisToggle(btn, e));
+  });
+
+  // Глобальная блокировка скролла фона при перетаскивании любого элемента
+  document.addEventListener('touchmove', (e) => {
+    if (document.body.classList.contains('sortable-dragging-active')) {
+      if (e.cancelable) e.preventDefault();
+    }
+  }, { passive: false });
+
+  // 3. Обработчики запуска конструктора из модалки настроек
+  const openScreenAction = () => {
+    closeSettingsModal();
+    enterLayoutEditor('screen');
+  };
+  const openMenuAction = () => {
+    closeSettingsModal();
+    enterLayoutEditor('menu');
+  };
+  const openCardAction = () => {
+    closeSettingsModal();
+    enterLayoutEditor('card');
+  };
+
+  $('modalOpenLayoutEditorBtn')?.addEventListener('click', openScreenAction);
+  $('btnLaunchScreenEditor')?.addEventListener('click', openScreenAction);
+
+  $('modalOpenLayoutMenuBtn')?.addEventListener('click', openMenuAction);
+  $('btnLaunchMenuEditor')?.addEventListener('click', openMenuAction);
+
+  $('modalOpenLayoutCardBtn')?.addEventListener('click', openCardAction);
+  $('btnLaunchCardEditor')?.addEventListener('click', openCardAction);
+
+  $('modalResetLayoutBtn')?.addEventListener('click', () => {
+    resetLayoutOrder();
+  });
+
+  // 4. Переключение вкладок в панели
+  els.tabBtnScreen?.addEventListener('click', () => switchLayoutTab('screen'));
+  els.tabBtnMenu?.addEventListener('click', () => switchLayoutTab('menu'));
+  els.tabBtnCard?.addEventListener('click', () => switchLayoutTab('card'));
+
+  // 5. Кнопки действий панели
+  els.layoutSaveBtn?.addEventListener('click', () => exitLayoutEditor(true));
+  els.layoutCancelBtn?.addEventListener('click', () => exitLayoutEditor(false));
+  els.layoutResetBtn?.addEventListener('click', () => resetLayoutOrder());
+
+  // 5.1. Кнопки компактного режима (док)
+  $('layoutCollapseBtn')?.addEventListener('click', () => setLayoutBarCollapsed(true));
+  $('layoutExpandBtn')?.addEventListener('click', () => setLayoutBarCollapsed(false));
+  $('layoutSaveBtnCollapsed')?.addEventListener('click', () => exitLayoutEditor(true));
+  $('layoutCancelBtnCollapsed')?.addEventListener('click', () => exitLayoutEditor(false));
+
+  // 5.2. Аккордеон живого предпросмотра карточки
+  $('cardLivePreviewToggleBtn')?.addEventListener('click', () => {
+    const wrap = $('cardLivePreviewWrap');
+    if (wrap) {
+      wrap.classList.toggle('is-expanded');
+      const hint = $('cardLivePreviewHint');
+      if (hint) {
+        hint.textContent = wrap.classList.contains('is-expanded') ? 'Нажмите, чтобы свернуть' : 'Нажмите, чтобы развернуть';
+      }
+    }
+  });
+
+  // Автоматическое сворачивание панели на телефонах при клике в пустое место меню
+  $('sidebarNav')?.addEventListener('click', (e) => {
+    if (isLayoutEditingMode && currentLayoutTab === 'menu' && !isLayoutBarCollapsed && window.innerWidth <= 768) {
+      if (!e.target.closest('button, a, input, select, .menu-action-col, .menu-drag-handle')) {
+        setLayoutBarCollapsed(true);
+      }
+    }
+  });
+
+  // 6. Клавиша Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isLayoutEditingMode) {
+      exitLayoutEditor(false);
+    }
+  });
+}
+
+
+// ════════════════════════════════════════
+//  ADMIN PANEL LOGIC
+// ════════════════════════════════════════
+async function checkAuthStatus() {
+  if (!isTelegramGatePassed()) return;
+  try {
+    const res = await fetchWithTimeout(`${API}/auth-status`, {}, 5000);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.is_banned) {
+      triggerBanEndlessLoading();
+      return;
+    } else if (data && !data.is_banned) {
+      clearBanEndlessLoading();
+    }
+    S.isAdmin = Boolean(data.is_admin);
+    S.telegramId = data.telegram_id || null;
+    S.telegramUsername = data.username || null;
+
+    const adminBtn = document.getElementById('sidebarAdminBtn');
+    const adminLoginBtn = document.getElementById('sidebarAdminLoginBtn');
+    if (adminBtn) {
+      adminBtn.style.display = S.isAdmin ? 'flex' : 'none';
+    }
+    if (adminLoginBtn) {
+      adminLoginBtn.style.display = S.isAdmin ? 'none' : 'flex';
+    }
+  } catch (e) {
+    logApp('warn', 'Ошибка проверки статуса авторизации:', e);
+  }
+}
+
+window.openAdminLoginModal = function() {
+  const m = document.getElementById('adminLoginModal');
+  if (m) {
+    m.style.display = 'flex';
+    const inp = document.getElementById('adminLoginKeyInput');
+    if (inp) {
+      inp.value = '';
+      setTimeout(() => inp.focus(), 150);
+    }
+    const err = document.getElementById('adminLoginError');
+    if (err) err.style.display = 'none';
+  }
+};
+
+window.closeAdminLoginModal = function() {
+  const m = document.getElementById('adminLoginModal');
+  if (m) m.style.display = 'none';
+};
+
+window.submitAdminLogin = async function(e) {
+  if (e) e.preventDefault();
+  const inp = document.getElementById('adminLoginKeyInput');
+  const err = document.getElementById('adminLoginError');
+  const btn = document.getElementById('adminLoginSubmitBtn');
+  const key = (inp?.value || '').trim();
+  if (!key) return;
+
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_key: key })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      localStorage.setItem('schedule_admin_master_key', key);
+      document.cookie = 'admin_key=' + encodeURIComponent(key) + '; path=/; max-age=31536000; SameSite=Lax';
+      S.isAdmin = true;
+      if (err) err.style.display = 'none';
+      closeAdminLoginModal();
+      if (typeof showToast === 'function') {
+        showToast('🛡 Доступ создателя подтверждён!', 3000);
+      }
+      await checkAuthStatus();
+      setTimeout(() => {
+        if (typeof openAdminModal === 'function') openAdminModal();
+      }, 350);
+    } else {
+      if (err) {
+        err.textContent = 'Неверный пароль или PIN-код!';
+        err.style.display = 'block';
+      }
+    }
+  } catch (ex) {
+    if (err) {
+      err.textContent = 'Ошибка соединения с сервером';
+      err.style.display = 'block';
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+window.logoutAdmin = function() {
+  localStorage.removeItem('schedule_admin_master_key');
+  document.cookie = 'admin_key=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  S.isAdmin = false;
+  checkAuthStatus();
+  if (typeof closeAdminModal === 'function') closeAdminModal();
+  if (typeof showToast === 'function') showToast('Вы вышли из режима создателя', 2000);
+};
+
+// ── CLIENT ACTIVITY & ACTIVE TIME TRACKER (ANTI-IDLE HEARTBEAT) ──
+let _lastReportedError = '';
+let _lastActivityPingTime = 0;
+let activeSecondsAccumulator = 0;
+let lastTickTimestamp = Date.now();
+let isPageActive = (typeof document !== 'undefined' && document.visibilityState === 'visible');
+
+function tickActiveTime() {
+  const now = Date.now();
+  const delta = Math.round((now - lastTickTimestamp) / 1000);
+  lastTickTimestamp = now;
+  if (isPageActive && delta > 0 && delta <= 5) {
+    activeSecondsAccumulator += delta;
+  }
+}
+
+if (typeof setInterval !== 'undefined') {
+  setInterval(tickActiveTime, 1000);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      isPageActive = true;
+      lastTickTimestamp = Date.now();
+    } else {
+      isPageActive = false;
+      tickActiveTime();
+      if (activeSecondsAccumulator >= 10) {
+        sendClientActivity('Фоновый режим');
+      }
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    isPageActive = (document.visibilityState === 'visible');
+    lastTickTimestamp = Date.now();
+  });
+
+  window.addEventListener('blur', () => {
+    isPageActive = false;
+  });
+
+  window.addEventListener('online', () => {
+    logApp('info', 'Соединение с интернетом восстановлено');
+    if (IS_CAPACITOR && window.location.hostname === 'localhost') {
+      window.location.href = 'https://schedule.dadrik.ru/?app=apk';
+    } else if (typeof loadSchedule === 'function') {
+      loadSchedule(true);
+    }
+  });
+
+  window.addEventListener('offline', () => {
+    logApp('warn', 'Сеть недоступна (офлайн-режим)');
+    if (typeof showOfflineBanner === 'function') {
+      showOfflineBanner('Офлайн-режим: показано сохранённое расписание', false);
+    }
+  });
+}
+
+function sendClientActivity(actionName) {
+  try {
+    const now = Date.now();
+    tickActiveTime();
+    const timeDelta = activeSecondsAccumulator;
+
+    // Не чаще 1 раза в 5 секунд, если это просто частые действия и времени накопилось мало
+    if (actionName && now - _lastActivityPingTime < 5000 && timeDelta < 15) return;
+    _lastActivityPingTime = now;
+    activeSecondsAccumulator = 0; // optimistic reset
+
+    // Сессия: 30 минут бездействия (Task 1)
+    const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+    const lastSessionTs = parseInt(localStorage.getItem('schedule_last_session_ts') || '0', 10);
+    const isNewSession = !lastSessionTs || (now - lastSessionTs > SESSION_TIMEOUT_MS);
+    localStorage.setItem('schedule_last_session_ts', String(now));
+
+    const group = (typeof S !== 'undefined' && S.group) ? S.group : '';
+    let act = actionName;
+    if (!act) {
+      act = group ? `Смотрит расписание ${group}` : 'На главном экране';
+    }
+
+    const platform = (navigator.userAgentData && navigator.userAgentData.platform) 
+      ? navigator.userAgentData.platform 
+      : (navigator.platform || 'Web');
+
+    let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (!tgUser) {
+      try {
+        const storedUser = localStorage.getItem('tg_auth_user');
+        if (storedUser) tgUser = JSON.parse(storedUser);
+      } catch (_) {}
+    }
+    const photoUrl = tgUser?.photo_url || '';
+    const optIn = localStorage.getItem('leaderboard_opt_in') !== 'false';
+
+    const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
+    const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() };
+
+    fetch(`${API}/activity${devParam}`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        group: group,
+        action: act,
+        platform: `${platform} / ${navigator.userAgent.slice(0, 30)}`,
+        time_delta_seconds: timeDelta,
+        photo_url: photoUrl,
+        leaderboard_opt_in: optIn,
+        is_new_session: isNewSession
+      })
+    }).catch(() => {
+      activeSecondsAccumulator += timeDelta;
+    });
+  } catch (_) {}
+}
+
+// Периодическая отправка накопленного времени каждые 45 секунд
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    if (activeSecondsAccumulator >= 15) {
+      sendClientActivity('Активность');
+    }
+  }, 45000);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    tickActiveTime();
+    if (activeSecondsAccumulator > 0) {
+      try {
+        const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
+        const data = JSON.stringify({
+          group: (typeof S !== 'undefined' && S.group) ? S.group : '',
+          action: 'Выход из приложения',
+          platform: 'Web',
+          time_delta_seconds: activeSecondsAccumulator,
+          is_new_session: false
+        });
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(`${API}/activity${devParam}`, new Blob([data], { type: 'application/json' }));
+        }
+      } catch (_) {}
+    }
+  });
+}
+
+function reportClientBug(errorMessage, stackTrace, groupName, url) {
+  try {
+    const devParam = window.location.search.includes('dev=1') ? '?dev=1' : '';
+    const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() };
+    fetch(`${API}/bug-reports${devParam}`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        error_message: String(errorMessage).slice(0, 300),
+        stack_trace: String(stackTrace || '').slice(0, 1000),
+        group_name: groupName || (typeof S !== 'undefined' ? S.group : ''),
+        url: url || window.location.href
+      })
+    }).catch(() => {});
+  } catch (_) {}
+}
+
+// Глобальный перехват ошибок фронтенда
+window.addEventListener('error', function(e) {
+  reportClientBug(e.message, `${e.filename}:${e.lineno}:${e.colno}`, (typeof S !== 'undefined' ? S.group : ''), window.location.href);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  reportClientBug(e.reason?.message || String(e.reason), e.reason?.stack, (typeof S !== 'undefined' ? S.group : ''), window.location.href);
+});
+
+// Периодический heartbeat раз в 45 сек
+setInterval(function() {
+  sendClientActivity();
+}, 45000);
+
+
+// ── АДМИН-ПАНЕЛЬ (УПРАВЛЕНИЕ, БАНЫ, АУДИТ, СТАТИСТИКА, МОНИТОРИНГ) ──
+let currentAdminTab = 'users';
+let currentBanMode = 'single';
+let currentReportStatus = 'open';
+let banSearchDebounceTimer = null;
+let allLoadedBans = [];
+let allLoadedOnlineUsers = [];
+let allLoadedHistoryUsers = [];
+
+window.openAdminModal = function() {
+  const adminKey = localStorage.getItem('schedule_admin_master_key');
+  const isTgAdmin = window.Telegram?.WebApp?.initData && S.isAdmin;
+  if (!adminKey && !isTgAdmin && !S.isAdmin) {
+    openAdminLoginModal();
+    return;
+  }
+  const backdrop = document.getElementById('adminModalBackdrop');
+  const modal = document.getElementById('adminModal');
+  if (backdrop && modal) {
+    backdrop.classList.add('open');
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  switchAdminTab(currentAdminTab || 'users');
+  updateTelegramBackButton();
+  sendClientActivity('Открыл панель управления');
+};
+
+function handleAdminAuthError(res) {
+  if (res && (res.status === 401 || res.status === 404)) {
+    closeAdminModal();
+    openAdminLoginModal();
+    const err = document.getElementById('adminLoginError');
+    if (err) {
+      err.textContent = 'Требуется подтвердить PIN создателя (202675)';
+      err.style.display = 'block';
+    }
+    return true;
+  }
+  return false;
+}
+
+window.closeAdminModal = function() {
+  const backdrop = document.getElementById('adminModalBackdrop');
+  const modal = document.getElementById('adminModal');
+  if (backdrop && modal) {
+    modal.classList.remove('open');
+    backdrop.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  updateTelegramBackButton();
+};
+
+window.switchAdminTab = function(tabName) {
+  currentAdminTab = tabName;
+  const tabs = document.querySelectorAll('.admin-tab-btn');
+  tabs.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+
+  const panes = {
+    users: document.getElementById('adminPaneUsers'),
+    bans: document.getElementById('adminPaneBans'),
+    audit: document.getElementById('adminPaneAudit'),
+    stats: document.getElementById('adminPaneStats'),
+    reports: document.getElementById('adminPaneReports')
+  };
+
+  Object.keys(panes).forEach(k => {
+    if (panes[k]) panes[k].style.display = (k === tabName ? 'block' : 'none');
+  });
+
+  if (tabName === 'users') loadAdminUsers();
+  else if (tabName === 'bans') loadAdminBans();
+  else if (tabName === 'audit') loadAdminAuditLogs();
+  else if (tabName === 'stats') loadAdminStats();
+  else if (tabName === 'reports') loadAdminBugReports();
+};
+
+// ── 1. Вкладка ПОЛЬЗОВАТЕЛИ (ОНЛАЙН + ИСТОРИЯ) ──
+function formatDuration(sec) {
+  if (!sec || sec <= 0) return 'только что';
+  if (sec < 60) return `${sec} сек`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return `${m} мин ${s} сек`;
+  const h = Math.floor(m / 60);
+  return `${h} ч ${m % 60} мин`;
+}
+
+function formatIsoTime(isoStr) {
+  if (!isoStr) return '—';
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch (_) {
+    return isoStr;
+  }
+}
+
+window.loadAdminUsers = async function() {
+  const onlineListEl = document.getElementById('adminOnlineList');
+  const historyListEl = document.getElementById('adminHistoryList');
+  const countEl = document.getElementById('adminOnlineCount');
+
+  if (onlineListEl) onlineListEl.innerHTML = '<div class="admin-empty-state">Загрузка пользователей онлайн...</div>';
+  if (historyListEl) historyListEl.innerHTML = '<div class="admin-empty-state">Загрузка истории...</div>';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/users`, {}, 6000);
+    if (handleAdminAuthError(res)) return;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const onlineUsers = data.online_users || [];
+    const history = data.history || [];
+    allLoadedOnlineUsers = onlineUsers;
+    allLoadedHistoryUsers = history;
+
+    if (countEl) countEl.textContent = onlineUsers.length;
+
+    renderAdminOnlineUsersList(onlineUsers);
+    renderAdminHistoryList(history);
+  } catch (err) {
+    if (onlineListEl) onlineListEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка загрузки: ${esc(err.message)}</div>`;
+  }
+};
+
+window.renderAdminOnlineUsersList = function(onlineUsers) {
+  const onlineListEl = document.getElementById('adminOnlineList');
+  if (!onlineListEl) return;
+  if (!onlineUsers || onlineUsers.length === 0) {
+    onlineListEl.innerHTML = '<div class="admin-empty-state">Сейчас нет активных пользователей онлайн</div>';
+    return;
+  }
+  let h = '';
+  onlineUsers.forEach(u => {
+    const name = u.first_name || u.username || 'Студент';
+    const uname = u.username ? `@${esc(u.username)}` : '';
+    const initials = (u.first_name ? u.first_name[0] : (u.username ? u.username[0] : 'U')).toUpperCase();
+    const avatarHtml = u.photo_url 
+      ? `<img src="${esc(u.photo_url)}" class="admin-user-avatar" alt="Avatar" onerror="this.outerHTML='<div class=\\'admin-user-avatar-placeholder\\'>${initials}</div>'"/>`
+      : `<div class="admin-user-avatar-placeholder">${initials}</div>`;
+
+    h += `
+      <div class="admin-user-card expandable-card" onclick="toggleCardExpand(this, event)">
+        <div class="admin-user-compact">
+          <div class="admin-user-compact-left">
+            ${avatarHtml}
+            <div class="admin-user-compact-meta">
+              <div class="admin-user-compact-name">
+                <span>${esc(name)}</span>
+                ${uname ? `<span style="color:var(--text-tertiary); font-weight:normal; font-size:12px;">${uname}</span>` : ''}
+              </div>
+              <div class="admin-user-compact-sub">
+                <span class="admin-user-status-dot online" title="Онлайн"></span>
+                <span>${formatDuration(u.session_duration_sec)} в приложении</span>
+              </div>
+            </div>
+          </div>
+          <div class="admin-user-compact-actions">
+            <button class="card-expand-btn" type="button" aria-label="Детали">
+              <svg class="card-expand-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="card-expanded-view">
+          <div class="admin-user-expanded-body">
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Telegram ID:</span>
+              <span class="admin-user-expanded-val">${u.telegram_id}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Группа:</span>
+              <span class="admin-user-expanded-val">${esc(u.group || 'Не выбрана')}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Последнее действие:</span>
+              <span class="admin-user-expanded-val">${esc(u.last_action || 'Активен')}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Устройство:</span>
+              <span class="admin-user-expanded-val">${parseUserAgent(u.platform)}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">IP адрес:</span>
+              <span class="admin-user-expanded-val">${esc(u.ip)}</span>
+            </div>
+            <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+              <button class="admin-btn-neutral" onclick="event.stopPropagation(); quickBanUser(${u.telegram_id}, '${esc(u.username || '')}')" type="button" title="Заблокировать пользователя">
+                <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+                <span>Заблокировать</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  onlineListEl.innerHTML = h;
+};
+
+window.renderAdminHistoryList = function(history) {
+  const historyListEl = document.getElementById('adminHistoryList');
+  if (!historyListEl) return;
+  if (!history || history.length === 0) {
+    historyListEl.innerHTML = '<div class="admin-empty-state">История активности пока пуста</div>';
+    return;
+  }
+  let h = '';
+  history.forEach(row => {
+    const name = row.username ? `@${esc(row.username)}` : `ID: ${row.telegram_id}`;
+    h += `
+      <div class="admin-history-item expandable-card" onclick="toggleCardExpand(this, event)">
+        <div class="card-compact-view">
+          <div class="admin-history-left">
+            <div class="admin-history-user">${name} <span class="admin-history-visits">(${row.visits_count} визитов)</span></div>
+            <div class="admin-history-meta">
+              Группа: <strong>${esc(row.selected_group || '—')}</strong>
+            </div>
+          </div>
+          <div class="admin-history-right" style="display:flex; align-items:center; gap:6px;">
+            <div class="admin-history-time">${formatIsoTime(row.last_seen)}</div>
+            <button class="card-expand-btn" type="button" aria-label="Детали">
+              <svg class="card-expand-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="card-expanded-view">
+          <div class="admin-user-expanded-body">
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Telegram ID:</span>
+              <span class="admin-user-expanded-val">${row.telegram_id}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Действие:</span>
+              <span class="admin-user-expanded-val">${esc(row.last_action || '—')}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">Устройство:</span>
+              <span class="admin-user-expanded-val">${parseUserAgent(row.platform)}</span>
+            </div>
+            <div class="admin-user-expanded-row">
+              <span class="admin-user-expanded-label">IP адрес:</span>
+              <span class="admin-user-expanded-val">${esc(row.ip_address || 'unknown')}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  historyListEl.innerHTML = h;
+};
+
+window.filterAdminOnlineUsers = function(query) {
+  const q = (query || '').toLowerCase().trim();
+  const filtered = !q ? allLoadedOnlineUsers : allLoadedOnlineUsers.filter(u => {
+    const name = (u.first_name || '').toLowerCase();
+    const uname = (u.username || '').toLowerCase();
+    const tid = String(u.telegram_id || '');
+    const grp = (u.group || '').toLowerCase();
+    return name.includes(q) || uname.includes(q) || tid.includes(q) || grp.includes(q);
+  });
+  renderAdminOnlineUsersList(filtered);
+};
+
+window.filterAdminHistoryUsers = function(query) {
+  const q = (query || '').toLowerCase().trim();
+  const filtered = !q ? allLoadedHistoryUsers : allLoadedHistoryUsers.filter(row => {
+    const uname = (row.username || '').toLowerCase();
+    const tid = String(row.telegram_id || '');
+    const grp = (row.selected_group || '').toLowerCase();
+    const act = (row.last_action || '').toLowerCase();
+    return uname.includes(q) || tid.includes(q) || grp.includes(q) || act.includes(q);
+  });
+  renderAdminHistoryList(filtered);
+};
+
+window.quickBanUser = function(tgId, username) {
+  switchAdminTab('bans');
+  setBanMode('single');
+  const idInput = document.getElementById('newBanId');
+  const userinput = document.getElementById('newBanUsername');
+  const reasonInput = document.getElementById('newBanReason');
+  if (idInput) idInput.value = tgId;
+  if (userinput) userinput.value = username || '';
+  if (reasonInput) {
+    reasonInput.value = 'Нарушение правил';
+    reasonInput.focus();
+  }
+};
+
+
+// ── 2. Вкладка БЛОКИРОВКИ (ОДИНОЧНЫЙ, МАССОВЫЙ, ПОИСК, АВТОРАЗБАН) ──
+window.setBanMode = function(mode) {
+  currentBanMode = mode;
+  const singleBtn = document.getElementById('banModeSingleBtn');
+  const massBtn = document.getElementById('banModeMassBtn');
+  const singleCard = document.getElementById('adminSingleBanCard');
+  const massCard = document.getElementById('adminMassBanCard');
+
+  if (singleBtn) singleBtn.classList.toggle('active', mode === 'single');
+  if (massBtn) massBtn.classList.toggle('active', mode === 'mass');
+  if (singleCard) singleCard.style.display = (mode === 'single' ? 'block' : 'none');
+  if (massCard) massCard.style.display = (mode === 'mass' ? 'block' : 'none');
+};
+
+window.loadAdminBans = async function(query = '') {
+  const listEl = document.getElementById('adminBansList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="admin-empty-state">Загрузка списка блокировок...</div>';
+
+  try {
+    const url = `${API}/admin/bans${query ? `?search=${encodeURIComponent(query)}` : ''}`;
+    const res = await fetchWithTimeout(url, {}, 6000);
+    if (handleAdminAuthError(res)) return;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const bans = data.banned_users || [];
+    allLoadedBans = bans;
+
+    if (bans.length === 0) {
+      listEl.innerHTML = '<div class="admin-empty-state">Список блокировок пуст</div>';
+      return;
+    }
+
+    let h = '';
+    bans.forEach(b => {
+      const isExp = b.banned_until ? `До: ${formatIsoTime(b.banned_until)}` : 'Бессрочно (навсегда)';
+      const durationBadge = b.banned_until 
+        ? `<span class="admin-tag tag-action"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${isExp}</span>`
+        : '<span class="admin-tag tag-ban"><svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg> Навсегда</span>';
+
+      h += `
+        <div class="admin-ban-card">
+          <div class="admin-ban-card-top">
+            <div class="admin-ban-main">
+              <span class="admin-ban-id">ID: ${b.telegram_id}</span>
+              ${b.username ? `<span class="admin-ban-user">@${esc(b.username)}</span>` : ''}
+            </div>
+            <button class="admin-unban-btn" onclick="unbanUser(${b.telegram_id})" type="button" title="Снять блокировку">
+              <svg class="lucide-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+              <span>Разблокировать</span>
+            </button>
+          </div>
+          <div class="admin-ban-reason">
+            <strong>Причина:</strong> ${esc(b.reason || 'Не указана')}
+          </div>
+          <div class="admin-ban-meta">
+            ${durationBadge}
+            <span class="admin-tag tag-time">Забанен: ${formatIsoTime(b.banned_at)}</span>
+          </div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = h;
+  } catch (err) {
+    listEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+};
+
+window.onBanSearchInput = function() {
+  clearTimeout(banSearchDebounceTimer);
+  banSearchDebounceTimer = setTimeout(() => {
+    const query = document.getElementById('adminBanSearchInput')?.value || '';
+    loadAdminBans(query);
+  }, 300);
+};
+
+window.submitAddBan = async function() {
+  const idInput = document.getElementById('newBanId');
+  const userinput = document.getElementById('newBanUsername');
+  const reasonInput = document.getElementById('newBanReason');
+  const durInput = document.getElementById('newBanDuration');
+
+  const tgId = parseInt((idInput?.value || '').trim(), 10);
+  const username = (userinput?.value || '').trim();
+  const reason = (reasonInput?.value || '').trim();
+  const duration = durInput?.value || 'permanent';
+
+  if (!tgId || isNaN(tgId) || tgId <= 0) {
+    alert('Пожалуйста, введите корректный числовой Telegram ID');
+    return;
+  }
+  if (!reason) {
+    alert('Причина бана обязательна для заполнения!');
+    reasonInput?.focus();
+    return;
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/bans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        telegram_id: tgId,
+        username: username,
+        reason: reason,
+        duration: duration
+      })
+    }, 8000);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    if (idInput) idInput.value = '';
+    if (userinput) userinput.value = '';
+    if (reasonInput) reasonInput.value = '';
+
+    await loadAdminBans();
+  } catch (err) {
+    alert(`Ошибка блокировки: ${err.message}`);
+  }
+};
+
+window.submitMassBan = async function() {
+  const idsInput = document.getElementById('massBanIds');
+  const reasonInput = document.getElementById('massBanReason');
+  const durInput = document.getElementById('massBanDuration');
+
+  const rawIds = (idsInput?.value || '').trim();
+  const reason = (reasonInput?.value || '').trim();
+  const duration = durInput?.value || '24h';
+
+  if (!rawIds) {
+    alert('Введите хотя бы один Telegram ID');
+    return;
+  }
+  if (!reason) {
+    alert('Причина бана обязательна для заполнения!');
+    reasonInput?.focus();
+    return;
+  }
+
+  const ids = rawIds
+    .split(/[\s,;\n]+/)
+    .map(x => parseInt(x.trim(), 10))
+    .filter(x => x && !isNaN(x) && x > 0);
+
+  if (ids.length === 0) {
+    alert('Не удалось извлечь ни одного корректного ID');
+    return;
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/bans/mass`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        telegram_ids: ids,
+        reason: reason,
+        duration: duration
+      })
+    }, 10000);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    alert(`Успешно заблокировано пользователей: ${data.banned_count}`);
+
+    if (idsInput) idsInput.value = '';
+    if (reasonInput) reasonInput.value = '';
+
+    await loadAdminBans();
+  } catch (err) {
+    alert(`Ошибка массовой блокировки: ${err.message}`);
+  }
+};
+
+window.unbanUser = async function(telegramId) {
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/bans/${telegramId}`, { method: 'DELETE' }, 8000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await loadAdminBans();
+  } catch (err) {
+    alert(`Ошибка разблокировки: ${err.message}`);
+  }
+};
+
+
+// ── 3. Вкладка АУДИТ (ЖУРНАЛ ДЕЙСТВИЙ АДМИНОВ) ──
+window.loadAdminAuditLogs = async function() {
+  const listEl = document.getElementById('adminAuditLogsList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="admin-empty-state">Загрузка журнала действий...</div>';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/audit-logs`, {}, 6000);
+    if (handleAdminAuthError(res)) return;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const logs = data.logs || [];
+
+    if (logs.length === 0) {
+      listEl.innerHTML = '<div class="admin-empty-state">В журнале пока нет записей</div>';
+      return;
+    }
+
+    let h = '';
+    logs.forEach(l => {
+      let actionClass = 'tag-muted';
+      let actionTitle = l.action;
+      if (l.action === 'ban') { actionClass = 'tag-ban'; actionTitle = 'Бан пользователя'; }
+      else if (l.action === 'mass_ban') { actionClass = 'tag-ban'; actionTitle = 'Массовый бан'; }
+      else if (l.action === 'unban') { actionClass = 'tag-group'; actionTitle = 'Разблокировка'; }
+      else if (l.action === 'resolve_report') { actionClass = 'tag-group'; actionTitle = 'Решение бага'; }
+
+      h += `
+        <div class="admin-audit-row">
+          <div class="admin-audit-header">
+            <span class="admin-tag ${actionClass}">${actionTitle}</span>
+            <span class="admin-audit-time">${formatIsoTime(l.created_at)}</span>
+          </div>
+          <div class="admin-audit-details">
+            Целевой объект / ID: <strong>${l.target_id}</strong>
+            ${l.reason ? ` · Причина: <span class="admin-audit-reason">«${esc(l.reason)}»</span>` : ''}
+            ${l.duration ? ` · Срок: <strong>${esc(l.duration)}</strong>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = h;
+  } catch (err) {
+    listEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+};
+
+
+// ── 4. Вкладка СТАТИСТИКА (KPI, ГРАФИК ПО ЧАСАМ, ТОП ГРУПП) ──
+window.loadAdminStats = async function() {
+  const chartEl = document.getElementById('adminHourlyChart');
+  const topGroupsEl = document.getElementById('adminTopGroupsList');
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/stats`, {}, 6000);
+    if (handleAdminAuthError(res)) return;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const stats = data.stats || {};
+
+    // Заполнение KPI
+    const totalUsersEl = document.getElementById('statTotalUsers');
+    const totalViewsEl = document.getElementById('statTotalViews');
+    const totalRequestsEl = document.getElementById('statTotalRequests');
+    const bannedCountEl = document.getElementById('statBannedCount');
+    const openReportsEl = document.getElementById('statOpenReports');
+
+    if (totalUsersEl) totalUsersEl.textContent = stats.total_users || 0;
+    if (totalViewsEl) totalViewsEl.textContent = stats.total_sessions || stats.total_views || 0;
+    if (totalRequestsEl) totalRequestsEl.textContent = stats.total_api_requests_24h || 0;
+    if (bannedCountEl) bannedCountEl.textContent = stats.banned_count || 0;
+    if (openReportsEl) openReportsEl.textContent = stats.open_reports_count || 0;
+
+    // Рендер почасового графика
+    if (chartEl) {
+      const hourly = stats.hourly_activity || [];
+      if (hourly.length === 0) {
+        chartEl.innerHTML = '<div class="admin-empty-state">Нет данных о нагрузке за последние 24 часа</div>';
+      } else {
+        const maxReq = Math.max(...hourly.map(x => x.requests_count || 0), 1);
+        let barsHtml = '<div class="admin-chart-bars">';
+        hourly.forEach((item, idx) => {
+          const count = item.requests_count || 0;
+          const pct = Math.max(6, Math.round((count / maxReq) * 100));
+          const hourLabel = item.hour_key ? item.hour_key.slice(11, 16) : '';
+          const isPeak = count >= maxReq * 0.75;
+          // Показываем подписи через час или если мало колонок, чтобы текст не слипался
+          const showLabel = hourly.length <= 12 || idx % 2 === 0;
+
+          barsHtml += `
+            <div class="admin-chart-col" title="${item.hour_key}: ${count} запросов">
+              <div class="admin-bar-val">${count > 0 ? count : ''}</div>
+              <div class="admin-chart-bar ${isPeak ? 'peak-bar' : ''}" style="height: ${pct}%;"></div>
+              <div class="admin-bar-label">${showLabel ? hourLabel : ''}</div>
+            </div>
+          `;
+        });
+        barsHtml += '</div>';
+        chartEl.innerHTML = barsHtml;
+      }
+    }
+
+    // Рендер топ групп
+    if (topGroupsEl) {
+      const topGroups = stats.top_groups || [];
+      if (topGroups.length === 0) {
+        topGroupsEl.innerHTML = '<div class="admin-empty-state">Активность групп еще не зафиксирована</div>';
+      } else {
+        const maxVisits = Math.max(...topGroups.map(g => g.total_visits || 0), 1);
+        let gHtml = '';
+        topGroups.forEach((g, idx) => {
+          const visits = g.total_visits || 0;
+          const pct = Math.round((visits / maxVisits) * 100);
+          gHtml += `
+            <div class="admin-ranking-row">
+              <div class="admin-ranking-rank">#${idx + 1}</div>
+              <div class="admin-ranking-info">
+                <div class="admin-ranking-title-row">
+                  <span class="admin-ranking-name">${esc(g.selected_group)}</span>
+                  <span class="admin-ranking-count">${visits} просмотров (${g.user_count} студ.)</span>
+                </div>
+                <div class="admin-ranking-meter">
+                  <div class="admin-ranking-meter-bar" style="width: ${pct}%;"></div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        topGroupsEl.innerHTML = gHtml;
+      }
+    }
+  } catch (err) {
+    if (chartEl) chartEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+};
+
+
+// ── 5. Вкладка МОНИТОРИНГ ОШИБОК И ЖАЛОБ ──
+window.setReportStatusFilter = function(status) {
+  currentReportStatus = status;
+  const openBtn = document.getElementById('reportFilterOpenBtn');
+  const resBtn = document.getElementById('reportFilterResolvedBtn');
+  if (openBtn) openBtn.classList.toggle('active', status === 'open');
+  if (resBtn) resBtn.classList.toggle('active', status === 'resolved');
+  loadAdminBugReports();
+};
+
+window.loadAdminBugReports = async function() {
+  const listEl = document.getElementById('adminBugReportsList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="admin-empty-state">Загрузка ошибок и жалоб...</div>';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/reports?status=${currentReportStatus}`, {}, 6000);
+    if (handleAdminAuthError(res)) return;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const reports = data.reports || [];
+
+    // Обновляем бейдж открытых
+    const badgeEl = document.getElementById('adminReportsBadge');
+    if (badgeEl) {
+      if (currentReportStatus === 'open' && reports.length > 0) {
+        badgeEl.textContent = reports.length;
+        badgeEl.style.display = 'inline-block';
+      } else if (currentReportStatus === 'open') {
+        badgeEl.style.display = 'none';
+      }
+    }
+
+    if (reports.length === 0) {
+      listEl.innerHTML = `<div class="admin-empty-state">Нет ${currentReportStatus === 'open' ? 'активных' : 'решенных'} ошибок</div>`;
+      return;
+    }
+
+    // Схлопывание дубликатов ошибок со счётчиком (×N)
+    const grouped = [];
+    const groupMap = new Map();
+    reports.forEach(r => {
+      const key = r.error_message || 'Неизвестная ошибка';
+      if (!groupMap.has(key)) {
+        const item = {
+          primaryId: r.id,
+          ids: [r.id],
+          error_message: key,
+          status: r.status,
+          count: 1,
+          occurrences: [r],
+          stack_trace: r.stack_trace
+        };
+        groupMap.set(key, item);
+        grouped.push(item);
+      } else {
+        const item = groupMap.get(key);
+        item.ids.push(r.id);
+        item.count += 1;
+        item.occurrences.push(r);
+        if (!item.stack_trace && r.stack_trace) {
+          item.stack_trace = r.stack_trace;
+        }
+      }
+    });
+
+    let h = '';
+    grouped.forEach(item => {
+      const isResolved = item.status === 'resolved';
+      const countBadge = item.count > 1 ? `<span class="admin-report-count-badge">×${item.count}</span>` : '';
+      const idsParam = JSON.stringify(item.ids);
+
+      const occurrencesHtml = item.occurrences.map(occ => `
+        <div style="padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display:flex; justify-content:space-between; gap:6px;">
+          <span>${formatIsoTime(occ.created_at)} · ID: ${occ.telegram_id || 'Аноним'}</span>
+          <span>Группа: <strong>${esc(occ.group_name || '—')}</strong></span>
+        </div>
+      `).join('');
+
+      h += `
+        <div class="admin-report-card expandable-card ${isResolved ? 'is-resolved' : ''}" onclick="toggleCardExpand(this, event)">
+          <div class="admin-report-header">
+            <div class="admin-report-title" style="min-width:0; overflow:hidden;">
+              <svg class="lucide-icon" viewBox="0 0 24 24" style="color:${isResolved ? '#22c55e' : '#ef4444'}; flex-shrink:0;"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">#${item.primaryId} · ${esc(item.error_message)}</span>
+              ${countBadge}
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+              ${!isResolved ? `
+                <button class="admin-resolve-btn" onclick="event.stopPropagation(); resolveMultipleReports(${idsParam})" type="button">
+                  <svg class="lucide-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Решено</span>
+                </button>
+              ` : '<span class="admin-tag tag-group">Решено</span>'}
+              <button class="card-expand-btn" type="button" aria-label="Детали">
+                <svg class="card-expand-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="card-expanded-view">
+            <div class="admin-user-expanded-body">
+              <div style="font-weight:600; color:var(--text-primary); margin-bottom:4px;">Повторения ошибки (${item.count}):</div>
+              <div style="max-height: 120px; overflow-y: auto; font-size: 11px; margin-bottom: 6px;">
+                ${occurrencesHtml}
+              </div>
+              ${item.stack_trace ? `
+                <details class="admin-report-stack" open>
+                  <summary>Стек вызова / Детали</summary>
+                  <pre>${esc(item.stack_trace)}</pre>
+                </details>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = h;
+  } catch (err) {
+    listEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+  }
+};
+
+window.resolveBugReport = async function(reportId) {
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/reports/${reportId}/resolve`, { method: 'POST' }, 8000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await loadAdminBugReports();
+  } catch (err) {
+    alert(`Ошибка обновления отчета: ${err.message}`);
+  }
+};
+
+window.resolveMultipleReports = async function(ids) {
+  try {
+    for (const id of ids) {
+      await fetchWithTimeout(`${API}/admin/reports/${id}/resolve`, { method: 'POST' }, 8000);
+    }
+    await loadAdminBugReports();
+  } catch (err) {
+    alert(`Ошибка обновления отчетов: ${err.message}`);
+  }
+};
+
+
+// ── LEADERBOARD (ТАБЛИЦА ЛИДЕРОВ АКТИВНОСТИ) ──
+window.realOpenLeaderboardModal = function() {
+  const backdrop = document.getElementById('leaderboardModal');
+  const sheet = document.getElementById('leaderboardSheet');
+  if (backdrop && sheet) {
+    backdrop.style.display = 'flex';
+    backdrop.classList.add('open');
+    sheet.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    if (typeof loadLeaderboardData === 'function') loadLeaderboardData();
+    try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+  }
+};
+
+window.openLeaderboardModal = function() {
+  const hasTgAuth = Boolean(localStorage.getItem('tg_auth_token')) ||
+                    Boolean(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 5);
+  const promptShown = localStorage.getItem('tg_sync_prompt_shown') === '1';
+
+  if (!hasTgAuth && !promptShown) {
+    window._pendingModalAfterTg = 'leaderboard';
+    if (typeof window.openTelegramAppSyncGate === 'function') {
+      window.openTelegramAppSyncGate();
+    }
+    return;
+  }
+  window.realOpenLeaderboardModal();
+};
+
+window.closeLeaderboardModal = function() {
+  const backdrop = document.getElementById('leaderboardModal');
+  const sheet = document.getElementById('leaderboardSheet');
+  if (backdrop && sheet) {
+    sheet.classList.remove('open');
+    backdrop.classList.remove('open');
+    backdrop.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+};
+
+window.formatLeaderboardDuration = function(totalSec) {
+  const sec = Math.max(0, parseInt(totalSec) || 0);
+  if (sec < 60) return '< 1 мин';
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m} мин`;
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  if (h < 24) return remM > 0 ? `${h}ч ${remM}м` : `${h}ч`;
+  const d = Math.floor(h / 24);
+  const remH = h % 24;
+  return remH > 0 ? `${d} дн ${remH}ч` : `${d} дн`;
+};
+
+window.onLeaderboardToggleChange = async function(checked) {
+  try {
+    localStorage.setItem('leaderboard_opt_in', checked ? 'true' : 'false');
+    if (typeof isCloudStorageSupported === 'function' && isCloudStorageSupported()) {
+      try { window.Telegram.WebApp.CloudStorage.setItem('leaderboard_opt_in', checked ? 'true' : 'false', () => {}); } catch (_) {}
+    }
+    const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() };
+    await fetchWithTimeout(`${API}/leaderboard/opt-in`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ enabled: checked })
+    }, 6000);
+    // Мгновенно обновляем данные
+    await loadLeaderboardData();
+  } catch (err) {
+    logApp('warn', 'Ошибка сохранения статуса участия в таблице лидеров:', err);
+  }
+};
+
+window.onTelegramAuth = async function(user) {
+  try {
+    const res = await fetch(`${API}/auth/telegram-widget`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(user)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      localStorage.setItem('tg_widget_user', JSON.stringify(data.user));
+      await loadLeaderboardData();
+    }
+  } catch (e) {
+    console.error('Telegram widget auth error:', e);
+  }
+};
+
+window.loadLeaderboardData = async function() {
+  const listEl = document.getElementById('leaderboardItemsList');
+  const myNameEl = document.getElementById('myLeaderboardName');
+  const myGroupEl = document.getElementById('myLeaderboardGroup');
+  const myTimeEl = document.getElementById('myLeaderboardTime');
+  const myRankEl = document.getElementById('myLeaderboardRank');
+  const myAvatarEl = document.getElementById('myLeaderboardAvatar');
+  const myAvatarFallback = document.getElementById('myLeaderboardAvatarFallback');
+  const toggleEl = document.getElementById('leaderboardOptInToggle');
+  const webLoginBanner = document.getElementById('leaderboardWebLoginBanner');
+
+  // Установка сохраненного тумблера (по умолчанию включен)
+  const storedOptIn = localStorage.getItem('leaderboard_opt_in') !== 'false';
+  if (toggleEl) toggleEl.checked = storedOptIn;
+
+  // Инициализация профиля из Telegram WebApp, Telegram Bot Link или Widget
+  let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  let isLinked = Boolean(tgUser && window.Telegram?.WebApp?.initData);
+  if (!tgUser) {
+    try {
+      const storedUser = localStorage.getItem('tg_auth_user');
+      const storedToken = localStorage.getItem('tg_auth_token');
+      if (storedUser && storedToken) {
+        tgUser = JSON.parse(storedUser);
+        isLinked = true;
+      }
+    } catch (_) {}
+  }
+  if (!tgUser) {
+    try {
+      const widgetStored = localStorage.getItem('tg_widget_user');
+      if (widgetStored) {
+        tgUser = JSON.parse(widgetStored);
+        isLinked = true;
+      }
+    } catch (_) {}
+  }
+
+
+  if (myNameEl) {
+    if (tgUser) {
+      myNameEl.textContent = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || (tgUser.username ? `@${tgUser.username}` : 'Студент');
+    } else {
+      myNameEl.textContent = 'Вы (Студент)';
+    }
+  }
+  if (myGroupEl) {
+    myGroupEl.textContent = (typeof S !== 'undefined' && S.group) ? S.group : 'ИСС9-25';
+  }
+  if (tgUser?.photo_url && myAvatarEl && myAvatarFallback) {
+    myAvatarEl.src = tgUser.photo_url;
+    myAvatarEl.style.display = 'block';
+    myAvatarFallback.style.display = 'none';
+    myAvatarEl.onerror = () => {
+      myAvatarEl.style.display = 'none';
+      myAvatarFallback.style.display = 'flex';
+    };
+  }
+
+  if (listEl) {
+    listEl.innerHTML = '<div class="admin-empty-state">Загрузка таблицы лидеров...</div>';
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${API}/leaderboard`, { headers: getAuthHeaders() }, 6000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const lb = data.leaderboard || {};
+    const topUsers = lb.top_users || [];
+    const myStats = lb.user_stats;
+
+    // Обновляем данные пользователя из БД
+    if (myStats) {
+      if (myTimeEl) {
+        myTimeEl.textContent = `${formatLeaderboardDuration(myStats.total_time_seconds)} в приложении`;
+      }
+      const isOpted = myStats.leaderboard_opt_in === null || myStats.leaderboard_opt_in === undefined || (myStats.leaderboard_opt_in !== 0 && myStats.leaderboard_opt_in !== false);
+      if (myRankEl) {
+        if (isOpted && myStats.rank) {
+          myRankEl.textContent = `Место в топе: #${myStats.rank}`;
+          myRankEl.style.color = '#22c55e';
+        } else {
+          myRankEl.textContent = 'Вне публичного рейтинга';
+          myRankEl.style.color = 'var(--text-muted)';
+        }
+      }
+      if (toggleEl) {
+        toggleEl.checked = isOpted;
+        localStorage.setItem('leaderboard_opt_in', isOpted ? 'true' : 'false');
+      }
+    }
+
+    if (!listEl) return;
+    if (topUsers.length === 0) {
+      listEl.innerHTML = `
+        <div class="admin-empty-state">
+          Пока никто не набрал активного времени.<br>Проводите время в приложении, чтобы подняться в рейтинге!
+        </div>
+      `;
+      return;
+    }
+
+    const currentUid = tgUser?.id || (window.location.search.includes('dev=1') ? 7552844207 : null);
+
+    let html = '';
+    topUsers.forEach((u, idx) => {
+      const rankNum = idx + 1;
+      const isTop1 = rankNum === 1;
+      const isTop2 = rankNum === 2;
+      const isTop3 = rankNum === 3;
+      const isMe = currentUid && u.telegram_id === currentUid;
+
+      let rankBadgeHtml = '';
+      let rowClass = 'leaderboard-item-row';
+      if (isTop1) {
+        rowClass += ' rank-top-1';
+        // Золотая корона SVG (Строго без эмодзи!)
+        rankBadgeHtml = `
+          <div class="leaderboard-rank-badge rank-1" title="1 место">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>
+          </div>
+        `;
+      } else if (isTop2) {
+        rowClass += ' rank-top-2';
+        // Серебряная медаль SVG (Строго без эмодзи!)
+        rankBadgeHtml = `
+          <div class="leaderboard-rank-badge rank-2" title="2 место">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+          </div>
+        `;
+      } else if (isTop3) {
+        rowClass += ' rank-top-3';
+        // Бронзовая награда SVG (Строго без эмодзи!)
+        rankBadgeHtml = `
+          <div class="leaderboard-rank-badge rank-3" title="3 место">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+          </div>
+        `;
+      } else {
+        rankBadgeHtml = `<div class="leaderboard-rank-badge rank-other">#${rankNum}</div>`;
+      }
+
+      if (isMe) rowClass += ' is-me';
+
+      const displayName = esc(u.first_name || (u.username ? `@${u.username}` : `Студент #${u.telegram_id}`));
+      const displayGroup = esc(u.selected_group || 'Колледж');
+      const timeStr = formatLeaderboardDuration(u.total_time_seconds);
+
+      const avatarHtml = u.photo_url
+        ? `<img src="${esc(u.photo_url)}" alt="${displayName}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><div style="display:none;" class="leaderboard-avatar-fallback"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>`
+        : `<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>`;
+
+      html += `
+        <div class="${rowClass}">
+          ${rankBadgeHtml}
+          <div class="leaderboard-item-avatar">
+            ${avatarHtml}
+          </div>
+          <div class="leaderboard-item-info">
+            <div class="leaderboard-item-name-line">
+              <span class="leaderboard-item-name">${displayName}${isMe ? ' (Вы)' : ''}</span>
+            </div>
+            <span class="leaderboard-item-group">${displayGroup}</span>
+          </div>
+          <div class="leaderboard-time-pill" title="Активное время в приложении">
+            <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>${timeStr}</span>
+          </div>
+        </div>
+      `;
+    });
+
+    listEl.innerHTML = html;
+  } catch (err) {
+    if (listEl) {
+      listEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка загрузки: ${esc(err.message)}</div>`;
+    }
+  }
+};
+
+// ── TELEGRAM FULLSCREEN APP SYNC & LINKING (@Raddart_bot) ──
+let _tgGatePollingTimer = null;
+let _tgGateActiveToken = null;
+let _tgGateCurrentCode = '';
+
+function openTelegramBotUrl(url) {
+  try {
+    const tokenMatch = (url || '').match(/start=([^&]+)/);
+    const startToken = tokenMatch ? tokenMatch[1] : '';
+    const tgAppUri = `tg://resolve?domain=Raddart_bot&start=${startToken}`;
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      try { document.body.removeChild(link); } catch (_) {}
+    }, 100);
+
+    if (IS_CAPACITOR) {
+      setTimeout(() => {
+        window.location.href = tgAppUri;
+      }, 150);
+    }
+  } catch (_) {
+    window.location.href = url;
+  }
+}
+
+window.checkTelegramAppSyncGate = function() {
+  const isTgWebApp = Boolean(window.Telegram?.WebApp?.initData && window.Telegram.WebApp.initData.length > 5);
+  if (isTgWebApp) return;
+
+  const isLocalhostDev = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+    (window.location.search.includes('dev=1') || window.location.search.includes('mock_user='));
+  if (isLocalhostDev) return;
+
+  const hasAuthToken = Boolean(localStorage.getItem('tg_auth_token'));
+  if (hasAuthToken) return;
+
+  const isGuestMode = localStorage.getItem('tg_guest_mode') === '1';
+  if (isGuestMode) return;
+
+  window.openTelegramAppSyncGate();
+};
+
+window.openTelegramAppSyncGate = function() {
+  const gate = document.getElementById('telegramAppSyncGate');
+  if (gate) {
+    const btn = document.getElementById('tgSyncGateStartBtn');
+    const btnText = document.getElementById('tgSyncGateStartBtnText');
+    const statusBox = document.getElementById('tgSyncGateStatusBox');
+
+    if (_tgGatePollingTimer) {
+      clearInterval(_tgGatePollingTimer);
+      _tgGatePollingTimer = null;
+    }
+
+    let user = null;
+    try {
+      const raw = localStorage.getItem('tg_auth_user');
+      if (raw) user = JSON.parse(raw);
+    } catch (_) {}
+
+    if (btn) {
+      btn.disabled = false;
+      btn.onclick = () => window.startTelegramGateSync();
+    }
+    if (btnText) {
+      if (user && (user.username || user.first_name)) {
+        btnText.textContent = `📱 Перепривязать Telegram (${user.username ? '@' + user.username : user.first_name})`;
+      } else {
+        btnText.textContent = '📱 Синхронизировать с Telegram';
+      }
+    }
+    if (statusBox) statusBox.style.display = 'none';
+    gate.style.display = 'flex';
+  }
+};
+
+window.updateTelegramSyncUI = function() {
+  let user = null;
+  try {
+    const raw = localStorage.getItem('tg_auth_user');
+    if (raw) user = JSON.parse(raw);
+  } catch (_) {}
+
+  const hasToken = Boolean(localStorage.getItem('tg_auth_token'));
+  const isLinked = hasToken && user;
+
+  // 1. Sidebar Link Pill
+  const sbTitle = document.getElementById('sidebarTgLinkTitle');
+  const sbSub = document.getElementById('sidebarTgLinkSubtitle');
+  if (sbTitle && sbSub) {
+    if (isLinked) {
+      sbTitle.textContent = user.first_name || (user.username ? '@' + user.username : 'Telegram привязан');
+      sbSub.textContent = user.username ? `@${user.username} (привязан)` : 'Синхронизировано';
+    } else {
+      sbTitle.textContent = 'Синхронизация с TG';
+      sbSub.textContent = 'Войти через @Raddart_bot';
+    }
+  }
+
+  // 2. Topbar button
+  const tbText = document.querySelector('.topbar-tg-text');
+  if (tbText) {
+    if (isLinked) {
+      tbText.textContent = (user.first_name ? user.first_name.slice(0, 6) : (user.username ? '@' + user.username.slice(0, 5) : 'TG'));
+    } else {
+      tbText.textContent = 'TG';
+    }
+  }
+
+  // 3. Settings modal banner
+  const settingsStatus = document.getElementById('settingsModalTgStatus');
+  if (settingsStatus) {
+    if (isLinked) {
+      settingsStatus.textContent = `Привязан: ${user.first_name || ''} ${user.username ? '(@' + user.username + ')' : ''}`;
+    } else {
+      settingsStatus.textContent = 'Привязка бота @Raddart_bot';
+    }
+  }
+
+  // 4. Leaderboard button
+  const lbBtnText = document.getElementById('leaderboardTgSyncBtnText');
+  if (lbBtnText) {
+    if (isLinked) {
+      lbBtnText.textContent = `✓ Привязан к ${user.username ? '@' + user.username : (user.first_name || 'Telegram')}`;
+    } else {
+      lbBtnText.textContent = 'Синхронизировать с Telegram';
+    }
+  }
+};
+
+window.skipTelegramGateSync = function() {
+  if (_tgGatePollingTimer) {
+    clearInterval(_tgGatePollingTimer);
+    _tgGatePollingTimer = null;
+  }
+  localStorage.setItem('tg_guest_mode', '1');
+  localStorage.setItem('tg_sync_prompt_shown', '1');
+  const gate = document.getElementById('telegramAppSyncGate');
+  if (gate) {
+    gate.style.display = 'none';
+  }
+  const pending = window._pendingModalAfterTg;
+  window._pendingModalAfterTg = null;
+  if (pending === 'leaderboard') {
+    if (typeof window.realOpenLeaderboardModal === 'function') window.realOpenLeaderboardModal();
+  } else if (pending === 'games') {
+    if (typeof window.realOpenGamesModal === 'function') window.realOpenGamesModal();
+  }
+};
+
+window.startTelegramGateSync = async function() {
+  const btn = document.getElementById('tgSyncGateStartBtn');
+  const btnText = document.getElementById('tgSyncGateStartBtnText');
+  const statusBox = document.getElementById('tgSyncGateStatusBox');
+  const codeText = document.getElementById('tgSyncGateCodeText');
+  const statusText = document.getElementById('tgSyncGateStatusText');
+
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Создание сессии...';
+
+  const apiBase = (window.location.origin && !window.location.origin.includes('schedule.dadrik.ru') && window.location.protocol.startsWith('http') && !window.location.hostname.includes('127.0.0.1') && !window.location.hostname.includes('localhost'))
+    ? 'https://schedule.dadrik.ru/api' : '/api';
+
+  try {
+    const res = await fetch(`${apiBase}/auth/telegram-link/create`, { method: 'POST' });
+    if (!res.ok) throw new Error('Ошибка сервера при создании сессии');
+    const data = await res.json();
+    if (data.status === 'ok' && data.token) {
+      _tgGateActiveToken = data.token;
+      _tgGateCurrentCode = data.code;
+      if (codeText) codeText.textContent = `/link ${data.code}`;
+      if (statusBox) statusBox.style.display = 'flex';
+      if (statusText) statusText.textContent = 'Ожидаем подтверждения в боте...';
+      if (btnText) btnText.textContent = '📱 Открыть @Raddart_bot';
+
+      const botUrl = data.bot_url || `https://t.me/Raddart_bot?start=auth_${data.token}`;
+      if (btn) {
+        btn.disabled = false;
+        btn.onclick = () => openTelegramBotUrl(botUrl);
+      }
+
+      // Немедленный переход в Telegram-бота
+      openTelegramBotUrl(botUrl);
+
+      // Запуск опроса статуса каждые 1500мс
+      if (_tgGatePollingTimer) clearInterval(_tgGatePollingTimer);
+      const startTime = Date.now();
+      _tgGatePollingTimer = setInterval(async () => {
+        if (Date.now() - startTime > 300000) {
+          clearInterval(_tgGatePollingTimer);
+          _tgGatePollingTimer = null;
+          if (statusText) statusText.textContent = 'Срок ожидания истек. Нажмите кнопку снова.';
+          if (btn) {
+            btn.onclick = () => window.startTelegramGateSync();
+            if (btnText) btnText.textContent = 'Попробовать снова';
+          }
+          return;
+        }
+
+        try {
+          let sRes = await fetch(`${apiBase}/auth/telegram-link/status?token=${encodeURIComponent(data.token)}`);
+          if (!sRes.ok) {
+            sRes = await fetch(`${apiBase}/auth/telegram-link/poll?token=${encodeURIComponent(data.token)}`);
+          }
+          if (!sRes.ok) return;
+          const sData = await sRes.json();
+          if (sData.status === 'ok' && sData.auth_token) {
+            clearInterval(_tgGatePollingTimer);
+            _tgGatePollingTimer = null;
+            localStorage.setItem('tg_auth_token', sData.auth_token);
+            localStorage.setItem('tg_sync_prompt_shown', '1');
+            localStorage.removeItem('tg_guest_mode');
+            if (sData.user) {
+              localStorage.setItem('tg_auth_user', JSON.stringify(sData.user));
+              window.TELEGRAM_LINKED_USER = sData.user;
+            }
+            if (statusText) statusText.textContent = '✅ Успешно синхронизировано!';
+            if (btnText) btnText.textContent = 'Готово!';
+            if (typeof showToast === 'function') showToast('Telegram успешно синхронизирован!', 'success');
+            if (typeof window.updateTelegramSyncUI === 'function') {
+              window.updateTelegramSyncUI();
+            }
+            setTimeout(() => {
+              const gate = document.getElementById('telegramAppSyncGate');
+              if (gate) gate.style.display = 'none';
+              const pending = window._pendingModalAfterTg;
+              window._pendingModalAfterTg = null;
+              if (pending === 'leaderboard') {
+                if (typeof window.realOpenLeaderboardModal === 'function') window.realOpenLeaderboardModal();
+              } else if (pending === 'games') {
+                if (typeof window.realOpenGamesModal === 'function') window.realOpenGamesModal();
+              }
+            }, 700);
+          } else if (sData.status === 'expired') {
+            clearInterval(_tgGatePollingTimer);
+            _tgGatePollingTimer = null;
+            if (statusText) statusText.textContent = 'Срок действия сессии истек.';
+            if (btn) {
+              btn.onclick = () => window.startTelegramGateSync();
+              if (btnText) btnText.textContent = 'Попробовать снова';
+            }
+          }
+        } catch (_) {}
+      }, 1500);
+
+    } else {
+      throw new Error('Некорректный ответ сервера');
+    }
+  } catch (err) {
+    console.error('startTelegramGateSync error:', err);
+    if (btn) {
+      btn.disabled = false;
+      btn.onclick = () => window.startTelegramGateSync();
+    }
+    if (btnText) btnText.textContent = 'Попробовать снова';
+    if (statusText) statusText.textContent = 'Ошибка подключения к серверу';
+    if (typeof showToast === 'function') showToast('Ошибка подключения к серверу', 'error');
+  }
+};
+
+window.copyTelegramGateCode = function() {
+  const code = _tgGateCurrentCode ? `/link ${_tgGateCurrentCode}` : '/link';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = document.getElementById('tgSyncGateCopyBtn');
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = 'Скопировано!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    }).catch(() => {
+      prompt('Скопируйте команду:', code);
+    });
+  } else {
+    prompt('Скопируйте команду:', code);
+  }
+};
+
+window.unlinkTelegramAccount = function() {
+  if (confirm('Вы действительно хотите отвязать Telegram-аккаунт?')) {
+    window.resetTgSync();
+    if (typeof window.loadLeaderboardData === 'function') {
+      window.loadLeaderboardData();
+    }
+    window.openTelegramAppSyncGate();
+  }
+};
+
+window.resetTgSync = function() {
+  localStorage.removeItem('tg_auth_token');
+  localStorage.removeItem('tg_auth_user');
+  localStorage.removeItem('tg_sync_prompt_shown');
+  localStorage.removeItem('tg_guest_mode');
+  window.TELEGRAM_LINKED_USER = null;
+  window._pendingModalAfterTg = null;
+  if (typeof window.updateTelegramSyncUI === 'function') {
+    window.updateTelegramSyncUI();
+  }
+};
+
+window.resetMySession = function() {
+  const savedSecret = localStorage.getItem('web_secret_key');
+  const savedAdminKey = localStorage.getItem('schedule_admin_master_key');
+  const savedOnboarding = localStorage.getItem('onboarding_completed');
+
+  window.resetTgSync();
+
+  // Закрываем все открытые модалки
+  try {
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal) {
+      settingsModal.classList.remove('open');
+      settingsModal.style.display = 'none';
+    }
+  } catch (_) {}
+  try {
+    if (typeof closeSidebar === 'function') closeSidebar();
+  } catch (_) {}
+  try {
+    if (typeof closeLeaderboardModal === 'function') closeLeaderboardModal();
+  } catch (_) {}
+  try {
+    if (typeof closeGamesModal === 'function') closeGamesModal();
+  } catch (_) {}
+
+  if (savedSecret) localStorage.setItem('web_secret_key', savedSecret);
+  if (savedAdminKey) localStorage.setItem('schedule_admin_master_key', savedAdminKey);
+  if (savedOnboarding) localStorage.setItem('onboarding_completed', savedOnboarding);
+
+  // Сразу открываем экран синхронизации
+  if (typeof window.openTelegramAppSyncGate === 'function') {
+    window.openTelegramAppSyncGate();
+  }
+
+  if (typeof showToast === 'function') {
+    showToast('Синхронизация Telegram сброшена! Окно открыто для проверки.', 'success');
+  }
+};
+
+
+// ══════════════════════════════════════════════════
+// МИНИ-ИГРЫ НА ПЕРЕМЕНЕ (2048, ТЕТРИС, САПЁР)
+// ══════════════════════════════════════════════════
+let _activeGameInstance = null;
+let _activeGameId = null;
+let _activeGameScore = 0;
+let _gameTimerInterval = null;
+let _accumulatedGameDelta = 0;
+let _lastGamePingTime = 0;
+
+const GAME_NAMES = {
+  '2048': '2048',
+  'tetris': 'Тетрис',
+  'minesweeper': 'Сапёр',
+  'snake': 'Змейка'
+};
+
+window._getGameDebugState = function() {
+  return {
+    activeInstance: _activeGameInstance,
+    activeGameId: _activeGameId,
+    gameTimerInterval: _gameTimerInterval,
+    viewportChildren: document.getElementById('gameViewport')?.children.length || 0
+  };
+};
+
+let _downloadModalOpenedAt = 0;
+
+window.openDownloadModal = function() {
+  try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+  window.location.href = '/download.html';
+};
+
+window.closeDownloadModal = function(force = false) {
+  const backdrop = document.getElementById('downloadModal');
+  const sheet = document.getElementById('downloadSheet');
+  if (backdrop && sheet) {
+    sheet.classList.remove('open');
+    backdrop.classList.remove('open');
+    backdrop.style.display = 'none';
+    document.body.style.overflow = '';
+    if (typeof updateTelegramBackButton === 'function') updateTelegramBackButton();
+  }
+};
+
+let _gamesModalOpenedAt = 0;
+
+window.realOpenGamesModal = function() {
+  const backdrop = document.getElementById('gamesModal');
+  const sheet = document.getElementById('gamesSheet');
+  if (backdrop && sheet) {
+    _gamesModalOpenedAt = Date.now();
+    try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+    backdrop.style.display = 'flex';
+    backdrop.classList.add('open');
+    sheet.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    if (typeof backToGamesCatalog === 'function') backToGamesCatalog();
+    if (typeof updateGamesCatalogScores === 'function') updateGamesCatalogScores();
+    if (typeof updateTelegramBackButton === 'function') updateTelegramBackButton();
+  }
+};
+
+window.openGamesModal = function() {
+  const hasTgAuth = Boolean(localStorage.getItem('tg_auth_token')) ||
+                    Boolean(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 5);
+  const promptShown = localStorage.getItem('tg_sync_prompt_shown') === '1';
+
+  if (!hasTgAuth && !promptShown) {
+    window._pendingModalAfterTg = 'games';
+    if (typeof window.openTelegramAppSyncGate === 'function') {
+      window.openTelegramAppSyncGate();
+    }
+    return;
+  }
+  window.realOpenGamesModal();
+};
+
+window.closeGamesModal = function(force = false) {
+  if (!force && Date.now() - _gamesModalOpenedAt < 350) return;
+  unmountCurrentGame();
+  const backdrop = document.getElementById('gamesModal');
+  const sheet = document.getElementById('gamesSheet');
+  if (backdrop && sheet) {
+    sheet.classList.remove('open');
+    backdrop.classList.remove('open');
+    backdrop.style.display = 'none';
+    document.body.style.overflow = '';
+    if (typeof updateTelegramBackButton === 'function') updateTelegramBackButton();
+  }
+};
+
+window.backToGamesCatalog = function() {
+  unmountCurrentGame();
+  const catalog = document.getElementById('gamesCatalogView');
+  const playView = document.getElementById('gamesPlayView');
+  const backBtn = document.getElementById('gamesBackBtn');
+  const title = document.getElementById('gamesModalTitle');
+  if (catalog) catalog.style.display = 'flex';
+  if (playView) playView.style.display = 'none';
+  if (backBtn) backBtn.style.display = 'none';
+  if (title) title.textContent = 'Игры на перемене';
+  updateGamesCatalogScores();
+};
+
+let _gamesStatsCache = null;
+let _activeGamesLbTab = '2048';
+
+window.switchGamesLeaderboard = function(gameId) {
+  _activeGamesLbTab = gameId;
+  const tabs = document.querySelectorAll('#gamesLbTabs .games-lb-tab');
+  tabs.forEach(tab => {
+    if (tab.dataset.game === gameId) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
+  window.renderGamesLeaderboard(gameId);
+};
+
+window.renderGamesLeaderboard = function(gameId = _activeGamesLbTab) {
+  const listEl = document.getElementById('gamesLbList');
+  if (!listEl) return;
+
+  if (!_gamesStatsCache) {
+    listEl.innerHTML = '<div class="admin-empty-state">Загрузка рекордов...</div>';
+    return;
+  }
+
+  const items = _gamesStatsCache?.leaderboards?.[gameId] || [];
+  if (items.length === 0) {
+    listEl.innerHTML = `
+      <div class="admin-empty-state" style="padding: 16px 10px;">
+        Пока нет рекордов в ${GAME_NAMES[gameId] || gameId}.<br>Сыграйте первым, чтобы попасть в топ!
+      </div>
+    `;
+    return;
+  }
+
+  let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  if (!tgUser) {
+    try {
+      const widgetStored = localStorage.getItem('tg_widget_user');
+      if (widgetStored) tgUser = JSON.parse(widgetStored);
+    } catch (_) {}
+  }
+  const currentUid = tgUser?.id;
+
+  let html = '';
+  items.forEach((u, idx) => {
+    const rankNum = idx + 1;
+    const isTop1 = rankNum === 1;
+    const isTop2 = rankNum === 2;
+    const isTop3 = rankNum === 3;
+    const isMe = currentUid && u.telegram_id === currentUid;
+
+    let rankBadgeHtml = '';
+    let rowClass = 'leaderboard-item-row';
+    if (isTop1) {
+      rowClass += ' rank-top-1';
+      rankBadgeHtml = `
+        <div class="leaderboard-rank-badge rank-1" title="1 место">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>
+        </div>
+      `;
+    } else if (isTop2) {
+      rowClass += ' rank-top-2';
+      rankBadgeHtml = `
+        <div class="leaderboard-rank-badge rank-2" title="2 место">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+        </div>
+      `;
+    } else if (isTop3) {
+      rowClass += ' rank-top-3';
+      rankBadgeHtml = `
+        <div class="leaderboard-rank-badge rank-3" title="3 место">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+        </div>
+      `;
+    } else {
+      rankBadgeHtml = `<div class="leaderboard-rank-badge rank-other">#${rankNum}</div>`;
+    }
+
+    if (isMe) rowClass += ' is-me';
+
+    const displayName = esc(u.display_name || u.first_name || (u.username ? `@${u.username}` : `Игрок #${u.telegram_id}`));
+    const displayGroup = esc(u.selected_group || 'Колледж');
+    let scoreVal = '';
+    if (gameId === 'minesweeper') {
+      const sec = u.best_time_seconds || (u.high_score > 0 ? Math.max(1, Math.round(10000 / u.high_score)) : 0);
+      if (sec <= 0) {
+        scoreVal = '—';
+      } else if (sec < 60) {
+        scoreVal = `${sec} сек`;
+      } else {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        scoreVal = `${m}м ${s < 10 ? '0' + s : s}с`;
+      }
+    } else {
+      scoreVal = Number(u.high_score || 0).toLocaleString('ru-RU');
+    }
+
+    const avatarHtml = u.photo_url
+      ? `<img src="${esc(u.photo_url)}" alt="${displayName}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><div style="display:none;" class="leaderboard-avatar-fallback"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>`
+      : `<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>`;
+
+    html += `
+      <div class="${rowClass}">
+        ${rankBadgeHtml}
+        <div class="leaderboard-item-avatar">
+          ${avatarHtml}
+        </div>
+        <div class="leaderboard-item-info">
+          <div class="leaderboard-item-name-line">
+            <span class="leaderboard-item-name">${displayName}${isMe ? ' (Вы)' : ''}</span>
+          </div>
+          <span class="leaderboard-item-group">${displayGroup}</span>
+        </div>
+        <div class="games-lb-score-pill">
+          <span>${scoreVal}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  listEl.innerHTML = html;
+};
+
+window.updateGamesCatalogScores = async function() {
+  const b2048 = localStorage.getItem('game_2048_best') || '0';
+  const bTetris = localStorage.getItem('game_tetris_best') || '0';
+  const bMine = localStorage.getItem('game_minesweeper_best') || '';
+  const bSnake = localStorage.getItem('game_snake_best') || '0';
+
+  const el2048 = document.getElementById('catalogBest2048');
+  const elTetris = document.getElementById('catalogBestTetris');
+  const elMine = document.getElementById('catalogBestMinesweeper');
+  const elSnake = document.getElementById('catalogBestSnake');
+
+  if (el2048) el2048.textContent = b2048;
+  if (elTetris) elTetris.textContent = bTetris;
+  if (elMine) elMine.textContent = bMine ? `${bMine}с` : '—';
+  if (elSnake) elSnake.textContent = bSnake;
+
+  // Отрендерить таблицу лидеров если есть кэш
+  window.renderGamesLeaderboard(_activeGamesLbTab);
+
+  try {
+    const res = await fetchWithTimeout(`${API}/games/stats`, { headers: getAuthHeaders() }, 4000);
+    if (res.ok) {
+      const data = await res.json();
+      _gamesStatsCache = data;
+      const my = data.my_stats || {};
+      if (my['2048'] && my['2048'].high_score > parseInt(b2048, 10)) {
+        localStorage.setItem('game_2048_best', String(my['2048'].high_score));
+        if (el2048) el2048.textContent = my['2048'].high_score;
+      }
+      if (my['tetris'] && my['tetris'].high_score > parseInt(bTetris, 10)) {
+        localStorage.setItem('game_tetris_best', String(my['tetris'].high_score));
+        if (elTetris) elTetris.textContent = my['tetris'].high_score;
+      }
+      if (my['minesweeper'] && my['minesweeper'].high_score > 0) {
+        const serverSec = my['minesweeper'].best_time_seconds || Math.max(1, Math.round(10000 / my['minesweeper'].high_score));
+        const localSec = parseInt(bMine, 10) || 999999;
+        const bestSec = Math.min(serverSec, localSec);
+        localStorage.setItem('game_minesweeper_best', String(bestSec));
+        if (elMine) elMine.textContent = `${bestSec}с`;
+      }
+      if (my['snake'] && my['snake'].high_score > parseInt(bSnake, 10)) {
+        localStorage.setItem('game_snake_best', String(my['snake'].high_score));
+        if (elSnake) elSnake.textContent = my['snake'].high_score;
+      }
+      window.renderGamesLeaderboard(_activeGamesLbTab);
+    }
+  } catch (_) {}
+};
+
+window.openGame = async function(gameId) {
+  unmountCurrentGame();
+
+  const catalog = document.getElementById('gamesCatalogView');
+  const playView = document.getElementById('gamesPlayView');
+  const backBtn = document.getElementById('gamesBackBtn');
+  const title = document.getElementById('gamesModalTitle');
+  const viewport = document.getElementById('gameViewport');
+
+  if (catalog) catalog.style.display = 'none';
+  if (playView) playView.style.display = 'block';
+  if (backBtn) backBtn.style.display = 'inline-flex';
+  if (title) title.textContent = GAME_NAMES[gameId] || 'Игра';
+  if (viewport) viewport.innerHTML = '<div class="admin-empty-state">Запуск игры...</div>';
+
+  _activeGameId = gameId;
+  _activeGameScore = 0;
+  _accumulatedGameDelta = 0;
+  _lastGamePingTime = Date.now();
+
+  try {
+    const module = await import(`/static/games/${gameId}.js?v=20260921_v7`);
+    if (viewport) viewport.innerHTML = '';
+    _activeGameInstance = module.mount(viewport, {
+      onScoreUpdate: (score, best) => {
+        _activeGameScore = score;
+        if (gameId === '2048') {
+          const el = document.getElementById('catalogBest2048');
+          if (el) el.textContent = best;
+        } else if (gameId === 'tetris') {
+          const el = document.getElementById('catalogBestTetris');
+          if (el) el.textContent = best;
+        } else if (gameId === 'minesweeper') {
+          const el = document.getElementById('catalogBestMinesweeper');
+          if (el) el.textContent = `${best}с`;
+        } else if (gameId === 'snake') {
+          const el = document.getElementById('catalogBestSnake');
+          if (el) el.textContent = best;
+        }
+      },
+      onGameOver: (score, won) => {
+        _activeGameScore = score;
+        flushGameActivity(true);
+      }
+    });
+
+    startGameTimeBatcher();
+  } catch (err) {
+    console.error(`Failed to load game ${gameId}:`, err);
+    if (viewport) {
+      viewport.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка загрузки игры: ${esc(err.message)}</div>`;
+    }
+  }
+};
+
+function startGameTimeBatcher() {
+  stopGameTimeBatcher();
+  _gameTimerInterval = setInterval(() => {
+    if (!document.hidden && _activeGameId) {
+      _accumulatedGameDelta++;
+      const now = Date.now();
+      // Strict batching: flush only every 20-30 seconds, never faster to avoid rate limiting
+      if (_accumulatedGameDelta >= 20 && (now - _lastGamePingTime >= 18000)) {
+        flushGameActivity();
+      }
+    }
+  }, 1000);
+}
+
+function stopGameTimeBatcher() {
+  if (_gameTimerInterval) {
+    clearInterval(_gameTimerInterval);
+    _gameTimerInterval = null;
+  }
+}
+
+async function flushGameActivity(force = false) {
+  if (!_activeGameId) return;
+  if (!force && _accumulatedGameDelta < 5 && !_activeGameScore) {
+    return; // Don't ping if less than 5 seconds unless forced or has score
+  }
+  const deltaToSend = _accumulatedGameDelta;
+  const gameIdToSend = _activeGameId;
+  const scoreToSend = _activeGameScore;
+
+  _accumulatedGameDelta = 0;
+  _lastGamePingTime = Date.now();
+
+  try {
+    const payload = {
+      group: (typeof S !== 'undefined' && S.group) ? S.group : '',
+      action: `Игра: ${GAME_NAMES[gameIdToSend] || gameIdToSend}`,
+      platform: 'WebApp',
+      time_delta_seconds: deltaToSend,
+      game_id: gameIdToSend,
+      game_score: scoreToSend,
+      game_time_delta: deltaToSend
+    };
+    await fetchWithTimeout(`${API}/activity`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(payload)
+    }, 4000);
+  } catch (e) {
+    _accumulatedGameDelta += deltaToSend;
+  }
+}
+
+window.unmountCurrentGame = function() {
+  stopGameTimeBatcher();
+
+  if (_activeGameId && _accumulatedGameDelta >= 5) {
+    flushGameActivity();
+  }
+
+  if (_activeGameInstance && typeof _activeGameInstance.unmount === 'function') {
+    try {
+      _activeGameInstance.unmount();
+    } catch (e) {
+      console.error('Error unmounting game:', e);
+    }
+  }
+
+  _activeGameInstance = null;
+  _activeGameId = null;
+  _accumulatedGameDelta = 0;
+
+  const viewport = document.getElementById('gameViewport');
+  if (viewport) viewport.innerHTML = '';
+};
+
+
+// ── UTILS ───────────────────────────────
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

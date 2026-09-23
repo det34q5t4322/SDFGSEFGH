@@ -122,7 +122,14 @@ const ICONS = {
 };
 
 // ── CONFIG ──────────────────────────────
-const API = '/api';
+const IS_CAPACITOR = Boolean(
+  window.Capacitor || 
+  window.location.protocol === 'capacitor:' || 
+  window.location.protocol === 'file:' ||
+  (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('CapacitorApp')) ||
+  (typeof window !== 'undefined' && window.location && window.location.search && window.location.search.includes('app=apk'))
+);
+const API = (IS_CAPACITOR && !['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.origin !== 'https://schedule.dadrik.ru') ? 'https://schedule.dadrik.ru/api' : '/api';
 const STORAGE_GROUP   = 'schedule_group_v2';
 const STORAGE_PARITY  = 'schedule_parity';
 const STORAGE_CACHE_PREFIX = 'schedule_cache_v2_';
@@ -272,9 +279,17 @@ function getAuthHeaders() {
   if (initData) {
     headers['X-Telegram-Init-Data'] = initData;
   }
+  const linkedToken = localStorage.getItem('tg_auth_token');
+  if (linkedToken) {
+    headers['X-Telegram-Auth-Token'] = linkedToken;
+  }
   const secret = localStorage.getItem('web_secret_key') || (document.cookie.match(/(?:^|;\s*)secret_key=([^;]+)/) || [])[1];
   if (secret && VALID_WEB_SECRETS.includes(secret)) {
     headers['X-Secret-Key'] = secret;
+  }
+  const adminKey = localStorage.getItem('schedule_admin_master_key');
+  if (adminKey) {
+    headers['X-Admin-Key'] = adminKey;
   }
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   if (isLocalhost) {
@@ -345,8 +360,10 @@ function isCloudStorageSupported() {
 function isTelegramGatePassed() {
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const isDev = isLocalhost && (window.location.search.includes('dev=1') || window.location.search.includes('mock_user='));
-  const hasInitData = Boolean(window.Telegram?.WebApp?.initData);
-  return hasInitData || isDev || hasWebSecretAccess();
+  const isTgWebApp = Boolean(window.Telegram?.WebApp && (window.Telegram.WebApp.initData || window.Telegram.WebApp.platform !== 'unknown' || window.Telegram.WebApp.version));
+  const hasAuthToken = Boolean(localStorage.getItem('tg_auth_token'));
+  const isGuest = localStorage.getItem('tg_guest_mode') === '1';
+  return isTgWebApp || isDev || hasAuthToken || isGuest || hasWebSecretAccess() || IS_CAPACITOR;
 }
 
 // ── BAN LOCK & ENDLESS LOADER ──
@@ -528,6 +545,8 @@ const els = {
   diaryExternalBtn:     $('diaryExternalBtn'),
   diaryTroubleBtn:      $('diaryTroubleBtn'),
   sidebarDiaryBtn:      $('sidebarDiaryBtn'),
+  bottomNavDiary:       $('bottomNavDiary'),
+  topbarDiaryBtn:       $('topbarDiaryBtn'),
 
   onboardModal:         $('onboardModal'),
   onboardSearchInput:   $('onboardSearchInput'),
@@ -611,6 +630,8 @@ function handleTelegramBackButtonClick() {
     closeAdminModal();
   } else if (els.diaryModal?.classList.contains('open')) {
     closeDiaryModal();
+  } else if (document.getElementById('downloadModal')?.classList.contains('open')) {
+    if (typeof window.closeDownloadModal === 'function') window.closeDownloadModal(true);
   } else if (document.getElementById('gamesModal')?.classList.contains('open')) {
     const playView = document.getElementById('gamesPlayView');
     if (playView && playView.style.display !== 'none') {
@@ -726,15 +747,27 @@ async function init() {
   if (localStorage.getItem('is_banned_state') === 'true') {
     triggerBanEndlessLoading();
     // Проверяем сервер — если юзер уже разбанен, снимем лок
-    await checkAuthStatus();
+    try {
+      await checkAuthStatus();
+    } catch (_) {}
     if (localStorage.getItem('is_banned_state') === 'true') {
-      return; // всё ещё забанен — не грузим ничего дальше
+      try {
+        const res = await fetchWithTimeout(`${API}/auth-status`, {}, 3000).catch(() => null);
+        if (res && res.ok) {
+          const d = await res.json().catch(() => null);
+          if (d && d.is_banned) {
+            return; // всё ещё забанен на сервере — не грузим ничего дальше
+          }
+        }
+      } catch (_) {}
+      clearBanEndlessLoading();
     }
   }
   if (!isTelegramGatePassed()) {
     renderTelegramGatePrompt();
   }
   try { setupTelegramWebApp(); } catch (e) { console.error('setupTelegramWebApp error:', e); }
+  try { if (typeof updateTelegramSyncUI === 'function') updateTelegramSyncUI(); } catch (_) {}
   try { setupThemes(); } catch (e) { console.error('setupThemes error:', e); }
   try { setupSidebar(); } catch (e) { console.error('setupSidebar error:', e); }
   try { setupSidebarNav(); } catch (e) { console.error('setupSidebarNav error:', e); }
@@ -743,6 +776,17 @@ async function init() {
   try { initLayoutManager(); } catch (e) { console.error('initLayoutManager error:', e); }
   try { setupNavPosition(); } catch (e) { console.error('setupNavPosition error:', e); }
   try { updateGraduationCountdown(); } catch (_) {}
+  try {
+    const isInsideApk = window.location.search.includes('app=apk') ||
+                        (navigator.userAgent && navigator.userAgent.includes('CapacitorApp')) ||
+                        window.Capacitor !== undefined;
+    if (isInsideApk) {
+      const sbBtn = document.getElementById('sidebarDownloadAppBtn');
+      if (sbBtn) sbBtn.style.display = 'none';
+      const tbBtn = document.getElementById('topbarDownloadBtn');
+      if (tbBtn) tbBtn.style.display = 'none';
+    }
+  } catch (_) {}
   try {
     if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
       navigator.serviceWorker.register('/sw.js').catch(err => {
@@ -887,6 +931,12 @@ async function init() {
   // Wire Admin button & Modal backdrop clicks
   document.getElementById('sidebarAdminBtn')?.addEventListener('click', () => {
     closeSidebar();
+    const adminKey = localStorage.getItem('schedule_admin_master_key');
+    const isTgAdmin = window.Telegram?.WebApp?.initData && S.isAdmin;
+    if (!adminKey && !isTgAdmin) {
+      openAdminLoginModal();
+      return;
+    }
     openAdminModal();
   });
   document.getElementById('adminModalBackdrop')?.addEventListener('click', (e) => {
@@ -899,7 +949,54 @@ async function init() {
   loadSchedule();
   startAutoRefresh();
   try { sendClientActivity('Запуск приложения'); } catch (_) {}
+
+  // 5. Проверка наличия старой версии APK (без нативного виджета)
+  setTimeout(checkAndPromptApkUpdate, 1500);
 }
+
+function checkAndPromptApkUpdate() {
+  try {
+    const isInsideApk = window.location.search.includes('app=apk') ||
+                        (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('CapacitorApp')) ||
+                        window.Capacitor !== undefined;
+    
+    // Если пользователь запустил приложение из старого APK, где ещё нет моста AndroidWidget
+    const hasWidgetBridge = Boolean(window.AndroidWidget && typeof window.AndroidWidget.updateSchedule === 'function');
+    
+    if (isInsideApk && !hasWidgetBridge) {
+      const dismissedUntil = localStorage.getItem('schedule_update_dismissed_until');
+      if (dismissedUntil && Date.now() < parseInt(dismissedUntil, 10)) {
+        return; // Пользователь попросил напомнить позже (не спамим 24 часа)
+      }
+
+      const modal = document.getElementById('updateAppModal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+
+      // Перехватываем клик на кнопку скачивания обновления
+      const dlBtn = document.getElementById('btnInstallApkUpdate');
+      if (dlBtn && !dlBtn.dataset.bound) {
+        dlBtn.dataset.bound = 'true';
+        dlBtn.addEventListener('click', () => {
+          dlBtn.innerHTML = '<span>⏳ Загрузка APK...</span>';
+          setTimeout(() => {
+            dlBtn.innerHTML = '<span>✅ Откройте файл в шторке</span>';
+          }, 3000);
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('checkAndPromptApkUpdate error:', err);
+  }
+}
+
+window.dismissUpdateAppModal = function() {
+  const modal = document.getElementById('updateAppModal');
+  if (modal) modal.style.display = 'none';
+  // Напоминать не чаще 1 раза в сутки
+  localStorage.setItem('schedule_update_dismissed_until', (Date.now() + 24 * 3600 * 1000).toString());
+};
 
 // ════════════════════════════════════════
 //  THEMES & CUSTOMIZATION
@@ -1542,7 +1639,7 @@ function setupSidebar() {
   const diaryBtn = document.getElementById('sidebarDiaryBtn');
   diaryBtn?.addEventListener('click', () => {
     closeSidebar();
-    openDiaryExternal();
+    openDiaryModal();
   });
 
   const gradBtn = $('sidebarGraduationBtn') || els.sidebarGraduationBtn;
@@ -1949,6 +2046,8 @@ function setView(view) {
   else stopEnglishCountdown();
   updateTelegramBackButton();
 }
+window.setView = setView;
+window.switchView = setView;
 
 // ════════════════════════════════════════
 //  WEEK NAVIGATION & PARITY
@@ -2937,6 +3036,8 @@ async function loadSchedule(force = false) {
       hideOfflineBanner();
       triggerBanEndlessLoading();
       return;
+    } else {
+      clearBanEndlessLoading();
     }
 
     // 1. Проверка активного защитного шлюза / неавторизованной сессии
@@ -3003,6 +3104,15 @@ async function loadSchedule(force = false) {
     renderSchedule();
     updateLiveCard();
     updateSyncStatus(true, false);
+    // Синхронизация с нативным Android-виджетом (если запущено внутри APK)
+    try {
+      if (window.AndroidWidget && typeof window.AndroidWidget.updateSchedule === 'function') {
+        window.AndroidWidget.updateSchedule(S.group, JSON.stringify(freshData));
+      }
+    } catch (e) {
+      logApp('debug', 'Не удалось обновить нативный Android-виджет:', e);
+    }
+
     if (S.view === 'stats') renderStatsView(currentStatsScope);
     if (S.view === 'english') startEnglishCountdown();
     logApp('info', `Расписание успешно синхронизировано для ${S.group}`);
@@ -3145,10 +3255,6 @@ function renderSkeleton() {
 // ════════════════════════════════════════
 function renderSchedule() {
   if (!els.scheduleView) return;
-  if (!isTelegramGatePassed()) {
-    renderSkeleton();
-    return;
-  }
   els.scheduleView.removeAttribute('aria-busy');
   if (S.isNotPublished) {
     renderScheduleNotPublished();
@@ -4186,10 +4292,15 @@ function calculateUnifiedSeptStats(arg1, arg2) {
   const passedSubjectsMap = {};
   const cancelledPairsList = [];
   const uniqueDatesSet = new Set();
+  const processedSlotKeys = new Set();
+  const weekdayCounts = { 'Пн': 0, 'Вт': 0, 'Ср': 0, 'Чт': 0, 'Пт': 0, 'Сб': 0 };
 
-  function recordPassedPair(slot, pairInfo, subj, dateStr, dayName) {
+  function recordPassedPair(slot, pairInfo, subj, dateStr, dayName, shortDay) {
     totalPassed++;
     uniqueDatesSet.add(dateStr);
+    if (shortDay && weekdayCounts[shortDay] !== undefined) {
+      weekdayCounts[shortDay]++;
+    }
 
     if (!passedSubjectsMap[subj]) {
       passedSubjectsMap[subj] = {
@@ -4242,30 +4353,63 @@ function calculateUnifiedSeptStats(arg1, arg2) {
         continue;
       }
 
+      // Определяем точную четность для даты (календарная)
+      const dateAcademicParity = getAcademicParityForDate(dayDate);
+      const effectiveParity = tabParity || dateAcademicParity;
+
+      const shortDayMap = {
+        'понедельник': 'Пн', 'вторник': 'Вт', 'среда': 'Ср',
+        'четверг': 'Чт', 'пятница': 'Пт', 'суббота': 'Сб'
+      };
+      const shortDay = shortDayMap[dayName.trim().toLowerCase()] || null;
+
       for (const slot of pairs) {
         if (!slot || slot.is_empty) continue;
 
-        // Строгое соблюдение чередования недель (числитель/знаменатель)
-        let pairCandidate = null;
-        if (slot.is_split) {
-          if (tabParity === 'num') pairCandidate = slot.numerator;
-          else if (tabParity === 'den') pairCandidate = slot.denominator;
-          else pairCandidate = slot.both || slot.numerator || slot.denominator;
-        } else {
-          if (tabParity === 'num') pairCandidate = slot.both || slot.numerator;
-          else if (tabParity === 'den') pairCandidate = slot.both || slot.denominator;
-          else pairCandidate = slot.both || slot.numerator || slot.denominator;
+        const slotNum = slot.pair_num || slot.num || 1;
+        // Исключаем дублирование слотов из разных вкладок (Дата + Номер пары)
+        const uniqueSlotKey = `${tabYear}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}_p${slotNum}`;
+        if (processedSlotKeys.has(uniqueSlotKey)) {
+          continue;
         }
 
-        // Поддержка пар с делением на подгруппы (английский, лаборатории)
+        // Строгое соблюдение четности (верхняя / нижняя ячейка таблицы):
+        let pairCandidate = null;
+        if (slot.is_split) {
+          // Если пара разделена по четности:
+          if (effectiveParity === 'num') {
+            pairCandidate = (slot.numerator && slot.numerator.subject) ? slot.numerator : null;
+          } else if (effectiveParity === 'den') {
+            pairCandidate = (slot.denominator && slot.denominator.subject) ? slot.denominator : null;
+          } else {
+            pairCandidate = slot.numerator || slot.denominator;
+          }
+        } else {
+          // Если пара на обе недели или задана в одной из ячеек:
+          if (slot.both && slot.both.subject) {
+            pairCandidate = slot.both;
+          } else if (effectiveParity === 'num' && slot.numerator && slot.numerator.subject) {
+            pairCandidate = slot.numerator;
+          } else if (effectiveParity === 'den' && slot.denominator && slot.denominator.subject) {
+            pairCandidate = slot.denominator;
+          } else {
+            pairCandidate = slot.both || slot.numerator || slot.denominator;
+          }
+        }
+
+        // Поддержка подгрупп (английский, лабораторные): студент посещает 1 пару в данный таймслот
         if (!pairCandidate) {
-          pairCandidate = slot.sub1 || slot.sub2;
+          if (slot.sub1 && slot.sub1.subject) pairCandidate = slot.sub1;
+          else if (slot.sub2 && slot.sub2.subject) pairCandidate = slot.sub2;
         }
 
         if (!pairCandidate) continue;
 
         const subj = (pairCandidate.subject || slot.subject || '').trim();
         if (!subj || /самостоятельн/i.test(subj)) continue;
+
+        // Фиксируем слот
+        processedSlotKeys.add(uniqueSlotKey);
 
         // Точная проверка статуса отмены пары
         const isCancelled = Boolean(
@@ -4281,7 +4425,7 @@ function calculateUnifiedSeptStats(arg1, arg2) {
           cancelledPairsList.push({
             date: dm,
             dayName,
-            num: slot.pair_num || slot.num || 1,
+            num: slotNum,
             subject: subj.replace(/^(отмена|\d\d\.\d\d\s+отмена)\s*/i, '').trim() || subj,
             teacher: pairCandidate.teacher || slot.teacher || ''
           });
@@ -4300,7 +4444,7 @@ function calculateUnifiedSeptStats(arg1, arg2) {
         }
 
         if (isPassed) {
-          recordPassedPair(slot, pairCandidate, subj, dm, dayName);
+          recordPassedPair(slot, pairCandidate, subj, dm, dayName, shortDay);
         }
       }
     }
@@ -4314,7 +4458,8 @@ function calculateUnifiedSeptStats(arg1, arg2) {
     totalCancelled,
     uniqueDaysCount: uniqueDatesSet.size,
     subjectList,
-    cancelledPairsList
+    cancelledPairsList,
+    weekdayCounts
   };
 }
 
@@ -4417,79 +4562,213 @@ async function renderStatsView() {
   const todayFormatted = `${now.getDate()} ${monthStr} ${now.getFullYear()} г.`;
   const timeFormatted = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
+  const STATS_PALETTE = [
+    '#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899',
+    '#8b5cf6', '#3b82f6', '#14b8a6', '#f97316', '#a855f7',
+    '#0ea5e9', '#84cc16', '#e11d48', '#d97706'
+  ];
+
+  const totalPassedCount = stats.totalPassed || 1;
+  const avgPerDay = stats.uniqueDaysCount > 0 ? (stats.totalPassed / stats.uniqueDaysCount).toFixed(1) : '0';
+  const totalAcademicHours = stats.totalPassed * 2;
+  const totalPairsPlanned = stats.totalPassed + stats.totalCancelled;
+  const completionRate = totalPairsPlanned > 0 ? Math.round((stats.totalPassed / totalPairsPlanned) * 100) : 100;
+
+  // SVG Donut calculation
+  const DONUT_R = 38;
+  const DONUT_C = 2 * Math.PI * DONUT_R;
+  let donutOffset = 0;
+  const donutSegments = stats.subjectList.map((item, idx) => {
+    const fraction = item.count / totalPassedCount;
+    const segLen = fraction * DONUT_C;
+    const color = STATS_PALETTE[idx % STATS_PALETTE.length];
+    const offset = donutOffset;
+    donutOffset += segLen;
+    return `
+      <circle class="stats-donut-slice"
+        cx="50" cy="50" r="${DONUT_R}"
+        fill="none"
+        stroke="${color}"
+        stroke-width="12"
+        stroke-dasharray="${segLen.toFixed(2)} ${DONUT_C.toFixed(2)}"
+        stroke-dashoffset="-${offset.toFixed(2)}"
+        transform="rotate(-90 50 50)"
+        data-subject-index="${idx}"
+        onclick="jumpToSubject(${idx})"
+        title="${esc(item.name)}: ${item.count} ${getPairWord(item.count)}"
+      />
+    `;
+  }).join('');
+
+  // Дни недели
+  const weekdaysList = [
+    { key: 'Пн', full: 'Понедельник' },
+    { key: 'Вт', full: 'Вторник' },
+    { key: 'Ср', full: 'Среда' },
+    { key: 'Чт', full: 'Четверг' },
+    { key: 'Пт', full: 'Пятница' },
+    { key: 'Сб', full: 'Суббота' }
+  ];
+  const maxDayCount = Math.max(1, ...weekdaysList.map(w => stats.weekdayCounts[w.key] || 0));
+
   els.statsContainer.innerHTML = `
     <div class="stats-header-wrap">
       <h2 class="stats-view-title">Статистика пар с 1 сентября по сегодня</h2>
       <div class="stats-view-subtitle">
-        Группа: <strong>${esc(S.group || '—')}</strong> • Период: 01.09 – ${dayStr}.${String(now.getMonth() + 1).padStart(2, '0')} (${todayFormatted}, ${timeFormatted})
+        Группа: <strong>${esc(S.group || '—')}</strong> • 01.09 – ${dayStr}.${String(now.getMonth() + 1).padStart(2, '0')} (${todayFormatted}, ${timeFormatted})
       </div>
     </div>
 
-    <!-- KPI Hero Grid -->
-    <div class="stats-kpi-grid">
-      <div class="stats-kpi-card hero-kpi">
-        <div class="stats-kpi-top">
-          <span class="stats-kpi-label">Прошло пар с 1 сентября</span>
-          <span class="stats-kpi-icon">${ICONS.trophy}</span>
-        </div>
-        <div class="stats-kpi-value">${stats.totalPassed}</div>
-      </div>
-      <div class="stats-kpi-card ${stats.totalCancelled > 0 ? 'cancelled-kpi' : ''}">
-        <div class="stats-kpi-top">
-          <span class="stats-kpi-label">Отменено пар</span>
-          <span class="stats-kpi-icon">${stats.totalCancelled > 0 ? ICONS.alert : ICONS.checkCircle}</span>
-        </div>
-        <div class="stats-kpi-value">${stats.totalCancelled}</div>
-      </div>
-      <div class="stats-kpi-card">
-        <div class="stats-kpi-top">
-          <span class="stats-kpi-label">Предметов проведено</span>
-          <span class="stats-kpi-icon">${ICONS.book}</span>
-        </div>
-        <div class="stats-kpi-value">${stats.subjectList.length}</div>
-      </div>
-      <div class="stats-kpi-card">
-        <div class="stats-kpi-top">
-          <span class="stats-kpi-label">Учебных дней с парами</span>
-          <span class="stats-kpi-icon">${ICONS.calendar}</span>
-        </div>
-        <div class="stats-kpi-value">${stats.uniqueDaysCount}</div>
-      </div>
-    </div>
-
-    ${stats.cancelledPairsList.length > 0 ? `
-      <!-- Отмененные пары колледжа -->
-      <div class="stats-cancelled-block">
-        <div class="stats-block-header">
-          <span class="stats-block-title" style="color:#ef4444;display:flex;align-items:center;gap:6px;">${ICONS.alert} Отменённые пары колледжа (${stats.cancelledPairsList.length})</span>
-        </div>
-        <div class="stats-cancelled-list">
-          ${stats.cancelledPairsList.map(c => `
-            <div class="stats-cancelled-card">
-              <div class="stats-cancelled-info">
-                <span class="stats-cancelled-name">${esc(c.subject)}</span>
-                <span class="stats-cancelled-meta">${ICONS.calendar} ${esc(c.dayName)} ${esc(c.date)} • ${c.num} пара ${c.teacher ? `• ${ICONS.user} ${esc(c.teacher)}` : ''}</span>
-              </div>
-              <span class="stats-cancelled-badge">Отменена</span>
+    <!-- ПЕРВОЕ: Интерактивный визуальный график нагрузки -->
+    ${stats.subjectList.length > 0 ? `
+      <div class="stats-chart-card">
+        <div class="stats-chart-header">
+          <div class="stats-chart-header-left">
+            <div class="stats-chart-title-row">
+              <span class="stats-chart-icon">📊</span>
+              <span class="stats-chart-title">Аналитика и график нагрузки</span>
             </div>
-          `).join('')}
+            <span class="stats-chart-subtitle">Всего ${stats.totalPassed} ${getPairWord(stats.totalPassed)} • ${totalAcademicHours} ак. ч.</span>
+          </div>
+          <div class="stats-chart-toggle-group">
+            <button class="stats-chart-tab-btn active" id="chartTabSubjects" onclick="switchStatsChartTab('subjects')" type="button">По предметам</button>
+            <button class="stats-chart-tab-btn" id="chartTabDays" onclick="switchStatsChartTab('days')" type="button">По дням</button>
+          </div>
+        </div>
+
+        <!-- PANE 1: По предметам (Круговая диаграмма + прогресс-бары) -->
+        <div class="stats-chart-pane" id="statsChartSubjectsPane">
+          <div class="stats-donut-container">
+            <div class="stats-donut-wrapper">
+              <svg viewBox="0 0 100 100" class="stats-donut-svg">
+                ${donutSegments}
+              </svg>
+              <div class="stats-donut-center">
+                <span class="stats-donut-center-val">${stats.totalPassed}</span>
+                <span class="stats-donut-center-lbl">пар всего</span>
+              </div>
+            </div>
+            <div class="stats-donut-legend">
+              <div class="stats-donut-legend-row">
+                <span class="stats-donut-legend-pill">${totalAcademicHours} ак. часов</span>
+                <span class="stats-donut-legend-pill accent">${avgPerDay} пар/день</span>
+                <span class="stats-donut-legend-pill">${stats.uniqueDaysCount} дней с парами</span>
+                <span class="stats-donut-legend-pill ${stats.totalCancelled > 0 ? 'cancelled-pill' : 'good'}">${stats.totalCancelled > 0 ? `${stats.totalCancelled} отмен (${completionRate}%)` : `${completionRate}% без отмен`}</span>
+              </div>
+              <div class="stats-donut-hint">💡 Нажмите на любой предмет ниже или на сегмент графика, чтобы раскрыть его даты</div>
+            </div>
+          </div>
+
+          <!-- Многоцветный сегментированный прогресс-бар -->
+          <div class="stats-stacked-bar" title="Распределение нагрузки по предметам">
+            ${stats.subjectList.map((item, idx) => {
+              const pct = ((item.count / totalPassedCount) * 100).toFixed(1);
+              const color = STATS_PALETTE[idx % STATS_PALETTE.length];
+              return `<div class="stats-stacked-seg" style="width: ${pct}%; background: ${color};" onclick="jumpToSubject(${idx})" title="${esc(item.name)}: ${item.count} ${getPairWord(item.count)} (${pct}%)"></div>`;
+            }).join('')}
+          </div>
+
+          <!-- Рейтинг ключевых дисциплин (Кликабельные строки!) -->
+          <div class="stats-ranked-bars">
+            ${stats.subjectList.slice(0, 6).map((item, idx) => {
+              const pct = Math.round((item.count / totalPassedCount) * 100);
+              const color = STATS_PALETTE[idx % STATS_PALETTE.length];
+              return `
+                <div class="stats-ranked-row clickable" onclick="jumpToSubject(${idx})" title="Нажмите, чтобы раскрыть предмет в списке">
+                  <div class="stats-ranked-info">
+                    <div class="stats-ranked-label-wrap">
+                      <span class="stats-ranked-dot" style="background: ${color};"></span>
+                      <span class="stats-ranked-name">${esc(item.name)}</span>
+                    </div>
+                    <span class="stats-ranked-count"><strong>${item.count}</strong> ${getPairWord(item.count)} <span class="stats-ranked-pct">(${pct}%)</span> ➔</span>
+                  </div>
+                  <div class="stats-progress-track">
+                    <div class="stats-progress-fill" style="width: ${pct}%; background: ${color};"></div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- PANE 2: Нагрузка по дням недели -->
+        <div class="stats-chart-pane" id="statsChartDaysPane" style="display:none;">
+          <div class="stats-weekdays-grid">
+            ${weekdaysList.map(w => {
+              const count = stats.weekdayCounts[w.key] || 0;
+              const pct = maxDayCount > 0 ? Math.round((count / maxDayCount) * 100) : 0;
+              const totalPct = Math.round((count / totalPassedCount) * 100);
+              return `
+                <div class="stats-weekday-item">
+                  <div class="stats-weekday-head">
+                    <span class="stats-weekday-name">${w.full} (${w.key})</span>
+                    <span class="stats-weekday-badge ${count === 0 ? 'zero' : ''}">${count} ${getPairWord(count)} (${totalPct}%)</span>
+                  </div>
+                  <div class="stats-progress-track">
+                    <div class="stats-progress-fill" style="width: ${pct}%; background: ${count > 0 ? 'var(--accent)' : 'transparent'};"></div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
         </div>
       </div>
     ` : ''}
 
-    <!-- Passed Subjects List -->
+    <!-- ВТОРОЕ: Отмененные пары (Свернуто по умолчанию как спойлер/аккордеон) -->
+    ${stats.cancelledPairsList.length > 0 ? `
+      <div class="stats-cancelled-accordion" id="statsCancelledAccordion">
+        <div class="stats-cancelled-header" onclick="toggleCancelledAccordion()">
+          <div class="stats-cancelled-header-left">
+            <span class="stats-cancelled-alert-badge">
+              <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </span>
+            <span class="stats-cancelled-header-title">Отменённые пары колледжа</span>
+            <span class="stats-cancelled-pill">${stats.cancelledPairsList.length}</span>
+          </div>
+          <div class="stats-cancelled-header-right">
+            <span class="stats-cancelled-chevron">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </span>
+          </div>
+        </div>
+        <div class="stats-cancelled-body">
+          <div class="stats-cancelled-list">
+            ${stats.cancelledPairsList.map(c => `
+              <div class="stats-cancelled-card">
+                <div class="stats-cancelled-info">
+                  <span class="stats-cancelled-name">${esc(c.subject)}</span>
+                  <span class="stats-cancelled-meta">${ICONS.calendar} ${esc(c.dayName)} ${esc(c.date)} • ${c.num} пара ${c.teacher ? `• ${ICONS.user} ${esc(c.teacher)}` : ''}</span>
+                </div>
+                <span class="stats-cancelled-badge">Отменена</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- ТРЕТЬЕ: Список предметов (По умолчанию свёрнуто, только названия) -->
     <div class="stats-subjects-block">
       <div class="stats-block-header">
-        <span class="stats-block-title">Какие пары уже прошли с 1 сентября (${stats.subjectList.length})</span>
+        <span class="stats-block-title">Список предметов (${stats.subjectList.length})</span>
+        ${stats.subjectList.length > 0 ? `
+          <button type="button" class="stats-toggle-all-btn" onclick="toggleAllStatsAccordions(this)" title="Развернуть или свернуть все">
+            <span class="stats-toggle-all-text">Развернуть все</span>
+            <svg class="stats-toggle-all-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        ` : ''}
       </div>
 
-      <div class="stats-subjects-list">
+      <div class="stats-subjects-list" id="statsSubjectsList">
         ${stats.subjectList.length === 0 ? `
           <div class="schedule-error-card">
             <p>За период с 1 сентября по сегодняшний день завершённых занятий для группы ${esc(S.group || '')} не найдено.</p>
           </div>
         ` : ''}
-        ${stats.subjectList.map(item => {
+        ${stats.subjectList.map((item, idx) => {
+          const color = STATS_PALETTE[idx % STATS_PALETTE.length];
+          const pct = ((item.count / totalPassedCount) * 100).toFixed(1);
           const sessionsByDate = {};
           item.sessions.forEach(s => {
             if (!sessionsByDate[s.date]) sessionsByDate[s.date] = [];
@@ -4501,17 +4780,40 @@ async function renderStatsView() {
           }).join('');
 
           return `
-            <div class="stats-passed-card">
-              <div class="stats-passed-top">
-                <span class="stats-passed-name">${esc(item.name)}</span>
-                <span class="stats-passed-badge">${item.count} ${getPairWord(item.count)} прошло</span>
+            <div class="stats-acc-card" id="stats-acc-${idx}">
+              <div class="stats-acc-header" onclick="toggleStatsAccordion(${idx})">
+                <div class="stats-acc-header-left">
+                  <span class="stats-acc-dot" style="background: ${color};"></span>
+                  <span class="stats-acc-title">${esc(item.name)}</span>
+                </div>
+                <div class="stats-acc-header-right">
+                  <span class="stats-acc-chevron">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                  </span>
+                </div>
               </div>
-              <div class="stats-sessions-chips">
-                ${sessionTags}
-              </div>
-              <div class="stats-passed-meta">
-                <span class="stats-passed-teacher">${item.teacher ? `${ICONS.user} ${esc(item.teacher)}` : 'Преподаватель не указан'}</span>
-                <span class="stats-passed-room">${item.room ? `ауд. ${esc(item.room)}` : ''}</span>
+              <div class="stats-acc-body">
+                <div class="stats-acc-content">
+                  <div class="stats-acc-stats-row">
+                    <div class="stats-acc-stat-badge">
+                      <span class="stats-acc-stat-icon">${ICONS.checkCircle}</span>
+                      <span>Пройдено <strong>${item.count}</strong> ${getPairWord(item.count)} (${item.count * 2} ак. ч.)</span>
+                    </div>
+                    <div class="stats-acc-pct-badge">${pct}% нагрузки</div>
+                  </div>
+                  ${(item.teacher || item.room) ? `
+                    <div class="stats-acc-meta">
+                      ${item.teacher ? `<span class="stats-acc-teacher">${ICONS.user} ${esc(item.teacher)}</span>` : ''}
+                      ${item.room ? `<span class="stats-acc-room">ауд. ${esc(item.room)}</span>` : ''}
+                    </div>
+                  ` : ''}
+                  <div class="stats-acc-sessions-section">
+                    <div class="stats-acc-sessions-title">Даты проведения занятий (${item.sessions.length}):</div>
+                    <div class="stats-sessions-chips">
+                      ${sessionTags}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           `;
@@ -4520,6 +4822,80 @@ async function renderStatsView() {
     </div>
   `;
 }
+
+// ── Переключение вкладок графика (По предметам / По дням) ──
+window.switchStatsChartTab = function(mode) {
+  const paneSubjects = document.getElementById('statsChartSubjectsPane');
+  const paneDays = document.getElementById('statsChartDaysPane');
+  const btnSubjects = document.getElementById('chartTabSubjects');
+  const btnDays = document.getElementById('chartTabDays');
+
+  if (mode === 'days') {
+    if (paneSubjects) paneSubjects.style.display = 'none';
+    if (paneDays) paneDays.style.display = 'block';
+    if (btnSubjects) btnSubjects.classList.remove('active');
+    if (btnDays) btnDays.classList.add('active');
+  } else {
+    if (paneSubjects) paneSubjects.style.display = 'block';
+    if (paneDays) paneDays.style.display = 'none';
+    if (btnSubjects) btnSubjects.classList.add('active');
+    if (btnDays) btnDays.classList.remove('active');
+  }
+};
+
+// ── Интерактивный переход от графика к предмету ──
+window.jumpToSubject = function(idx) {
+  const card = document.getElementById(`stats-acc-${idx}`);
+  if (!card) return;
+  card.classList.add('open');
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.remove('highlight-pulse');
+  void card.offsetWidth;
+  card.classList.add('highlight-pulse');
+  setTimeout(() => {
+    card.classList.remove('highlight-pulse');
+  }, 2200);
+};
+
+// ── Сворачивание / разворачивание отменённых пар ──
+window.toggleCancelledAccordion = function() {
+  const acc = document.getElementById('statsCancelledAccordion');
+  if (acc) {
+    acc.classList.toggle('open');
+  }
+};
+
+// ── Сворачивание / разворачивание предмета ──
+window.toggleStatsAccordion = function(idx) {
+  const card = document.getElementById(`stats-acc-${idx}`);
+  if (card) {
+    card.classList.toggle('open');
+  }
+};
+
+// ── Развернуть / свернуть все ──
+window.toggleAllStatsAccordions = function(btn) {
+  const container = document.getElementById('statsSubjectsList');
+  if (!container) return;
+  const cards = container.querySelectorAll('.stats-acc-card');
+  const anyClosed = Array.from(cards).some(c => !c.classList.contains('open'));
+
+  cards.forEach(c => {
+    if (anyClosed) {
+      c.classList.add('open');
+    } else {
+      c.classList.remove('open');
+    }
+  });
+
+  if (btn) {
+    const textSpan = btn.querySelector('.stats-toggle-all-text');
+    if (textSpan) {
+      textSpan.textContent = anyClosed ? 'Свернуть все' : 'Развернуть все';
+    }
+    btn.classList.toggle('all-open', anyClosed);
+  }
+};
 
 // ════════════════════════════════════════
 //  GROUP SELECTION (ПЛИТКИ / КВАДРАТИКИ)
@@ -4643,7 +5019,18 @@ window.openSupportModal = openSupportModal;
 window.closeSupportModal = closeSupportModal;
 
 // ── ЭЛЕКТРОННЫЙ ДНЕВНИК 1С:КОЛЛЕДЖ ──
+// ── ЭЛЕКТРОННЫЙ ДНЕВНИК 1С:ОБРАЗОВАНИЕ ──
 const DIARY_1C_URL = 'https://online-obr-e5cloud-02-gpt-msk.1c.ru/library.html?db_name=moskva_kolledzh_telekommunikatcii_mtusi';
+
+let diaryState = {
+  loading: false,
+  authenticated: false,
+  student: '',
+  group: '',
+  overallAverage: null,
+  subjects: [],
+  lastSynced: ''
+};
 
 function openDiaryExternal() {
   if (window.Telegram?.WebApp?.openLink) {
@@ -4653,18 +5040,312 @@ function openDiaryExternal() {
   }
 }
 
-function openDiaryModal() {
-  openDiaryExternal();
+function getDiaryDeviceId() {
+  let devId = localStorage.getItem('diary_device_id');
+  if (!devId) {
+    devId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36));
+    localStorage.setItem('diary_device_id', devId);
+  }
+  return devId;
+}
+
+async function openDiaryModal() {
+  const modal = document.getElementById('diaryModal');
+  if (!modal) return;
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  updateBottomNavActive('diary');
+
+  const groupInput = document.getElementById('diaryGroupInput');
+  if (groupInput) {
+    const curGrp = (typeof S !== 'undefined' && S.group) ? S.group : (typeof S !== 'undefined' && S.activeGroup ? S.activeGroup : 'ИСС9-25');
+    if (!groupInput.value || groupInput.value === 'ИСС9-225') {
+      groupInput.value = curGrp;
+    }
+  }
+
+  await loadDiaryGrades(false);
 }
 
 function closeDiaryModal() {
-  if (els.diaryModal) {
-    els.diaryModal.classList.remove('open');
+  const modal = document.getElementById('diaryModal');
+  if (modal) {
+    modal.classList.remove('open');
     document.body.style.overflow = '';
+  }
+  if (typeof currentView !== 'undefined') {
+    updateBottomNavActive(currentView);
   }
 }
 
-window.openDiaryModal = openDiaryExternal;
+function setDiaryLoading(isLoading, text = 'Загрузка дневника 1С...') {
+  const loader = document.getElementById('diaryLoader');
+  const loaderText = document.getElementById('diaryLoaderText');
+  if (!loader) return;
+  if (isLoading) {
+    if (loaderText) loaderText.textContent = text;
+    loader.classList.remove('hidden');
+    loader.style.display = 'flex';
+  } else {
+    loader.classList.add('hidden');
+    loader.style.display = 'none';
+  }
+}
+
+async function loadDiaryGrades(forceRefresh = false) {
+  setDiaryLoading(true, forceRefresh ? 'Синхронизация с 1С...' : 'Загрузка дневника 1С...');
+  const authView = document.getElementById('diaryAuthView');
+  const gradesView = document.getElementById('diaryGradesView');
+  const logoutBtn = document.getElementById('diaryLogoutBtn');
+
+  try {
+    const headers = {
+      'X-Diary-Device-Id': getDiaryDeviceId()
+    };
+    const tgToken = localStorage.getItem('tg_auth_token');
+    if (tgToken) headers['X-Telegram-Auth'] = tgToken;
+
+    const url = `/api/grades${forceRefresh ? '?force_refresh=true' : ''}`;
+    const resp = await fetch(url, { credentials: 'include', headers });
+    const data = await resp.json();
+
+    if (data && data.authenticated && data.grades) {
+      diaryState.authenticated = true;
+      diaryState.student = data.student || 'Студент';
+      diaryState.group = data.group || (typeof S !== 'undefined' && S.group) || 'ИСС9-25';
+      diaryState.overallAverage = data.grades.overall_average;
+      diaryState.subjects = data.grades.subjects || [];
+      diaryState.lastSynced = data.last_synced || data.grades.synced_at || '';
+
+      if (authView) authView.style.display = 'none';
+      if (gradesView) gradesView.style.display = 'flex';
+      if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+
+      renderDiaryGrades();
+    } else {
+      diaryState.authenticated = false;
+      if (authView) authView.style.display = 'flex';
+      if (gradesView) gradesView.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Ошибка загрузки дневника 1С:', err);
+    if (!diaryState.authenticated) {
+      if (authView) authView.style.display = 'flex';
+      if (gradesView) gradesView.style.display = 'none';
+    }
+  } finally {
+    setDiaryLoading(false);
+  }
+}
+
+async function submitDiaryAuth() {
+  const loginInput = document.getElementById('diaryLoginInput');
+  const passInput = document.getElementById('diaryPasswordInput');
+  const groupInput = document.getElementById('diaryGroupInput');
+  const errBox = document.getElementById('diaryAuthError');
+
+  const login = loginInput?.value?.trim();
+  const password = passInput?.value?.trim();
+  const group = groupInput?.value?.trim() || 'ИСС9-25';
+
+  if (!login) {
+    if (errBox) { errBox.textContent = 'Пожалуйста, введите вашу фамилию или ФИО'; errBox.style.display = 'block'; }
+    loginInput?.focus();
+    return;
+  }
+  if (!password) {
+    if (errBox) { errBox.textContent = 'Пожалуйста, введите пароль от 1С'; errBox.style.display = 'block'; }
+    passInput?.focus();
+    return;
+  }
+
+  if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+  setDiaryLoading(true, 'Проверка данных в системе 1С...');
+
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Diary-Device-Id': getDiaryDeviceId()
+    };
+    const tgToken = localStorage.getItem('tg_auth_token');
+    if (tgToken) headers['X-Telegram-Auth'] = tgToken;
+
+    const resp = await fetch('/api/grades/auth', {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ login, password, group })
+    });
+    const result = await resp.json();
+
+    if (resp.ok && result.success) {
+      if (passInput) passInput.value = '';
+      await loadDiaryGrades(false);
+      showToast('Успешный вход в дневник 1С! ✅');
+    } else {
+      setDiaryLoading(false);
+      const msg = result.error || result.detail || 'Неверная фамилия или пароль';
+      if (errBox) { errBox.textContent = msg; errBox.style.display = 'block'; }
+    }
+  } catch (err) {
+    setDiaryLoading(false);
+    if (errBox) { errBox.textContent = 'Ошибка соединения с сервером. Попробуйте позже.'; errBox.style.display = 'block'; }
+  }
+}
+
+async function logoutDiary() {
+  if (!confirm('Вы действительно хотите отвязать дневник 1С?')) return;
+  setDiaryLoading(true, 'Отвязка дневника...');
+  try {
+    await fetch('/api/grades/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-Diary-Device-Id': getDiaryDeviceId() }
+    });
+    diaryState.authenticated = false;
+    diaryState.subjects = [];
+    const authView = document.getElementById('diaryAuthView');
+    const gradesView = document.getElementById('diaryGradesView');
+    const logoutBtn = document.getElementById('diaryLogoutBtn');
+    if (authView) authView.style.display = 'flex';
+    if (gradesView) gradesView.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    showToast('Дневник 1С отвязан');
+  } catch (e) {
+    console.error(e);
+  } finally {
+    setDiaryLoading(false);
+  }
+}
+
+function getAvgClass(avg) {
+  if (avg == null || isNaN(avg)) return '';
+  const num = parseFloat(avg);
+  if (num >= 4.5) return 'avg-excellent';
+  if (num >= 3.5) return 'avg-good';
+  if (num >= 2.5) return 'avg-satisfactory';
+  return 'avg-bad';
+}
+
+function getGradeValClass(grade) {
+  const g = parseInt(grade, 10);
+  if (g === 5) return 'grade-5';
+  if (g === 4) return 'grade-4';
+  if (g === 3) return 'grade-3';
+  return 'grade-2';
+}
+
+function toggleDiarySubject(cardEl) {
+  if (!cardEl) return;
+  cardEl.classList.toggle('expanded');
+}
+
+function getGradesCountWord(n) {
+  const abs = Math.abs(n);
+  const m10 = abs % 10;
+  const m100 = abs % 100;
+  if (m100 >= 11 && m100 <= 19) return 'оценок';
+  if (m10 === 1) return 'оценка';
+  if (m10 >= 2 && m10 <= 4) return 'оценки';
+  return 'оценок';
+}
+
+function renderDiaryGrades() {
+  const nameEl = document.getElementById('diaryStudentName');
+  const grpEl = document.getElementById('diaryStudentGroup');
+  const syncEl = document.getElementById('diaryStudentSync');
+  const overallValEl = document.getElementById('diaryOverallScoreVal');
+  const listEl = document.getElementById('diarySubjectsList');
+
+  if (nameEl) nameEl.textContent = diaryState.student || 'Студент';
+  if (grpEl) grpEl.textContent = diaryState.group || '';
+  if (syncEl) syncEl.textContent = diaryState.lastSynced ? `Обновлено: ${diaryState.lastSynced}` : '';
+
+  if (overallValEl) {
+    const o = diaryState.overallAverage;
+    overallValEl.textContent = (o != null && !isNaN(o)) ? Number(o).toFixed(2) : '—';
+  }
+
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  const subjects = diaryState.subjects || [];
+  if (subjects.length === 0) {
+    listEl.innerHTML = '<div class="diary-grades-empty">В журнале пока нет предметов или оценок</div>';
+    return;
+  }
+
+  subjects.forEach((subj) => {
+    const card = document.createElement('div');
+    card.className = 'diary-subject-card';
+
+    const avgVal = subj.average_mark;
+    const avgClass = getAvgClass(avgVal);
+    const avgDisplay = (avgVal != null && !isNaN(avgVal)) ? `⭐ ${Number(avgVal).toFixed(2)}` : '—';
+    const grades = subj.grades || [];
+    const countText = grades.length > 0 ? `${grades.length} ${getGradesCountWord(grades.length)}` : 'нет оценок';
+
+    card.innerHTML = `
+      <div class="diary-subject-header">
+        <div class="diary-subject-left">
+          <span class="diary-subject-name">${escapeHtml(subj.subject || 'Дисциплина')}</span>
+          <span class="diary-subject-count">${countText}</span>
+        </div>
+        <div class="diary-subject-right">
+          <div class="diary-subject-avg-badge ${avgClass}">${avgDisplay}</div>
+          <svg class="diary-chevron lucide-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+      <div class="diary-subject-details">
+        <div class="diary-grades-grid">
+          ${grades.length === 0 ? '<div class="diary-grades-empty">По этой паре пока нет выставленных оценок</div>' : ''}
+          ${grades.map(g => `
+            <div class="diary-grade-item">
+              <span class="diary-grade-val ${getGradeValClass(g.grade)}">${escapeHtml(String(g.grade || ''))}</span>
+              <div class="diary-grade-meta">
+                <span class="diary-grade-date">${escapeHtml(g.date || '')}</span>
+                ${g.topic ? `<span class="diary-grade-topic">${escapeHtml(g.topic)}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    const header = card.querySelector('.diary-subject-header');
+    header?.addEventListener('click', () => toggleDiarySubject(card));
+
+    listEl.appendChild(card);
+  });
+}
+
+// Слушатели событий окна дневника
+document.getElementById('closeDiaryModal')?.addEventListener('click', closeDiaryModal);
+document.getElementById('diaryReloadBtn')?.addEventListener('click', () => loadDiaryGrades(true));
+document.getElementById('diaryLogoutBtn')?.addEventListener('click', logoutDiary);
+document.getElementById('diaryExternalBtn')?.addEventListener('click', openDiaryExternal);
+document.getElementById('diaryAuthSubmitBtn')?.addEventListener('click', submitDiaryAuth);
+
+document.getElementById('diaryPasswordInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitDiaryAuth();
+});
+document.getElementById('diaryLoginInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitDiaryAuth();
+});
+
+// Автооткрытие при deep-link (?open=diary или #diary)
+if (typeof window !== 'undefined') {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('open') === 'diary' || window.location.hash === '#diary') {
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(openDiaryModal, 600);
+    });
+  }
+}
+
+window.openDiaryModal = openDiaryModal;
 window.openDiaryExternal = openDiaryExternal;
 window.closeDiaryModal = closeDiaryModal;
 
@@ -4849,6 +5530,7 @@ const MANDATORY_MENU_IDS = ['menu-refresh', 'menu-onboarding', 'menu-theme'];
 const DEFAULT_MENU_SECTION_MAP = {
   'menu-refresh':       'frequent',
   'menu-theme':         'frequent',
+  'menu-download-app':  'services',
   'menu-diary':         'services',
   'menu-stats':         'services',
   'menu-leaderboard':   'services',
@@ -4864,6 +5546,7 @@ const DEFAULT_MENU_SECTION_MAP = {
 const DEFAULT_MENU_CONFIG = [
   { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
   { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+  { id: 'menu-download-app',  visible: true,  section: 'services', color: 'default' },
   { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
   { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
   { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
@@ -4880,6 +5563,7 @@ const PRESETS_MENU = {
   standard: [
     { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
     { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-download-app',  visible: true,  section: 'services', color: 'default' },
     { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
@@ -4894,6 +5578,7 @@ const PRESETS_MENU = {
   servicesOnly: [
     { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
     { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-download-app',  visible: true,  section: 'services', color: 'default' },
     { id: 'menu-diary',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
@@ -4908,6 +5593,7 @@ const PRESETS_MENU = {
   minimal: [
     { id: 'menu-refresh',       visible: true,  section: 'frequent', color: 'default' },
     { id: 'menu-theme',         visible: true,  section: 'frequent', color: 'default' },
+    { id: 'menu-download-app',  visible: false, section: 'services', color: 'default' },
     { id: 'menu-diary',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-stats',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-leaderboard',   visible: false, section: 'services', color: 'default' },
@@ -5823,14 +6509,16 @@ function setupNavPosition() {
     };
   });
 
-  // Кнопки нижнего Tab Bar (4 основных пункта)
+  // Кнопки нижнего Tab Bar (5 основных пунктов)
   const bSchedule = $('bottomNavSchedule');
   const bTeacher = $('bottomNavTeacher');
+  const bDiary = $('bottomNavDiary');
   const bClassroom = $('bottomNavClassroom');
   const bMore = $('bottomNavMore');
 
   if (bSchedule) bSchedule.onclick = () => { setView('schedule'); updateBottomNavActive('schedule'); };
   if (bTeacher) bTeacher.onclick = () => { setView('teacher'); updateBottomNavActive('teacher'); };
+  if (bDiary) bDiary.onclick = () => { openDiaryModal(); };
   if (bClassroom) bClassroom.onclick = () => { setView('classroom'); updateBottomNavActive('classroom'); };
   if (bMore) bMore.onclick = () => { openSidebar(); };
 }
@@ -6395,7 +7083,7 @@ async function checkAuthStatus() {
     if (data && data.is_banned) {
       triggerBanEndlessLoading();
       return;
-    } else if (data && data.authenticated && !data.is_banned) {
+    } else if (data && !data.is_banned) {
       clearBanEndlessLoading();
     }
     S.isAdmin = Boolean(data.is_admin);
@@ -6403,13 +7091,90 @@ async function checkAuthStatus() {
     S.telegramUsername = data.username || null;
 
     const adminBtn = document.getElementById('sidebarAdminBtn');
+    const adminLoginBtn = document.getElementById('sidebarAdminLoginBtn');
     if (adminBtn) {
       adminBtn.style.display = S.isAdmin ? 'flex' : 'none';
+    }
+    if (adminLoginBtn) {
+      adminLoginBtn.style.display = S.isAdmin ? 'none' : 'flex';
     }
   } catch (e) {
     logApp('warn', 'Ошибка проверки статуса авторизации:', e);
   }
 }
+
+window.openAdminLoginModal = function() {
+  const m = document.getElementById('adminLoginModal');
+  if (m) {
+    m.style.display = 'flex';
+    const inp = document.getElementById('adminLoginKeyInput');
+    if (inp) {
+      inp.value = '';
+      setTimeout(() => inp.focus(), 150);
+    }
+    const err = document.getElementById('adminLoginError');
+    if (err) err.style.display = 'none';
+  }
+};
+
+window.closeAdminLoginModal = function() {
+  const m = document.getElementById('adminLoginModal');
+  if (m) m.style.display = 'none';
+};
+
+window.submitAdminLogin = async function(e) {
+  if (e) e.preventDefault();
+  const inp = document.getElementById('adminLoginKeyInput');
+  const err = document.getElementById('adminLoginError');
+  const btn = document.getElementById('adminLoginSubmitBtn');
+  const key = (inp?.value || '').trim();
+  if (!key) return;
+
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_key: key })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      localStorage.setItem('schedule_admin_master_key', key);
+      document.cookie = 'admin_key=' + encodeURIComponent(key) + '; path=/; max-age=31536000; SameSite=Lax';
+      S.isAdmin = true;
+      if (err) err.style.display = 'none';
+      closeAdminLoginModal();
+      if (typeof showToast === 'function') {
+        showToast('🛡 Доступ создателя подтверждён!', 3000);
+      }
+      await checkAuthStatus();
+      setTimeout(() => {
+        if (typeof openAdminModal === 'function') openAdminModal();
+      }, 350);
+    } else {
+      if (err) {
+        err.textContent = 'Неверный пароль или PIN-код!';
+        err.style.display = 'block';
+      }
+    }
+  } catch (ex) {
+    if (err) {
+      err.textContent = 'Ошибка соединения с сервером';
+      err.style.display = 'block';
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+window.logoutAdmin = function() {
+  localStorage.removeItem('schedule_admin_master_key');
+  document.cookie = 'admin_key=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  S.isAdmin = false;
+  checkAuthStatus();
+  if (typeof closeAdminModal === 'function') closeAdminModal();
+  if (typeof showToast === 'function') showToast('Вы вышли из режима создателя', 2000);
+};
 
 // ── CLIENT ACTIVITY & ACTIVE TIME TRACKER (ANTI-IDLE HEARTBEAT) ──
 let _lastReportedError = '';
@@ -6453,6 +7218,22 @@ if (typeof document !== 'undefined') {
   window.addEventListener('blur', () => {
     isPageActive = false;
   });
+
+  window.addEventListener('online', () => {
+    logApp('info', 'Соединение с интернетом восстановлено');
+    if (IS_CAPACITOR && window.location.hostname === 'localhost') {
+      window.location.href = 'https://schedule.dadrik.ru/?app=apk';
+    } else if (typeof loadSchedule === 'function') {
+      loadSchedule(true);
+    }
+  });
+
+  window.addEventListener('offline', () => {
+    logApp('warn', 'Сеть недоступна (офлайн-режим)');
+    if (typeof showOfflineBanner === 'function') {
+      showOfflineBanner('Офлайн-режим: показано сохранённое расписание', false);
+    }
+  });
 }
 
 function sendClientActivity(actionName) {
@@ -6482,7 +7263,13 @@ function sendClientActivity(actionName) {
       ? navigator.userAgentData.platform 
       : (navigator.platform || 'Web');
 
-    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (!tgUser) {
+      try {
+        const storedUser = localStorage.getItem('tg_auth_user');
+        if (storedUser) tgUser = JSON.parse(storedUser);
+      } catch (_) {}
+    }
     const photoUrl = tgUser?.photo_url || '';
     const optIn = localStorage.getItem('leaderboard_opt_in') !== 'false';
 
@@ -6578,7 +7365,12 @@ let allLoadedOnlineUsers = [];
 let allLoadedHistoryUsers = [];
 
 window.openAdminModal = function() {
-  if (!S.isAdmin) return;
+  const adminKey = localStorage.getItem('schedule_admin_master_key');
+  const isTgAdmin = window.Telegram?.WebApp?.initData && S.isAdmin;
+  if (!adminKey && !isTgAdmin && !S.isAdmin) {
+    openAdminLoginModal();
+    return;
+  }
   const backdrop = document.getElementById('adminModalBackdrop');
   const modal = document.getElementById('adminModal');
   if (backdrop && modal) {
@@ -6590,6 +7382,20 @@ window.openAdminModal = function() {
   updateTelegramBackButton();
   sendClientActivity('Открыл панель управления');
 };
+
+function handleAdminAuthError(res) {
+  if (res && (res.status === 401 || res.status === 404)) {
+    closeAdminModal();
+    openAdminLoginModal();
+    const err = document.getElementById('adminLoginError');
+    if (err) {
+      err.textContent = 'Требуется подтвердить PIN создателя (202675)';
+      err.style.display = 'block';
+    }
+    return true;
+  }
+  return false;
+}
 
 window.closeAdminModal = function() {
   const backdrop = document.getElementById('adminModalBackdrop');
@@ -6659,6 +7465,7 @@ window.loadAdminUsers = async function() {
 
   try {
     const res = await fetchWithTimeout(`${API}/admin/users`, {}, 6000);
+    if (handleAdminAuthError(res)) return;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const onlineUsers = data.online_users || [];
@@ -6862,6 +7669,7 @@ window.loadAdminBans = async function(query = '') {
   try {
     const url = `${API}/admin/bans${query ? `?search=${encodeURIComponent(query)}` : ''}`;
     const res = await fetchWithTimeout(url, {}, 6000);
+    if (handleAdminAuthError(res)) return;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const bans = data.banned_users || [];
@@ -7039,6 +7847,7 @@ window.loadAdminAuditLogs = async function() {
 
   try {
     const res = await fetchWithTimeout(`${API}/admin/audit-logs`, {}, 6000);
+    if (handleAdminAuthError(res)) return;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const logs = data.logs || [];
@@ -7085,6 +7894,7 @@ window.loadAdminStats = async function() {
 
   try {
     const res = await fetchWithTimeout(`${API}/admin/stats`, {}, 6000);
+    if (handleAdminAuthError(res)) return;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const stats = data.stats || {};
@@ -7183,6 +7993,7 @@ window.loadAdminBugReports = async function() {
 
   try {
     const res = await fetchWithTimeout(`${API}/admin/reports?status=${currentReportStatus}`, {}, 6000);
+    if (handleAdminAuthError(res)) return;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const reports = data.reports || [];
@@ -7310,7 +8121,7 @@ window.resolveMultipleReports = async function(ids) {
 
 
 // ── LEADERBOARD (ТАБЛИЦА ЛИДЕРОВ АКТИВНОСТИ) ──
-window.openLeaderboardModal = function() {
+window.realOpenLeaderboardModal = function() {
   const backdrop = document.getElementById('leaderboardModal');
   const sheet = document.getElementById('leaderboardSheet');
   if (backdrop && sheet) {
@@ -7318,9 +8129,24 @@ window.openLeaderboardModal = function() {
     backdrop.classList.add('open');
     sheet.classList.add('open');
     document.body.style.overflow = 'hidden';
-    loadLeaderboardData();
+    if (typeof loadLeaderboardData === 'function') loadLeaderboardData();
     try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
   }
+};
+
+window.openLeaderboardModal = function() {
+  const hasTgAuth = Boolean(localStorage.getItem('tg_auth_token')) ||
+                    Boolean(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 5);
+  const promptShown = localStorage.getItem('tg_sync_prompt_shown') === '1';
+
+  if (!hasTgAuth && !promptShown) {
+    window._pendingModalAfterTg = 'leaderboard';
+    if (typeof window.openTelegramAppSyncGate === 'function') {
+      window.openTelegramAppSyncGate();
+    }
+    return;
+  }
+  window.realOpenLeaderboardModal();
 };
 
 window.closeLeaderboardModal = function() {
@@ -7399,24 +8225,29 @@ window.loadLeaderboardData = async function() {
   const storedOptIn = localStorage.getItem('leaderboard_opt_in') !== 'false';
   if (toggleEl) toggleEl.checked = storedOptIn;
 
-  // Инициализация профиля из Telegram WebApp или Telegram Login Widget
+  // Инициализация профиля из Telegram WebApp, Telegram Bot Link или Widget
   let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  let isLinked = Boolean(tgUser && window.Telegram?.WebApp?.initData);
+  if (!tgUser) {
+    try {
+      const storedUser = localStorage.getItem('tg_auth_user');
+      const storedToken = localStorage.getItem('tg_auth_token');
+      if (storedUser && storedToken) {
+        tgUser = JSON.parse(storedUser);
+        isLinked = true;
+      }
+    } catch (_) {}
+  }
   if (!tgUser) {
     try {
       const widgetStored = localStorage.getItem('tg_widget_user');
-      if (widgetStored) tgUser = JSON.parse(widgetStored);
+      if (widgetStored) {
+        tgUser = JSON.parse(widgetStored);
+        isLinked = true;
+      }
     } catch (_) {}
   }
 
-  // Показываем баннер входа Telegram Widget только в браузере без авторизации
-  if (webLoginBanner) {
-    const isTma = Boolean(window.Telegram?.WebApp?.initData);
-    if (!isTma && !tgUser) {
-      webLoginBanner.style.display = 'block';
-    } else {
-      webLoginBanner.style.display = 'none';
-    }
-  }
 
   if (myNameEl) {
     if (tgUser) {
@@ -7559,6 +8390,351 @@ window.loadLeaderboardData = async function() {
   }
 };
 
+// ── TELEGRAM FULLSCREEN APP SYNC & LINKING (@Raddart_bot) ──
+let _tgGatePollingTimer = null;
+let _tgGateActiveToken = null;
+let _tgGateCurrentCode = '';
+
+function openTelegramBotUrl(url) {
+  try {
+    const tokenMatch = (url || '').match(/start=([^&]+)/);
+    const startToken = tokenMatch ? tokenMatch[1] : '';
+    const tgAppUri = `tg://resolve?domain=Raddart_bot&start=${startToken}`;
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      try { document.body.removeChild(link); } catch (_) {}
+    }, 100);
+
+    if (IS_CAPACITOR) {
+      setTimeout(() => {
+        window.location.href = tgAppUri;
+      }, 150);
+    }
+  } catch (_) {
+    window.location.href = url;
+  }
+}
+
+window.checkTelegramAppSyncGate = function() {
+  const isTgWebApp = Boolean(window.Telegram?.WebApp?.initData && window.Telegram.WebApp.initData.length > 5);
+  if (isTgWebApp) return;
+
+  const isLocalhostDev = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+    (window.location.search.includes('dev=1') || window.location.search.includes('mock_user='));
+  if (isLocalhostDev) return;
+
+  const hasAuthToken = Boolean(localStorage.getItem('tg_auth_token'));
+  if (hasAuthToken) return;
+
+  const isGuestMode = localStorage.getItem('tg_guest_mode') === '1';
+  if (isGuestMode) return;
+
+  window.openTelegramAppSyncGate();
+};
+
+window.openTelegramAppSyncGate = function() {
+  const gate = document.getElementById('telegramAppSyncGate');
+  if (gate) {
+    const btn = document.getElementById('tgSyncGateStartBtn');
+    const btnText = document.getElementById('tgSyncGateStartBtnText');
+    const statusBox = document.getElementById('tgSyncGateStatusBox');
+
+    if (_tgGatePollingTimer) {
+      clearInterval(_tgGatePollingTimer);
+      _tgGatePollingTimer = null;
+    }
+
+    let user = null;
+    try {
+      const raw = localStorage.getItem('tg_auth_user');
+      if (raw) user = JSON.parse(raw);
+    } catch (_) {}
+
+    if (btn) {
+      btn.disabled = false;
+      btn.onclick = () => window.startTelegramGateSync();
+    }
+    if (btnText) {
+      if (user && (user.username || user.first_name)) {
+        btnText.textContent = `📱 Перепривязать Telegram (${user.username ? '@' + user.username : user.first_name})`;
+      } else {
+        btnText.textContent = '📱 Синхронизировать с Telegram';
+      }
+    }
+    if (statusBox) statusBox.style.display = 'none';
+    gate.style.display = 'flex';
+  }
+};
+
+window.updateTelegramSyncUI = function() {
+  let user = null;
+  try {
+    const raw = localStorage.getItem('tg_auth_user');
+    if (raw) user = JSON.parse(raw);
+  } catch (_) {}
+
+  const hasToken = Boolean(localStorage.getItem('tg_auth_token'));
+  const isLinked = hasToken && user;
+
+  // 1. Sidebar Link Pill
+  const sbTitle = document.getElementById('sidebarTgLinkTitle');
+  const sbSub = document.getElementById('sidebarTgLinkSubtitle');
+  if (sbTitle && sbSub) {
+    if (isLinked) {
+      sbTitle.textContent = user.first_name || (user.username ? '@' + user.username : 'Telegram привязан');
+      sbSub.textContent = user.username ? `@${user.username} (привязан)` : 'Синхронизировано';
+    } else {
+      sbTitle.textContent = 'Синхронизация с TG';
+      sbSub.textContent = 'Войти через @Raddart_bot';
+    }
+  }
+
+  // 2. Topbar button
+  const tbText = document.querySelector('.topbar-tg-text');
+  if (tbText) {
+    if (isLinked) {
+      tbText.textContent = (user.first_name ? user.first_name.slice(0, 6) : (user.username ? '@' + user.username.slice(0, 5) : 'TG'));
+    } else {
+      tbText.textContent = 'TG';
+    }
+  }
+
+  // 3. Settings modal banner
+  const settingsStatus = document.getElementById('settingsModalTgStatus');
+  if (settingsStatus) {
+    if (isLinked) {
+      settingsStatus.textContent = `Привязан: ${user.first_name || ''} ${user.username ? '(@' + user.username + ')' : ''}`;
+    } else {
+      settingsStatus.textContent = 'Привязка бота @Raddart_bot';
+    }
+  }
+
+  // 4. Leaderboard button
+  const lbBtnText = document.getElementById('leaderboardTgSyncBtnText');
+  if (lbBtnText) {
+    if (isLinked) {
+      lbBtnText.textContent = `✓ Привязан к ${user.username ? '@' + user.username : (user.first_name || 'Telegram')}`;
+    } else {
+      lbBtnText.textContent = 'Синхронизировать с Telegram';
+    }
+  }
+};
+
+window.skipTelegramGateSync = function() {
+  if (_tgGatePollingTimer) {
+    clearInterval(_tgGatePollingTimer);
+    _tgGatePollingTimer = null;
+  }
+  localStorage.setItem('tg_guest_mode', '1');
+  localStorage.setItem('tg_sync_prompt_shown', '1');
+  const gate = document.getElementById('telegramAppSyncGate');
+  if (gate) {
+    gate.style.display = 'none';
+  }
+  const pending = window._pendingModalAfterTg;
+  window._pendingModalAfterTg = null;
+  if (pending === 'leaderboard') {
+    if (typeof window.realOpenLeaderboardModal === 'function') window.realOpenLeaderboardModal();
+  } else if (pending === 'games') {
+    if (typeof window.realOpenGamesModal === 'function') window.realOpenGamesModal();
+  }
+};
+
+window.startTelegramGateSync = async function() {
+  const btn = document.getElementById('tgSyncGateStartBtn');
+  const btnText = document.getElementById('tgSyncGateStartBtnText');
+  const statusBox = document.getElementById('tgSyncGateStatusBox');
+  const codeText = document.getElementById('tgSyncGateCodeText');
+  const statusText = document.getElementById('tgSyncGateStatusText');
+
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Создание сессии...';
+
+  const apiBase = (window.location.origin && !window.location.origin.includes('schedule.dadrik.ru') && window.location.protocol.startsWith('http') && !window.location.hostname.includes('127.0.0.1') && !window.location.hostname.includes('localhost'))
+    ? 'https://schedule.dadrik.ru/api' : '/api';
+
+  try {
+    const res = await fetch(`${apiBase}/auth/telegram-link/create`, { method: 'POST' });
+    if (!res.ok) throw new Error('Ошибка сервера при создании сессии');
+    const data = await res.json();
+    if (data.status === 'ok' && data.token) {
+      _tgGateActiveToken = data.token;
+      _tgGateCurrentCode = data.code;
+      if (codeText) codeText.textContent = `/link ${data.code}`;
+      if (statusBox) statusBox.style.display = 'flex';
+      if (statusText) statusText.textContent = 'Ожидаем подтверждения в боте...';
+      if (btnText) btnText.textContent = '📱 Открыть @Raddart_bot';
+
+      const botUrl = data.bot_url || `https://t.me/Raddart_bot?start=auth_${data.token}`;
+      if (btn) {
+        btn.disabled = false;
+        btn.onclick = () => openTelegramBotUrl(botUrl);
+      }
+
+      // Немедленный переход в Telegram-бота
+      openTelegramBotUrl(botUrl);
+
+      // Запуск опроса статуса каждые 1500мс
+      if (_tgGatePollingTimer) clearInterval(_tgGatePollingTimer);
+      const startTime = Date.now();
+      _tgGatePollingTimer = setInterval(async () => {
+        if (Date.now() - startTime > 300000) {
+          clearInterval(_tgGatePollingTimer);
+          _tgGatePollingTimer = null;
+          if (statusText) statusText.textContent = 'Срок ожидания истек. Нажмите кнопку снова.';
+          if (btn) {
+            btn.onclick = () => window.startTelegramGateSync();
+            if (btnText) btnText.textContent = 'Попробовать снова';
+          }
+          return;
+        }
+
+        try {
+          let sRes = await fetch(`${apiBase}/auth/telegram-link/status?token=${encodeURIComponent(data.token)}`);
+          if (!sRes.ok) {
+            sRes = await fetch(`${apiBase}/auth/telegram-link/poll?token=${encodeURIComponent(data.token)}`);
+          }
+          if (!sRes.ok) return;
+          const sData = await sRes.json();
+          if (sData.status === 'ok' && sData.auth_token) {
+            clearInterval(_tgGatePollingTimer);
+            _tgGatePollingTimer = null;
+            localStorage.setItem('tg_auth_token', sData.auth_token);
+            localStorage.setItem('tg_sync_prompt_shown', '1');
+            localStorage.removeItem('tg_guest_mode');
+            if (sData.user) {
+              localStorage.setItem('tg_auth_user', JSON.stringify(sData.user));
+              window.TELEGRAM_LINKED_USER = sData.user;
+            }
+            if (statusText) statusText.textContent = '✅ Успешно синхронизировано!';
+            if (btnText) btnText.textContent = 'Готово!';
+            if (typeof showToast === 'function') showToast('Telegram успешно синхронизирован!', 'success');
+            if (typeof window.updateTelegramSyncUI === 'function') {
+              window.updateTelegramSyncUI();
+            }
+            setTimeout(() => {
+              const gate = document.getElementById('telegramAppSyncGate');
+              if (gate) gate.style.display = 'none';
+              const pending = window._pendingModalAfterTg;
+              window._pendingModalAfterTg = null;
+              if (pending === 'leaderboard') {
+                if (typeof window.realOpenLeaderboardModal === 'function') window.realOpenLeaderboardModal();
+              } else if (pending === 'games') {
+                if (typeof window.realOpenGamesModal === 'function') window.realOpenGamesModal();
+              }
+            }, 700);
+          } else if (sData.status === 'expired') {
+            clearInterval(_tgGatePollingTimer);
+            _tgGatePollingTimer = null;
+            if (statusText) statusText.textContent = 'Срок действия сессии истек.';
+            if (btn) {
+              btn.onclick = () => window.startTelegramGateSync();
+              if (btnText) btnText.textContent = 'Попробовать снова';
+            }
+          }
+        } catch (_) {}
+      }, 1500);
+
+    } else {
+      throw new Error('Некорректный ответ сервера');
+    }
+  } catch (err) {
+    console.error('startTelegramGateSync error:', err);
+    if (btn) {
+      btn.disabled = false;
+      btn.onclick = () => window.startTelegramGateSync();
+    }
+    if (btnText) btnText.textContent = 'Попробовать снова';
+    if (statusText) statusText.textContent = 'Ошибка подключения к серверу';
+    if (typeof showToast === 'function') showToast('Ошибка подключения к серверу', 'error');
+  }
+};
+
+window.copyTelegramGateCode = function() {
+  const code = _tgGateCurrentCode ? `/link ${_tgGateCurrentCode}` : '/link';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = document.getElementById('tgSyncGateCopyBtn');
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = 'Скопировано!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    }).catch(() => {
+      prompt('Скопируйте команду:', code);
+    });
+  } else {
+    prompt('Скопируйте команду:', code);
+  }
+};
+
+window.unlinkTelegramAccount = function() {
+  if (confirm('Вы действительно хотите отвязать Telegram-аккаунт?')) {
+    window.resetTgSync();
+    if (typeof window.loadLeaderboardData === 'function') {
+      window.loadLeaderboardData();
+    }
+    window.openTelegramAppSyncGate();
+  }
+};
+
+window.resetTgSync = function() {
+  localStorage.removeItem('tg_auth_token');
+  localStorage.removeItem('tg_auth_user');
+  localStorage.removeItem('tg_sync_prompt_shown');
+  localStorage.removeItem('tg_guest_mode');
+  window.TELEGRAM_LINKED_USER = null;
+  window._pendingModalAfterTg = null;
+  if (typeof window.updateTelegramSyncUI === 'function') {
+    window.updateTelegramSyncUI();
+  }
+};
+
+window.resetMySession = function() {
+  const savedSecret = localStorage.getItem('web_secret_key');
+  const savedAdminKey = localStorage.getItem('schedule_admin_master_key');
+  const savedOnboarding = localStorage.getItem('onboarding_completed');
+
+  window.resetTgSync();
+
+  // Закрываем все открытые модалки
+  try {
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal) {
+      settingsModal.classList.remove('open');
+      settingsModal.style.display = 'none';
+    }
+  } catch (_) {}
+  try {
+    if (typeof closeSidebar === 'function') closeSidebar();
+  } catch (_) {}
+  try {
+    if (typeof closeLeaderboardModal === 'function') closeLeaderboardModal();
+  } catch (_) {}
+  try {
+    if (typeof closeGamesModal === 'function') closeGamesModal();
+  } catch (_) {}
+
+  if (savedSecret) localStorage.setItem('web_secret_key', savedSecret);
+  if (savedAdminKey) localStorage.setItem('schedule_admin_master_key', savedAdminKey);
+  if (savedOnboarding) localStorage.setItem('onboarding_completed', savedOnboarding);
+
+  // Сразу открываем экран синхронизации
+  if (typeof window.openTelegramAppSyncGate === 'function') {
+    window.openTelegramAppSyncGate();
+  }
+
+  if (typeof showToast === 'function') {
+    showToast('Синхронизация Telegram сброшена! Окно открыто для проверки.', 'success');
+  }
+};
+
 
 // ══════════════════════════════════════════════════
 // МИНИ-ИГРЫ НА ПЕРЕМЕНЕ (2048, ТЕТРИС, САПЁР)
@@ -7574,8 +8750,7 @@ const GAME_NAMES = {
   '2048': '2048',
   'tetris': 'Тетрис',
   'minesweeper': 'Сапёр',
-  'snake': 'Змейка',
-  'flappy': 'Flappy Студент'
+  'snake': 'Змейка'
 };
 
 window._getGameDebugState = function() {
@@ -7587,9 +8762,28 @@ window._getGameDebugState = function() {
   };
 };
 
+let _downloadModalOpenedAt = 0;
+
+window.openDownloadModal = function() {
+  try { if (typeof closeSidebar === 'function') closeSidebar(); } catch (_) {}
+  window.location.href = '/download.html';
+};
+
+window.closeDownloadModal = function(force = false) {
+  const backdrop = document.getElementById('downloadModal');
+  const sheet = document.getElementById('downloadSheet');
+  if (backdrop && sheet) {
+    sheet.classList.remove('open');
+    backdrop.classList.remove('open');
+    backdrop.style.display = 'none';
+    document.body.style.overflow = '';
+    if (typeof updateTelegramBackButton === 'function') updateTelegramBackButton();
+  }
+};
+
 let _gamesModalOpenedAt = 0;
 
-window.openGamesModal = function() {
+window.realOpenGamesModal = function() {
   const backdrop = document.getElementById('gamesModal');
   const sheet = document.getElementById('gamesSheet');
   if (backdrop && sheet) {
@@ -7599,10 +8793,25 @@ window.openGamesModal = function() {
     backdrop.classList.add('open');
     sheet.classList.add('open');
     document.body.style.overflow = 'hidden';
-    backToGamesCatalog();
-    updateGamesCatalogScores();
+    if (typeof backToGamesCatalog === 'function') backToGamesCatalog();
+    if (typeof updateGamesCatalogScores === 'function') updateGamesCatalogScores();
     if (typeof updateTelegramBackButton === 'function') updateTelegramBackButton();
   }
+};
+
+window.openGamesModal = function() {
+  const hasTgAuth = Boolean(localStorage.getItem('tg_auth_token')) ||
+                    Boolean(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 5);
+  const promptShown = localStorage.getItem('tg_sync_prompt_shown') === '1';
+
+  if (!hasTgAuth && !promptShown) {
+    window._pendingModalAfterTg = 'games';
+    if (typeof window.openTelegramAppSyncGate === 'function') {
+      window.openTelegramAppSyncGate();
+    }
+    return;
+  }
+  window.realOpenGamesModal();
 };
 
 window.closeGamesModal = function(force = false) {
@@ -7762,19 +8971,16 @@ window.updateGamesCatalogScores = async function() {
   const bTetris = localStorage.getItem('game_tetris_best') || '0';
   const bMine = localStorage.getItem('game_minesweeper_best') || '';
   const bSnake = localStorage.getItem('game_snake_best') || '0';
-  const bFlappy = localStorage.getItem('game_flappy_best') || '0';
 
   const el2048 = document.getElementById('catalogBest2048');
   const elTetris = document.getElementById('catalogBestTetris');
   const elMine = document.getElementById('catalogBestMinesweeper');
   const elSnake = document.getElementById('catalogBestSnake');
-  const elFlappy = document.getElementById('catalogBestFlappy');
 
   if (el2048) el2048.textContent = b2048;
   if (elTetris) elTetris.textContent = bTetris;
   if (elMine) elMine.textContent = bMine ? `${bMine}с` : '—';
   if (elSnake) elSnake.textContent = bSnake;
-  if (elFlappy) elFlappy.textContent = bFlappy;
 
   // Отрендерить таблицу лидеров если есть кэш
   window.renderGamesLeaderboard(_activeGamesLbTab);
@@ -7804,10 +9010,6 @@ window.updateGamesCatalogScores = async function() {
         localStorage.setItem('game_snake_best', String(my['snake'].high_score));
         if (elSnake) elSnake.textContent = my['snake'].high_score;
       }
-      if (my['flappy'] && my['flappy'].high_score > parseInt(bFlappy, 10)) {
-        localStorage.setItem('game_flappy_best', String(my['flappy'].high_score));
-        if (elFlappy) elFlappy.textContent = my['flappy'].high_score;
-      }
       window.renderGamesLeaderboard(_activeGamesLbTab);
     }
   } catch (_) {}
@@ -7834,7 +9036,7 @@ window.openGame = async function(gameId) {
   _lastGamePingTime = Date.now();
 
   try {
-    const module = await import(`/static/games/${gameId}.js?v=20260920_v6`);
+    const module = await import(`/static/games/${gameId}.js?v=20260921_v7`);
     if (viewport) viewport.innerHTML = '';
     _activeGameInstance = module.mount(viewport, {
       onScoreUpdate: (score, best) => {
@@ -7850,9 +9052,6 @@ window.openGame = async function(gameId) {
           if (el) el.textContent = `${best}с`;
         } else if (gameId === 'snake') {
           const el = document.getElementById('catalogBestSnake');
-          if (el) el.textContent = best;
-        } else if (gameId === 'flappy') {
-          const el = document.getElementById('catalogBestFlappy');
           if (el) el.textContent = best;
         }
       },

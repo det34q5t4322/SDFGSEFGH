@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Скачать приложение «Расписание» для Android (APK)</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(18, 24, 38, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.35);
+      --green: #10b981;
+      --green-glow: rgba(16, 185, 129, 0.3);
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.18) 0%, transparent 60%),
+        radial-gradient(circle at 10% 40%, rgba(16, 185, 129, 0.08) 0%, transparent 45%),
+        radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.12) 0%, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 16px 48px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* App Header / Brand */
+    .app-icon-wrapper {
+      position: relative;
+      margin-top: 12px;
+      margin-bottom: 20px;
+    }
+
+    .app-icon-glow {
+      position: absolute;
+      inset: -6px;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6, var(--green));
+      border-radius: 30px;
+      filter: blur(14px);
+      opacity: 0.65;
+      animation: pulse-glow 3.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulse-glow {
+      0% { opacity: 0.45; filter: blur(10px); transform: scale(0.96); }
+      100% { opacity: 0.8; filter: blur(18px); transform: scale(1.04); }
+    }
+
+    .app-icon {
+      position: relative;
+      width: 92px;
+      height: 92px;
+      border-radius: 24px;
+      background: #131826;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+      object-fit: cover;
+      display: block;
+    }
+
+    .app-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin-bottom: 6px;
+      background: linear-gradient(180deg, #ffffff 30%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .app-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      color: #a5b4fc;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+
+    .app-badge svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .app-desc {
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 24px;
+      padding: 0 10px;
+    }
+
+    /* Main Download Button */
+    .download-card {
+      width: 100%;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 24px 20px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .btn-download {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #4338ca 100%);
+      color: #ffffff;
+      padding: 16px 24px;
+      border-radius: 16px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.01em;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 8px 24px var(--accent-glow);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .btn-download:hover, .btn-download:active {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(99, 102, 241, 0.55);
+      filter: brightness(1.08);
+    }
+
+    .btn-download svg {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .auto-download-status {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 14px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .file-meta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      width: 100%;
+      font-size: 12px;
+      color: #818cf8;
+      font-weight: 500;
+    }
+
+    .file-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Features Grid */
+    .features-title {
+      align-self: flex-start;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      padding-left: 4px;
+    }
+
+    .features-list {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .feature-item {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .feature-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      color: #818cf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .feature-icon.green {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.25);
+      color: #34d399;
+    }
+
+    .feature-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .feature-content h4 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 2px;
+    }
+
+    .feature-content p {
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--text-muted);
+    }
+
+    /* Installation Steps */
+    .steps-card {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 20px 18px;
+      margin-bottom: 24px;
+    }
+
+    .steps-card h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .step-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #a5b4fc;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .step-text {
+      font-size: 13px;
+      line-height: 1.45;
+      color: #cbd5e1;
+    }
+
+    .step-text strong {
+      color: #ffffff;
+    }
+
+    /* Alternative Links */
+    .alt-links {
+      width: 100%;
+      display: flex;
+      gap: 10px;
+    }
+
+    .alt-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .alt-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .alt-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- App Header -->
+    <div class="app-icon-wrapper">
+      <div class="app-icon-glow"></div>
+      <img src="/static/icon-192.png" alt="Иконка Расписание" class="app-icon" onerror="this.src='/favicon.ico'">
+    </div>
+
+    <div class="app-badge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <span>Android Edition • 2026</span>
+    </div>
+
+    <h1 class="app-title">Расписание колледжа</h1>
+    <p class="app-desc">Официальное мобильное приложение для студентов. Расписание всегда под рукой даже без интернета.</p>
+
+    <!-- Download Card -->
+    <div class="download-card">
+      <a href="/college-schedule.apk" class="btn-download" id="manualDownloadBtn" download="college-schedule.apk">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>Скачать APK (12 МБ)</span>
+      </a>
+
+      <div class="auto-download-status" id="downloadStatus">
+        <div class="spinner"></div>
+        <span>Загрузка начнётся автоматически через <b id="countdown">2</b> сек...</span>
+      </div>
+
+      <div class="file-meta">
+        <span>✓ Версия 1.0.0</span>
+        <span>✓ Без рекламы</span>
+        <span>✓ Офлайн-режим</span>
+      </div>
+    </div>
+
+    <!-- Quick Steps -->
+    <div class="steps-card">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        Как установить за 1 минуту:
+      </h3>
+      <div class="step-row">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Скачайте APK:</strong> нажмите кнопку выше и подтвердите сохранение файла.</div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Разрешите установку:</strong> при открытии файла выберите «Разрешить установку из этого источника».</div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>Готово!</strong> Приложение появится на рабочем столе и будет работать даже в авиарежиме.</div>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div class="features-title">Преимущества приложения</div>
+    <div class="features-list">
+      <div class="feature-item">
+        <div class="feature-icon green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+        </div>
+        <div class="feature-content">
+          <h4>Работает без интернета</h4>
+          <p>Расписание сохраняется прямо в памяти телефона. Доступно на парах в подвальных аудиториях и без связи.</p>
+        </div>
+      </div>
+
+      <div class="feature-item">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </div>
+        <div class="feature-content">
+          <h4>Обновления «по воздуху»</h4>
+          <p>Замены пар и расписание на новую неделю подтягиваются сами при первом подключении к сети.</p>
+        </div>
+      </div>
+
+      <div class="feature-item">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="feature-content">
+          <h4>Звонки и таймер до конца пары</h4>
+          <p>Живой индикатор текущей пары, времени до перемены и расписание звонков на каждый день.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alternative Access -->
+    <div class="alt-links">
+      <a href="/" class="alt-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <span>Веб-версия</span>
+      </a>
+      <a href="https://t.me/Raddart_bot" target="_blank" rel="noopener noreferrer" class="alt-btn">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+        <span>Telegram-бот</span>
+      </a>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var seconds = 2;
+      var countdownEl = document.getElementById('countdown');
+      var statusEl = document.getElementById('downloadStatus');
+      var btn = document.getElementById('manualDownloadBtn');
+
+      function startDownload() {
+        var a = document.createElement('a');
+        a.href = '/college-schedule.apk';
+        a.download = 'college-schedule.apk';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        if (statusEl) {
+          statusEl.innerHTML = '<span>✓ Загрузка началась! Если нет — нажмите кнопку выше.</span>';
+          statusEl.style.color = '#34d399';
+        }
+      }
+
+      var timer = setInterval(function() {
+        seconds--;
+        if (countdownEl) countdownEl.textContent = seconds;
+        if (seconds <= 0) {
+          clearInterval(timer);
+          startDownload();
+        }
+      }, 1000);
+
+      btn.addEventListener('click', function() {
+        clearInterval(timer);
+        if (statusEl) {
+          statusEl.innerHTML = '<span>✓ Загрузка запущена вручную.</span>';
+          statusEl.style.color = '#34d399';
+        }
+      });
+    })();
+  </script>
+
+</body>
+</html>

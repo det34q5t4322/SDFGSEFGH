@@ -2,10 +2,137 @@ import os
 import sqlite3
 import logging
 import threading
+import time
 from typing import Dict, List, Optional, Set, Any
 from datetime import datetime, timedelta
+import secrets
+import random
 
 logger = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────
+#  DB timing logger — отдельный логгер для замеров,
+#  чтобы не смешивать с обычными INFO-сообщениями
+# ─────────────────────────────────────────────
+_db_timing_logger = logging.getLogger("db_timing")
+
+# Порог предупреждения: SQL дольше этого значения логируется как WARNING
+_SLOW_SQL_THRESHOLD = 0.5  # секунды
+
+# PID текущего процесса — определяется один раз при импорте модуля,
+# чтобы в логах было видно: бот (PID X) или FastAPI (PID Y)
+_PID = os.getpid()
+
+
+class _TimedCursor:
+    """Обёртка над sqlite3.Cursor, замеряет время каждого execute."""
+
+    __slots__ = ("_cur",)
+
+    def __init__(self, cur: sqlite3.Cursor):
+        self._cur = cur
+
+    # ---- прозрачная передача атрибутов курсора ----
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
+
+    def __iter__(self):
+        return iter(self._cur)
+
+    # ---- замеряемые методы ----
+    def _timed(self, method_name: str, sql: str, params=None):
+        start = time.monotonic()
+        try:
+            if params is None:
+                result = getattr(self._cur, method_name)(sql)
+            else:
+                result = getattr(self._cur, method_name)(sql, params)
+            return result
+        finally:
+            elapsed = time.monotonic() - start
+            sql_short = sql.strip()[:120].replace("\n", " ")
+            if elapsed >= _SLOW_SQL_THRESHOLD:
+                _db_timing_logger.warning(
+                    f"SLOW SQL pid={_PID} ({elapsed:.3f}s): {sql_short}"
+                )
+            else:
+                _db_timing_logger.debug(
+                    f"sql pid={_PID} ({elapsed:.3f}s): {sql_short}"
+                )
+
+    def execute(self, sql, params=None):
+        self._timed("execute", sql, params)
+        return self  # возвращаем себя (курсор), как ожидают вызывающие
+
+    def executemany(self, sql, seq_of_params):
+        start = time.monotonic()
+        try:
+            self._cur.executemany(sql, seq_of_params)
+        finally:
+            elapsed = time.monotonic() - start
+            sql_short = sql.strip()[:120].replace("\n", " ")
+            if elapsed >= _SLOW_SQL_THRESHOLD:
+                _db_timing_logger.warning(
+                    f"SLOW SQL (executemany) pid={_PID} ({elapsed:.3f}s): {sql_short}"
+                )
+            else:
+                _db_timing_logger.debug(
+                    f"sql (executemany) pid={_PID} ({elapsed:.3f}s): {sql_short}"
+                )
+        return self
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
+    @property
+    def lastrowid(self):
+        return self._cur.lastrowid
+
+
+class _TimedConnection:
+    """Обёртка над sqlite3.Connection, добавляет замер времени к execute/cursor.
+    Поддерживает контекстный менеджер (with ... as conn)."""
+
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor()
+        return _TimedCursor(cur).execute(sql, params)
+
+    def executemany(self, sql, seq_of_params):
+        cur = self._conn.cursor()
+        return _TimedCursor(cur).executemany(sql, seq_of_params)
+
+    def cursor(self):
+        return _TimedCursor(self._conn.cursor())
+
+    def commit(self):
+        return self._conn.commit()
+
+    def rollback(self):
+        return self._conn.rollback()
+
+    def close(self):
+        return self._conn.close()
+
+    def __enter__(self):
+        self._conn.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self._conn.__exit__(exc_type, exc_val, exc_tb)
+
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data.db')
 
@@ -14,10 +141,12 @@ _banned_users_map: Dict[int, Optional[str]] = {}
 _cache_lock = threading.Lock()
 
 
-def get_db_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+def get_db_connection() -> _TimedConnection:
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
-    return conn
+    conn.execute('PRAGMA busy_timeout = 5000;')
+    conn.execute('PRAGMA synchronous = NORMAL;')
+    return _TimedConnection(conn)
 
 
 def init_db() -> None:
@@ -125,6 +254,10 @@ def init_db() -> None:
                 cursor.execute("UPDATE user_activity SET leaderboard_opt_in = 1 WHERE leaderboard_opt_in = 0")
                 cursor.execute("INSERT INTO schema_migrations (version, applied_at) VALUES ('default_leaderboard_opt_in_v1', ?)", (datetime.now().isoformat(),))
 
+            # Очистка фейковых пользователей и призрачных записей
+            cursor.execute("DELETE FROM user_activity WHERE telegram_id IN (1000000001, 1000000002) OR telegram_id <= 10000")
+            cursor.execute("DELETE FROM user_game_stats WHERE telegram_id IN (1000000001, 1000000002) OR telegram_id <= 10000")
+
             # 4. Hourly Statistics
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS hourly_stats (
@@ -147,6 +280,41 @@ def init_db() -> None:
                     status TEXT DEFAULT "open"
                 )
             ''')
+
+            # 6. Telegram Link Sessions (авторизация и привязка через бота @Raddart_bot)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS telegram_link_sessions (
+                    token TEXT PRIMARY KEY,
+                    code TEXT NOT NULL,
+                    telegram_id INTEGER,
+                    username TEXT DEFAULT "",
+                    first_name TEXT DEFAULT "",
+                    photo_url TEXT DEFAULT "",
+                    auth_token TEXT DEFAULT "",
+                    status TEXT DEFAULT "pending",
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_link_code ON telegram_link_sessions(code);')
+
+            # 7. Grades Accounts (1С:Образование 5. Школа)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS grades_accounts (
+                    user_id TEXT PRIMARY KEY,
+                    telegram_id INTEGER DEFAULT 0,
+                    login TEXT NOT NULL,
+                    guid TEXT NOT NULL,
+                    group_name TEXT DEFAULT "",
+                    student_name TEXT DEFAULT "",
+                    encrypted_password TEXT NOT NULL,
+                    encrypted_cookies TEXT DEFAULT "",
+                    cached_grades TEXT DEFAULT "{}",
+                    last_synced TEXT DEFAULT "",
+                    created_at TEXT NOT NULL
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_grades_telegram_id ON grades_accounts(telegram_id);')
 
             conn.commit()
 
@@ -365,7 +533,7 @@ def upsert_user_activity(
     - visits_count инкрементируется СТРОГО при новой сессии (открытие приложения / тайм-аут > 30 мин).
     - Обычные heartbeats (каждые 15 сек) обновляют только last_seen, last_action и total_time_seconds.
     """
-    if not telegram_id or telegram_id <= 0:
+    if not telegram_id or telegram_id <= 10000 or telegram_id in (1000000001, 1000000002):
         return
     now_iso = datetime.now().isoformat()
     # Anti-cheat: максимум 90 секунд за один батч-heartbeat
@@ -403,6 +571,104 @@ def upsert_user_activity(
         conn.commit()
 
 
+_BATCH_USER_ACTIVITY_SQL = '''
+    INSERT INTO user_activity (
+        telegram_id, username, first_name, photo_url, selected_group,
+        last_action, ip_address, platform, first_seen, last_seen,
+        visits_count, total_time_seconds, leaderboard_opt_in
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, COALESCE(?, 1))
+    ON CONFLICT(telegram_id) DO UPDATE SET
+        username = CASE WHEN excluded.username != "" THEN excluded.username ELSE user_activity.username END,
+        first_name = CASE WHEN excluded.first_name != "" THEN excluded.first_name ELSE user_activity.first_name END,
+        photo_url = CASE WHEN excluded.photo_url != "" THEN excluded.photo_url ELSE user_activity.photo_url END,
+        selected_group = CASE WHEN excluded.selected_group != "" THEN excluded.selected_group ELSE user_activity.selected_group END,
+        last_action = excluded.last_action,
+        ip_address = excluded.ip_address,
+        platform = excluded.platform,
+        last_seen = excluded.last_seen,
+        visits_count = user_activity.visits_count + ?,
+        total_time_seconds = user_activity.total_time_seconds + excluded.total_time_seconds,
+        leaderboard_opt_in = CASE WHEN ? IS NOT NULL THEN ? ELSE user_activity.leaderboard_opt_in END
+'''
+
+_BATCH_HOURLY_STATS_SQL = '''
+    INSERT INTO hourly_stats (hour_key, requests_count, unique_users)
+    VALUES (?, ?, 1)
+    ON CONFLICT(hour_key) DO UPDATE SET
+        requests_count = hourly_stats.requests_count + ?
+'''
+
+
+def flush_activity_batch(
+    user_activities: List[Dict],
+    hourly_counts: Dict[str, int]
+) -> Dict[str, Any]:
+    """
+    Батч-сброс накопленных записей user_activity и hourly_stats в SQLite
+    в рамках одной транзакции (executemany).
+    """
+    user_params = []
+    for item in user_activities:
+        uid = item.get("telegram_id")
+        if not uid or uid <= 10000 or uid in (1000000001, 1000000002):
+            continue
+        valid_time_delta = min(max(0, int(item.get("time_delta_seconds") or 0)), 180)
+        opt_in = item.get("leaderboard_opt_in")
+        opt_in_val = 0 if opt_in is False else (1 if opt_in is True else None)
+        visit_inc = 1 if item.get("is_new_session") else 0
+        now_iso = item.get("timestamp_iso") or datetime.now().isoformat()
+
+        user_params.append((
+            uid,
+            item.get("username") or "",
+            item.get("first_name") or "",
+            item.get("photo_url") or "",
+            item.get("group") or "",
+            item.get("action") or "",
+            item.get("ip") or "",
+            item.get("platform") or "",
+            now_iso,
+            now_iso,
+            valid_time_delta,
+            opt_in_val,
+            visit_inc,
+            opt_in_val,
+            opt_in_val
+        ))
+
+    hourly_params = [
+        (hour_key, count, count)
+        for hour_key, count in hourly_counts.items()
+        if count > 0
+    ]
+
+    if not user_params and not hourly_params:
+        return {"user_count": 0, "hourly_count": 0, "total_requests": 0, "elapsed": 0.0}
+
+    start_time = time.monotonic()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        if user_params:
+            cursor.executemany(_BATCH_USER_ACTIVITY_SQL, user_params)
+        if hourly_params:
+            cursor.executemany(_BATCH_HOURLY_STATS_SQL, hourly_params)
+        conn.commit()
+    elapsed = time.monotonic() - start_time
+
+    total_reqs = sum(hourly_counts.values())
+    logger.info(
+        f"Activity batch flushed: {len(user_params)} users, "
+        f"{len(hourly_params)} hourly slots ({total_reqs} requests) in {elapsed:.3f}s"
+    )
+    return {
+        "user_count": len(user_params),
+        "hourly_count": len(hourly_params),
+        "total_requests": total_reqs,
+        "elapsed": elapsed
+    }
+
+
 def set_leaderboard_opt_in(telegram_id: int, enabled: bool) -> bool:
     if not telegram_id or telegram_id <= 0:
         return False
@@ -426,6 +692,8 @@ def get_leaderboard(limit: int = 20, requesting_user_id: Optional[int] = None) -
             SELECT telegram_id, username, first_name, photo_url, selected_group, total_time_seconds
             FROM user_activity
             WHERE COALESCE(leaderboard_opt_in, 1) = 1
+              AND telegram_id > 10000
+              AND telegram_id NOT IN (1000000001, 1000000002)
               AND telegram_id NOT IN (
                   SELECT telegram_id FROM banned_users
                   WHERE banned_until IS NULL OR banned_until > ?
@@ -436,7 +704,7 @@ def get_leaderboard(limit: int = 20, requesting_user_id: Optional[int] = None) -
         top_users = [dict(row) for row in cursor.fetchall()]
 
         user_stats = None
-        if requesting_user_id and requesting_user_id > 0:
+        if requesting_user_id and requesting_user_id > 10000 and requesting_user_id not in (1000000001, 1000000002):
             cursor.execute('''
                 SELECT telegram_id, username, first_name, photo_url, selected_group, total_time_seconds, leaderboard_opt_in
                 FROM user_activity
@@ -451,6 +719,8 @@ def get_leaderboard(limit: int = 20, requesting_user_id: Optional[int] = None) -
                         SELECT COUNT(*) + 1 as rank
                         FROM user_activity
                         WHERE COALESCE(leaderboard_opt_in, 1) = 1
+                          AND telegram_id > 10000
+                          AND telegram_id NOT IN (1000000001, 1000000002)
                           AND telegram_id NOT IN (
                               SELECT telegram_id FROM banned_users
                               WHERE banned_until IS NULL OR banned_until > ?
@@ -476,7 +746,7 @@ def record_game_stats(
     time_delta: int = 0
 ) -> Dict:
     """Запись результатов и игрового времени в user_game_stats и user_activity."""
-    if not telegram_id or telegram_id <= 0 or not game_id:
+    if not telegram_id or telegram_id <= 10000 or telegram_id in (1000000001, 1000000002) or not game_id:
         return {}
     clean_game_id = str(game_id).strip().lower()
     if clean_game_id not in ("2048", "tetris", "minesweeper", "snake", "flappy"):
@@ -534,7 +804,7 @@ def get_user_game_stats(telegram_id: Optional[int] = None) -> Dict[str, Any]:
     with get_db_connection() as conn:
         cursor = conn.cursor()
         user_stats = {}
-        if telegram_id and telegram_id > 0:
+        if telegram_id and telegram_id > 10000 and telegram_id not in (1000000001, 1000000002):
             cursor.execute('''
                 SELECT game_id, high_score, total_time_seconds, last_played
                 FROM user_game_stats
@@ -553,6 +823,8 @@ def get_user_game_stats(telegram_id: Optional[int] = None) -> Dict[str, Any]:
                 FROM user_game_stats g
                 LEFT JOIN user_activity u ON g.telegram_id = u.telegram_id
                 WHERE g.game_id = ? AND g.high_score > 0
+                  AND g.telegram_id > 10000
+                  AND g.telegram_id NOT IN (1000000001, 1000000002)
                   AND COALESCE(u.leaderboard_opt_in, 1) = 1
                   AND g.telegram_id NOT IN (
                       SELECT telegram_id FROM banned_users
@@ -584,6 +856,7 @@ def get_user_activity_history(limit: int = 100) -> List[Dict]:
         cursor.execute('''
             SELECT telegram_id, username, first_name, photo_url, selected_group, last_action, ip_address, platform, first_seen, last_seen, visits_count, total_time_seconds, leaderboard_opt_in
             FROM user_activity
+            WHERE telegram_id > 10000 AND telegram_id NOT IN (1000000001, 1000000002)
             ORDER BY last_seen DESC
             LIMIT ?
         ''', (limit,))
@@ -625,6 +898,7 @@ def get_analytics_summary() -> Dict:
             SELECT selected_group, COUNT(*) as user_count, SUM(visits_count) as total_visits
             FROM user_activity
             WHERE selected_group IS NOT NULL AND selected_group != ""
+              AND telegram_id > 10000 AND telegram_id NOT IN (1000000001, 1000000002)
             GROUP BY selected_group
             ORDER BY total_visits DESC
             LIMIT 10
@@ -632,7 +906,11 @@ def get_analytics_summary() -> Dict:
         top_groups = [dict(row) for row in cursor.fetchall()]
 
         # Общие счетчики
-        cursor.execute('SELECT COUNT(*) as total_users, COALESCE(SUM(visits_count), 0) as total_views FROM user_activity')
+        cursor.execute('''
+            SELECT COUNT(*) as total_users, COALESCE(SUM(visits_count), 0) as total_views
+            FROM user_activity
+            WHERE telegram_id > 10000 AND telegram_id NOT IN (1000000001, 1000000002)
+        ''')
         totals_row = cursor.fetchone()
         total_users = totals_row['total_users'] if totals_row else 0
         total_sessions = totals_row['total_views'] if totals_row else 0
@@ -718,6 +996,238 @@ def resolve_bug_report(report_id: int, admin_id: int = 0) -> bool:
             ''', (admin_id, report_id, now_iso))
         conn.commit()
         return success
+
+
+def create_telegram_link_session() -> Dict[str, Any]:
+    """Создает временную сессию привязки с 6-значным кодом и токеном (TTL 10 минут)."""
+    token = secrets.token_hex(16)
+    code = f"{random.randint(100000, 999999)}"
+    now = datetime.now()
+    now_iso = now.isoformat()
+    expires_iso = (now + timedelta(minutes=10)).isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO telegram_link_sessions (token, code, status, created_at, expires_at)
+            VALUES (?, ?, 'pending', ?, ?)
+        ''', (token, code, now_iso, expires_iso))
+        conn.commit()
+    return {
+        "token": token,
+        "code": code,
+        "expires_at": expires_iso
+    }
+
+
+def confirm_telegram_link_session(code_or_token: str, user_dict: Dict[str, Any], auth_token: str = "") -> bool:
+    """Подтверждает сессию привязки со стороны Telegram-бота."""
+    if not code_or_token or not user_dict:
+        return False
+    key = str(code_or_token).strip()
+    now_iso = datetime.now().isoformat()
+    uid = int(user_dict.get("id") or user_dict.get("telegram_id") or 0)
+    if uid <= 0:
+        return False
+    username = user_dict.get("username", "") or ""
+    first_name = user_dict.get("first_name", "") or ""
+    photo_url = user_dict.get("photo_url", "") or ""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        # Поиск по token или по 6-значному коду
+        cursor.execute('''
+            SELECT token FROM telegram_link_sessions
+            WHERE (token = ? OR code = ?) AND status = 'pending' AND expires_at > ?
+            ORDER BY created_at DESC LIMIT 1
+        ''', (key, key, now_iso))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        found_token = row['token']
+        cursor.execute('''
+            UPDATE telegram_link_sessions
+            SET status = 'confirmed',
+                telegram_id = ?,
+                username = ?,
+                first_name = ?,
+                photo_url = ?,
+                auth_token = ?
+            WHERE token = ?
+        ''', (uid, username, first_name, photo_url, auth_token, found_token))
+        conn.commit()
+        return True
+
+
+def get_telegram_link_session_status(token: str) -> Dict[str, Any]:
+    """Проверяет текущий статус сессии привязки (ожидание, подтверждено или истекло)."""
+    if not token:
+        return {"status": "not_found"}
+    now_iso = datetime.now().isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT token, code, telegram_id, username, first_name, photo_url, auth_token, status, expires_at
+            FROM telegram_link_sessions
+            WHERE token = ?
+        ''', (token,))
+        row = cursor.fetchone()
+        if not row:
+            return {"status": "not_found"}
+        if row['expires_at'] < now_iso and row['status'] == 'pending':
+            return {"status": "expired"}
+        if row['status'] == 'confirmed':
+            return {
+                "status": "ok",
+                "auth_token": row['auth_token'],
+                "user": {
+                    "id": row['telegram_id'],
+                    "telegram_id": row['telegram_id'],
+                    "username": row['username'],
+                    "first_name": row['first_name'],
+                    "photo_url": row['photo_url']
+                }
+            }
+        return {"status": "pending", "code": row['code']}
+
+
+# ─────────────────────────────────────────────
+# 1С:Образование 5 — Электронный дневник и оценки
+# ─────────────────────────────────────────────
+
+def save_grades_account(
+    user_id: Any,
+    login: str,
+    guid: str,
+    group_name: str,
+    student_name: str,
+    encrypted_password: str,
+    encrypted_cookies: str = "",
+    cached_grades: Optional[Dict[str, Any]] = None,
+    telegram_id: int = 0
+) -> bool:
+    """Сохраняет или обновляет привязанный аккаунт 1С."""
+    u_str = str(user_id).strip()
+    if not u_str:
+        return False
+    t_id = telegram_id
+    if t_id <= 0 and u_str.isdigit():
+        t_id = int(u_str)
+
+    import json
+    grades_json = json.dumps(cached_grades or {}, ensure_ascii=False)
+    now_iso = datetime.now().isoformat()
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO grades_accounts (
+                user_id, telegram_id, login, guid, group_name, student_name,
+                encrypted_password, encrypted_cookies, cached_grades, last_synced, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                telegram_id = excluded.telegram_id,
+                login = excluded.login,
+                guid = excluded.guid,
+                group_name = excluded.group_name,
+                student_name = excluded.student_name,
+                encrypted_password = excluded.encrypted_password,
+                encrypted_cookies = excluded.encrypted_cookies,
+                cached_grades = excluded.cached_grades,
+                last_synced = excluded.last_synced
+        ''', (
+            u_str, t_id, login, guid, group_name, student_name,
+            encrypted_password, encrypted_cookies, grades_json, now_iso, now_iso
+        ))
+        conn.commit()
+        return True
+
+
+def get_grades_account(user_id: Any) -> Optional[Dict[str, Any]]:
+    """Получает сохранённый аккаунт 1С по user_id или telegram_id."""
+    u_str = str(user_id).strip()
+    if not u_str:
+        return None
+    t_id = int(u_str) if u_str.isdigit() else 0
+
+    import json
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT user_id, telegram_id, login, guid, group_name, student_name,
+                   encrypted_password, encrypted_cookies, cached_grades, last_synced, created_at
+            FROM grades_accounts
+            WHERE user_id = ? OR (telegram_id != 0 AND telegram_id = ?)
+            LIMIT 1
+        ''', (u_str, t_id))
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        cached = {}
+        if row['cached_grades']:
+            try:
+                cached = json.loads(row['cached_grades'])
+            except Exception:
+                cached = {}
+
+        return {
+            "user_id": row['user_id'],
+            "telegram_id": row['telegram_id'],
+            "login": row['login'],
+            "guid": row['guid'],
+            "group_name": row['group_name'],
+            "student_name": row['student_name'],
+            "encrypted_password": row['encrypted_password'],
+            "encrypted_cookies": row['encrypted_cookies'],
+            "cached_grades": cached,
+            "last_synced": row['last_synced'],
+            "created_at": row['created_at']
+        }
+
+
+def update_grades_cache(user_id: Any, cached_grades: Dict[str, Any], encrypted_cookies: str = "") -> bool:
+    """Обновляет кэш оценок и cookies для аккаунта."""
+    u_str = str(user_id).strip()
+    if not u_str:
+        return False
+    t_id = int(u_str) if u_str.isdigit() else 0
+
+    import json
+    grades_json = json.dumps(cached_grades, ensure_ascii=False)
+    now_iso = datetime.now().isoformat()
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        if encrypted_cookies:
+            cursor.execute('''
+                UPDATE grades_accounts
+                SET cached_grades = ?, encrypted_cookies = ?, last_synced = ?
+                WHERE user_id = ? OR (telegram_id != 0 AND telegram_id = ?)
+            ''', (grades_json, encrypted_cookies, now_iso, u_str, t_id))
+        else:
+            cursor.execute('''
+                UPDATE grades_accounts
+                SET cached_grades = ?, last_synced = ?
+                WHERE user_id = ? OR (telegram_id != 0 AND telegram_id = ?)
+            ''', (grades_json, now_iso, u_str, t_id))
+        conn.commit()
+        return True
+
+
+def delete_grades_account(user_id: Any) -> bool:
+    """Удаляет привязанный аккаунт 1С."""
+    u_str = str(user_id).strip()
+    if not u_str:
+        return False
+    t_id = int(u_str) if u_str.isdigit() else 0
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            DELETE FROM grades_accounts
+            WHERE user_id = ? OR (telegram_id != 0 AND telegram_id = ?)
+        ''', (u_str, t_id))
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 init_db()

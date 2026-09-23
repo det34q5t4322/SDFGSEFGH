@@ -30,12 +30,12 @@ def is_admin_user(telegram_id: Optional[int]) -> bool:
 def verify_telegram_init_data(
     init_data: str,
     bot_token: str,
-    max_age_seconds: int = 86400
+    max_age_seconds: int = 604800  # 7 дней
 ) -> Optional[Dict[str, Any]]:
     """
     Валидация подписи initData из Telegram WebApp:
     - Проверка наличия обязательных полей (hash, auth_date, user).
-    - Проверка времени подписи (auth_date не старше max_age_seconds и не из будущего >5 мин).
+    - Проверка времени подписи (auth_date не старше max_age_seconds и не из будущего >1ч).
     - Криптографическая проверка HMAC-SHA256 через секретный ключ WebAppData.
     - Извлечение ID пользователя и проверка статуса администратора и бана.
     """
@@ -56,7 +56,7 @@ def verify_telegram_init_data(
         try:
             auth_date = int(raw_auth_date)
             now = int(time.time())
-            if (now - auth_date) > max_age_seconds or auth_date > (now + 300):
+            if (now - auth_date) > max_age_seconds or auth_date > (now + 3600):
                 return None
         except (ValueError, TypeError):
             return None
@@ -115,4 +115,70 @@ def generate_mock_init_data(user_id: int, username: str = "tester", bot_token: s
     calchash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
     data_dict["hash"] = calchash
     return urllib.parse.urlencode(data_dict)
+
+
+import base64
+
+def get_auth_secret_key(bot_token: Optional[str] = None) -> bytes:
+    token = bot_token or os.getenv("BOT_TOKEN", "fallback_college_schedule_secret_key_2026")
+    return hashlib.sha256(f"telegram_auth_secret_{token}".encode("utf-8")).digest()
+
+
+def generate_telegram_auth_token(user_info: Dict[str, Any], bot_token: Optional[str] = None, expires_days: int = 180) -> str:
+    """Генерирует криптографически подписанный токен сессии для авторизации вне Telegram WebApp."""
+    secret_key = get_auth_secret_key(bot_token)
+    payload = {
+        "id": int(user_info["id"]),
+        "username": user_info.get("username", "") or "",
+        "first_name": user_info.get("first_name", "") or "",
+        "photo_url": user_info.get("photo_url", "") or "",
+        "iat": int(time.time()),
+        "exp": int(time.time()) + (expires_days * 86400),
+    }
+    payload_raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    payload_b64 = base64.urlsafe_b64encode(payload_raw).decode("utf-8").rstrip("=")
+    sig = hmac.new(secret_key, payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload_b64}.{sig}"
+
+
+def verify_telegram_auth_token(token_str: str, bot_token: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Проверяет подпись и срок действия токена сессии."""
+    if not token_str or "." not in token_str:
+        return None
+    try:
+        parts = token_str.strip().split(".")
+        if len(parts) != 2:
+            return None
+        payload_b64, received_sig = parts[0], parts[1]
+        secret_key = get_auth_secret_key(bot_token)
+        expected_sig = hmac.new(secret_key, payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected_sig, received_sig):
+            return None
+        padding = 4 - (len(payload_b64) % 4)
+        if padding != 4:
+            payload_b64 += "=" * padding
+        payload_raw = base64.urlsafe_b64decode(payload_b64.encode("utf-8")).decode("utf-8")
+        payload = json.loads(payload_raw)
+
+        uid = int(payload.get("id", 0))
+        if uid <= 0:
+            return None
+        exp = int(payload.get("exp", 0))
+        if time.time() > exp:
+            return None
+
+        user_info = {
+            "id": uid,
+            "telegram_id": uid,
+            "username": payload.get("username", "") or "",
+            "first_name": payload.get("first_name", "") or "",
+            "photo_url": payload.get("photo_url", "") or "",
+            "is_admin": is_admin_user(uid),
+            "is_banned": is_user_banned(uid),
+        }
+        return user_info
+    except Exception as e:
+        logger.warning(f"Auth token verification error: {e}")
+        return None
+
 
