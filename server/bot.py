@@ -803,10 +803,7 @@ def build_grades_keyboard(grades_data: Optional[dict] = None) -> InlineKeyboardM
         wa_diary_url = WEB_APP_URL.rstrip("/") + "/?open=diary"
         buttons.append([InlineKeyboardButton("🚀 Открыть дневник в приложении", web_app=WebAppInfo(url=wa_diary_url))])
 
-    buttons.append([
-        InlineKeyboardButton("🔄 Обновить оценки", callback_data="grades_refresh"),
-        InlineKeyboardButton("🚪 Отвязать дневник", callback_data="grades_unlink")
-    ])
+    buttons.append([InlineKeyboardButton("🚪 Отвязать дневник", callback_data="grades_unlink")])
     return InlineKeyboardMarkup(buttons)
 
 
@@ -1005,8 +1002,7 @@ async def grades_callback_handler(update: Update, context: ContextTypes.DEFAULT_
 
         detail_text = format_subject_details(target_subj)
         detail_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("◀️ Назад ко всем парам", callback_data="grades_back")],
-            [InlineKeyboardButton("🔄 Обновить", callback_data="grades_refresh")]
+            [InlineKeyboardButton("◀️ Назад ко всем парам", callback_data="grades_back")]
         ])
         await query.edit_message_text(detail_text, parse_mode="HTML", reply_markup=detail_kb)
         await query.answer()
