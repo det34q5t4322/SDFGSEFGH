@@ -12698,21 +12698,32 @@ html.banned-lock #endlessBanLoader {
   margin: 0 auto;
 }
 
+.sudoku-wrap {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+  gap: 6px;
+}
+
 .sudoku-diff-bar {
   display: flex;
   gap: 6px;
   width: 100%;
-  margin-bottom: 12px;
+  max-width: min(340px, 92vw);
+  margin-bottom: 4px;
   background: rgba(255, 255, 255, 0.04);
-  padding: 4px;
+  padding: 3px;
   border-radius: 10px;
   box-sizing: border-box;
 }
 
 .sudoku-diff-btn {
   flex: 1;
-  padding: 6px 0;
-  border-radius: 8px;
+  padding: 5px 0;
+  border-radius: 7px;
   background: transparent;
   border: none;
   color: var(--text-muted, #94a3b8);
@@ -12733,63 +12744,61 @@ html.banned-lock #endlessBanLoader {
 .sudoku-board-container {
   position: relative;
   width: 100%;
+  max-width: min(285px, 80vw);
   aspect-ratio: 1 / 1;
-  background: #0f172a;
-  border: 2px solid var(--border);
+  background: #0b1120;
+  border: 2px solid rgba(99, 102, 241, 0.5);
   border-radius: var(--card-radius, 14px);
-  padding: 6px;
+  padding: 3px;
   box-sizing: border-box;
-  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   overflow: hidden;
+  margin: 0 auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
 }
 
 .sudoku-grid {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
   grid-template-rows: repeat(9, 1fr);
-  gap: 2px;
+  gap: 1.5px;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
 }
 
 .sudoku-cell {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: #e2e8f0;
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition: background 0.1s ease;
   box-sizing: border-box;
 }
 
+/* 3x3 Block dividing lines */
 .sudoku-cell.border-right-block {
-  margin-right: 3px;
-  box-shadow: 2px 0 0 rgba(255, 255, 255, 0.18);
+  border-right: 2px solid rgba(255, 255, 255, 0.35) !important;
 }
 
 .sudoku-cell.border-bottom-block {
-  margin-bottom: 3px;
-  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.18);
-}
-
-.sudoku-cell.border-right-block.border-bottom-block {
-  box-shadow: 2px 0 0 rgba(255, 255, 255, 0.18), 0 2px 0 rgba(255, 255, 255, 0.18);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.35) !important;
 }
 
 .sudoku-cell.initial {
   font-weight: 800;
   color: #38bdf8;
-  background: rgba(56, 189, 248, 0.08);
+  background: rgba(56, 189, 248, 0.07);
 }
 
 .sudoku-cell.user-entered {
@@ -12799,49 +12808,86 @@ html.banned-lock #endlessBanLoader {
 
 .sudoku-cell.selected {
   background: rgba(99, 102, 241, 0.45) !important;
-  outline: 2px solid var(--accent, #6366f1);
+  outline: 2px solid #818cf8;
   outline-offset: -2px;
+  z-index: 2;
 }
 
 .sudoku-cell.related {
-  background: rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .sudoku-cell.same-number {
-  background: rgba(234, 179, 8, 0.25);
+  background: rgba(234, 179, 8, 0.28);
   color: #facc15;
 }
 
 .sudoku-cell.conflict {
-  background: rgba(239, 68, 68, 0.32) !important;
+  background: rgba(239, 68, 68, 0.35) !important;
   color: #f87171 !important;
+  animation: sudokuShake 0.25s ease-in-out;
+}
+
+@keyframes sudokuShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+/* Notes (pencil marks) */
+.sudoku-notes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+  padding: 1px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.sudoku-note-num {
+  font-size: 7px;
+  line-height: 1;
+  font-weight: 600;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sudoku-tools-row {
   display: flex;
-  gap: 8px;
+  gap: 5px;
   width: 100%;
-  margin-top: 10px;
+  max-width: min(340px, 92vw);
+  margin-top: 4px;
 }
 
 .sudoku-tool-btn {
   flex: 1;
-  height: 38px;
-  border-radius: 10px;
+  height: 36px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
   color: var(--text-primary, #f8fafc);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 4px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.12s ease;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.sudoku-tool-btn.active {
+  background: var(--accent, #6366f1) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
 }
 
 .sudoku-tool-btn:active {
@@ -12852,20 +12898,22 @@ html.banned-lock #endlessBanLoader {
 .sudoku-keypad {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
-  gap: 6px;
+  gap: 4px;
   width: 100%;
-  margin-top: 10px;
+  max-width: min(340px, 92vw);
+  margin-top: 4px;
 }
 
 .sudoku-key-btn {
-  height: 44px;
-  border-radius: 10px;
+  height: 42px;
+  border-radius: 9px;
   background: var(--bg-card2, rgba(255, 255, 255, 0.08));
   border: 1px solid var(--border);
   color: var(--text-primary, #f8fafc);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -12873,6 +12921,14 @@ html.banned-lock #endlessBanLoader {
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.sudoku-key-btn .key-count {
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
 }
 
 .sudoku-key-btn:active {
@@ -12880,6 +12936,11 @@ html.banned-lock #endlessBanLoader {
   background: var(--accent, #6366f1);
   color: #fff;
   border-color: rgba(255, 255, 255, 0.4);
+}
+
+.sudoku-key-btn.completed {
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 .sudoku-overlay {
