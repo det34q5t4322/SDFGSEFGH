@@ -900,22 +900,27 @@ def get_or_create_duel_rating(cursor, telegram_id: int, game_id: str = "overall"
     return {"rating": 1000, "wins": 0, "losses": 0, "draws": 0, "last_match": now_iso}
 
 
-def get_dota_rank(rating: int) -> Dict[str, Any]:
+def get_duel_rank(rating: int) -> Dict[str, Any]:
     """
-    Возвращает ранг и звёзды в стиле Dota 2 на основе ELO:
-    Рекрут (Herald), Страж (Guardian), Рыцарь (Crusader),
-    Герой (Archon), Легенда (Legend), Властелин (Ancient),
-    Божество (Divine), Титан (Immortal).
+    Возвращает индивидуальный соревновательный ранг дуэлянта на основе ELO:
+    1. Ученик (0 - 799) 🥉
+    2. Адепт (800 - 999) 🛡️
+    3. Специалист (1000 - 1199, стартовый: Специалист I) ⚔️
+    4. Эксперт (1200 - 1399) 🏹
+    5. Магистр (1400 - 1599) 🔮
+    6. Гроссмейстер (1600 - 1799) ⚡
+    7. Архимаг (1800 - 1999) 🌟
+    8. Академик (2000+) 👑
     """
     TIERS = [
-        ("herald", "Рекрут", "🥉", "#a87957", 0, 799),
-        ("guardian", "Страж", "🛡️", "#94a3b8", 800, 999),
-        ("crusader", "Рыцарь", "⚔️", "#f59e0b", 1000, 1199),
-        ("archon", "Герой", "🏹", "#10b981", 1200, 1399),
-        ("legend", "Легенда", "👑", "#ef4444", 1400, 1599),
-        ("ancient", "Властелин", "⚡", "#06b6d4", 1600, 1799),
-        ("divine", "Божество", "🌟", "#a855f7", 1800, 1999),
-        ("immortal", "Титан", "🏆", "#f43f5e", 2000, 99999),
+        ("apprentice", "Ученик", "🥉", "#b45309", 0, 799),
+        ("adept", "Адепт", "🛡️", "#94a3b8", 800, 999),
+        ("specialist", "Специалист", "⚔️", "#f59e0b", 1000, 1199),
+        ("expert", "Эксперт", "🏹", "#10b981", 1200, 1399),
+        ("magister", "Магистр", "🔮", "#818cf8", 1400, 1599),
+        ("grandmaster", "Гроссмейстер", "⚡", "#38bdf8", 1600, 1799),
+        ("archmage", "Архимаг", "🌟", "#c084fc", 1800, 1999),
+        ("academician", "Академик", "👑", "#f43f5e", 2000, 99999),
     ]
 
     r = max(100, int(rating or 1000))
@@ -927,20 +932,21 @@ def get_dota_rank(rating: int) -> Dict[str, Any]:
             break
 
     tier_id, name, icon, color, min_r, max_r = current_tier
+    roman_stars = ["I", "II", "III", "IV", "V"]
 
-    if tier_id == "immortal":
-        stars = 0
-        stars_str = ""
-        progress = 100
-        rank_title = f"{icon} {name}"
+    if tier_id == "academician":
+        star_idx = min(5, max(1, (r - 2000) // 100 + 1))
+        stars_str = roman_stars[star_idx - 1]
+        progress = 100 if (star_idx == 5 and r >= 2400) else min(100, max(0, (r - 2000) % 100))
+        rank_title = f"{icon} {name} {stars_str}"
+        stars = star_idx
     else:
         range_size = (max_r - min_r + 1) / 5.0
         offset = r - min_r
         star_idx = min(5, max(1, int(offset / range_size) + 1))
         stars = star_idx
-        roman_stars = ["I", "II", "III", "IV", "V"][star_idx - 1]
-        stars_str = roman_stars
-        rank_title = f"{icon} {name} {roman_stars}"
+        stars_str = roman_stars[star_idx - 1]
+        rank_title = f"{icon} {name} {stars_str}"
         curr_star_min = min_r + (star_idx - 1) * range_size
         progress = min(100, max(0, int(((r - curr_star_min) / range_size) * 100)))
 
@@ -954,6 +960,8 @@ def get_dota_rank(rating: int) -> Dict[str, Any]:
         "rank_title": rank_title,
         "progress": progress
     }
+
+get_dota_rank = get_duel_rank
 
 
 def get_user_duel_stats(telegram_id: Optional[int]) -> Dict[str, Any]:

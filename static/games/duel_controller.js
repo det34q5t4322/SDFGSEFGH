@@ -98,16 +98,16 @@ window.loadDuelLobbyData = async function() {
   loadDuelLeaderboard();
 };
 
-function getDotaRank(rating) {
+function getDuelRank(rating) {
   const TIERS = [
-    { id: 'herald', name: 'Рекрут', icon: '🥉', color: '#a87957', min: 0, max: 799 },
-    { id: 'guardian', name: 'Страж', icon: '🛡️', color: '#94a3b8', min: 800, max: 999 },
-    { id: 'crusader', name: 'Рыцарь', icon: '⚔️', color: '#f59e0b', min: 1000, max: 1199 },
-    { id: 'archon', name: 'Герой', icon: '🏹', color: '#10b981', min: 1200, max: 1399 },
-    { id: 'legend', name: 'Легенда', icon: '👑', color: '#ef4444', min: 1400, max: 1599 },
-    { id: 'ancient', name: 'Властелин', icon: '⚡', color: '#06b6d4', min: 1600, max: 1799 },
-    { id: 'divine', name: 'Божество', icon: '🌟', color: '#a855f7', min: 1800, max: 1999 },
-    { id: 'immortal', name: 'Титан', icon: '🏆', color: '#f43f5e', min: 2000, max: 99999 }
+    { id: 'apprentice', name: 'Ученик', icon: '🥉', color: '#b45309', min: 0, max: 799 },
+    { id: 'adept', name: 'Адепт', icon: '🛡️', color: '#94a3b8', min: 800, max: 999 },
+    { id: 'specialist', name: 'Специалист', icon: '⚔️', color: '#f59e0b', min: 1000, max: 1199 },
+    { id: 'expert', name: 'Эксперт', icon: '🏹', color: '#10b981', min: 1200, max: 1399 },
+    { id: 'magister', name: 'Магистр', icon: '🔮', color: '#818cf8', min: 1400, max: 1599 },
+    { id: 'grandmaster', name: 'Гроссмейстер', icon: '⚡', color: '#38bdf8', min: 1600, max: 1799 },
+    { id: 'archmage', name: 'Архимаг', icon: '🌟', color: '#c084fc', min: 1800, max: 1999 },
+    { id: 'academician', name: 'Академик', icon: '👑', color: '#f43f5e', min: 2000, max: 99999 }
   ];
 
   const r = Math.max(100, Math.round(rating || 1000));
@@ -117,42 +117,42 @@ function getDotaRank(rating) {
     else break;
   }
 
-  if (tier.id === 'immortal') {
-    return {
-      tierId: tier.id,
-      name: tier.name,
-      icon: tier.icon,
-      color: tier.color,
-      stars: 0,
-      starsStr: '',
-      rankTitle: `${tier.icon} ${tier.name}`,
-      progress: 100,
-      starsIcons: '🏆 Топ'
-    };
+  const roman = ['I', 'II', 'III', 'IV', 'V'];
+  let starIdx = 1;
+  let progress = 0;
+
+  if (tier.id === 'academician') {
+    starIdx = Math.min(5, Math.max(1, Math.floor((r - 2000) / 100) + 1));
+    progress = (starIdx === 5 && r >= 2400) ? 100 : Math.min(100, Math.max(0, (r - 2000) % 100));
+  } else {
+    const rangeSize = (tier.max - tier.min + 1) / 5;
+    const offset = r - tier.min;
+    starIdx = Math.min(5, Math.max(1, Math.floor(offset / rangeSize) + 1));
+    const currStarMin = tier.min + (starIdx - 1) * rangeSize;
+    progress = Math.min(100, Math.max(0, Math.round(((r - currStarMin) / rangeSize) * 100)));
   }
 
-  const rangeSize = (tier.max - tier.min + 1) / 5;
-  const offset = r - tier.min;
-  const starIdx = Math.min(5, Math.max(1, Math.floor(offset / rangeSize) + 1));
-  const roman = ['I', 'II', 'III', 'IV', 'V'][starIdx - 1];
-  const currStarMin = tier.min + (starIdx - 1) * rangeSize;
-  const progress = Math.min(100, Math.max(0, Math.round(((r - currStarMin) / rangeSize) * 100)));
-
+  const romanStr = roman[starIdx - 1];
   const fullStars = '★'.repeat(starIdx);
   const emptyStars = '☆'.repeat(5 - starIdx);
+  const title = `${tier.icon} ${tier.name} ${romanStr}`;
 
   return {
     tierId: tier.id,
+    tier_id: tier.id,
     name: tier.name,
     icon: tier.icon,
     color: tier.color,
     stars: starIdx,
-    starsStr: roman,
-    rankTitle: `${tier.icon} ${tier.name} ${roman}`,
-    progress,
+    starsStr: romanStr,
+    stars_str: romanStr,
+    rankTitle: title,
+    rank_title: title,
+    progress: progress,
     starsIcons: fullStars + emptyStars
   };
 }
+const getDotaRank = getDuelRank;
 
 window.switchDuelSubTab = function(tabName) {
   const tabs = ['rooms', 'history', 'leaderboard'];
