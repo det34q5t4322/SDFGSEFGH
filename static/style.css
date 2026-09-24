@@ -12573,68 +12573,61 @@ html.banned-lock #endlessBanLoader {
 ═══════════════════════════════════════════ */
 .dino-game-wrap {
   width: 100%;
-  max-width: 440px;
+  max-width: 600px;
   display: flex;
   flex-direction: column;
   align-items: center;
   margin: 0 auto;
 }
 
-.dino-canvas-container {
+.dino-stage-container {
   position: relative;
   width: 100%;
-  aspect-ratio: 600 / 220;
-  background: #0f172a;
+  max-width: 600px;
+  height: 150px;
+  background: #f7f7f7;
   border: 1.5px solid var(--border);
   border-radius: var(--card-radius, 14px);
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  transition: background-color 0.4s ease, filter 0.4s ease;
 }
 
-#dinoCanvas {
+.dino-stage-container.inverted {
+  background: #202124 !important;
+  filter: invert(1);
+}
+
+.runner-container {
+  position: relative;
   width: 100%;
-  height: 100%;
-  display: block;
+  height: 150px;
+  overflow: hidden;
+}
+
+.runner-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 150px;
+  max-width: 100%;
+  opacity: 1;
+  overflow: hidden;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  cursor: pointer;
 }
 
-.dino-overlay {
+.controller {
   position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.88);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  padding: 16px;
-}
-
-.dino-overlay-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  text-align: center;
-}
-
-.dino-overlay-title {
-  font-size: 22px;
-  font-weight: 800;
-  color: #ef4444;
-  letter-spacing: 0.5px;
-}
-
-.dino-overlay-score {
-  font-size: 14px;
-  color: var(--text-secondary, #94a3b8);
-  font-weight: 600;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  cursor: pointer;
 }
 
 .dino-mobile-controls {

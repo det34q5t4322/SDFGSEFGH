@@ -19,7 +19,7 @@ export function mount(container, options = {}) {
   let ctx = null;
   let animId = null;
   let lastTick = 0;
-  let tickInterval = 135; // ms per step (быстрая и плавная реакция без задержек)
+  let tickInterval = 185; // ms per step (комфортная, плавная классическая скорость)
 
   let snake = [];
   let dir = { x: 1, y: 0 };
@@ -164,7 +164,7 @@ export function mount(container, options = {}) {
     applesEaten = 0;
     bonusFood = null;
     bonusTimer = 0;
-    tickInterval = 135;
+    tickInterval = 185;
     gameOver = false;
     isPaused = false;
     isStarted = false;
@@ -227,15 +227,6 @@ export function mount(container, options = {}) {
     if (dx === ref.x && dy === ref.y) return;
 
     inputQueue.push({ x: dx, y: dy });
-
-    // Мгновенная отзывчивость: если прошло больше 40% интервала шага,
-    // совершаем шаг немедленно, убирая любую задержку управления!
-    const now = performance.now();
-    if (now - lastTick > tickInterval * 0.4) {
-      lastTick = now;
-      tick();
-      draw();
-    }
   }
 
   function tick() {
@@ -272,8 +263,8 @@ export function mount(container, options = {}) {
       applesEaten++;
       ate = true;
       triggerHaptic('light');
-      // Плавное приятное ускорение
-      tickInterval = Math.max(85, 135 - Math.floor(score / 40) * 3);
+      // Плавное умеренное ускорение (не слишком быстрое)
+      tickInterval = Math.max(130, 185 - Math.floor(score / 60) * 3);
       spawnFood();
     }
 

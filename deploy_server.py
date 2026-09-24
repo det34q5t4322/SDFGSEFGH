@@ -28,7 +28,11 @@ def deploy():
         ('static/games/2048.js', '/var/www/college-schedule/static/games/2048.js'),
         ('static/games/dino.js', '/var/www/college-schedule/static/games/dino.js'),
         ('static/games/sudoku.js', '/var/www/college-schedule/static/games/sudoku.js'),
+        ('static/games/assets/dino/100-offline-sprite.png', '/var/www/college-schedule/static/games/assets/dino/100-offline-sprite.png'),
+        ('static/games/assets/dino/200-offline-sprite.png', '/var/www/college-schedule/static/games/assets/dino/200-offline-sprite.png'),
     ]
+
+    client.exec_command('mkdir -p /var/www/college-schedule/static/games/assets/dino')
 
     for local, remote in files:
         if os.path.exists(local):

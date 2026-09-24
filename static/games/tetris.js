@@ -389,7 +389,8 @@ export function mount(container, options = {}) {
       score += (lineScores[rowCount] || 1000) * level;
       lines += rowCount;
       level = Math.floor(lines / 10) + 1;
-      dropInterval = Math.max(120, 1000 - (level - 1) * 90);
+      // Умеренное плавное ускорение (40мс за уровень, предел 320мс вместо прежних 120мс)
+      dropInterval = Math.max(320, 1000 - (level - 1) * 40);
 
       if (score > bestScore) {
         bestScore = score;
