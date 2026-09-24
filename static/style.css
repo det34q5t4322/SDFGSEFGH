@@ -12376,6 +12376,7 @@ html.banned-lock #endlessBanLoader {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
+  -webkit-tap-highlight-color: transparent;
   transition: background 0.12s ease;
 }
 .ms-cell:active:not(.revealed) {

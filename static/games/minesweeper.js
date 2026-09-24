@@ -216,10 +216,42 @@ export function mount(container, options = {}) {
     }
   }
 
+  function updateCellEl(r, c) {
+    if (!gridEl) return;
+    const cell = grid[r]?.[c];
+    if (!cell) return;
+    const cellEl = gridEl.querySelector(`.ms-cell[data-r="${r}"][data-c="${c}"]`);
+    if (!cellEl) return;
+
+    if (cell.revealed) {
+      cellEl.className = 'ms-cell revealed';
+      if (cell.isMine) {
+        cellEl.classList.add('mine');
+        cellEl.innerHTML = ICONS.mine;
+      } else if (cell.neighborMines > 0) {
+        cellEl.classList.add(`num-${cell.neighborMines}`);
+        cellEl.textContent = cell.neighborMines;
+      } else {
+        cellEl.innerHTML = '';
+      }
+    } else if (cell.flagged) {
+      cellEl.className = 'ms-cell flagged';
+      cellEl.innerHTML = ICONS.flag;
+    } else {
+      cellEl.className = 'ms-cell';
+      cellEl.innerHTML = '';
+    }
+  }
+
+  let isBulkRevealing = false;
+
   function revealCell(r, c) {
     if (gameOver || gameWon || isPaused) return;
-    const cell = grid[r][c];
-    if (cell.revealed || cell.flagged) return;
+    const cell = grid[r]?.[c];
+    if (!cell || cell.revealed || cell.flagged) return;
+
+    const wasBulk = isBulkRevealing;
+    if (!wasBulk) isBulkRevealing = true;
 
     if (isFirstClick) {
       isFirstClick = false;
@@ -231,7 +263,7 @@ export function mount(container, options = {}) {
     revealedCount++;
 
     if (cell.isMine) {
-      // Boom!
+      isBulkRevealing = false;
       gameOver = true;
       stopTimer();
       if (faceBtn) faceBtn.innerHTML = ICONS.dead;
@@ -255,12 +287,16 @@ export function mount(container, options = {}) {
       }
     }
 
-    checkWin();
+    if (!wasBulk) {
+      isBulkRevealing = false;
+      renderBoard();
+      checkWin();
+    }
   }
 
   function chordCell(r, c) {
-    const cell = grid[r][c];
-    if (!cell.revealed || cell.neighborMines === 0) return;
+    const cell = grid[r]?.[c];
+    if (!cell || !cell.revealed || cell.neighborMines === 0) return;
 
     let flagCount = 0;
     for (let dr = -1; dr <= 1; dr++) {
@@ -274,6 +310,7 @@ export function mount(container, options = {}) {
     }
 
     if (flagCount === cell.neighborMines) {
+      isBulkRevealing = true;
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
           const nr = r + dr;
@@ -285,13 +322,16 @@ export function mount(container, options = {}) {
           }
         }
       }
+      isBulkRevealing = false;
+      renderBoard();
+      checkWin();
     }
   }
 
   function toggleFlag(r, c) {
     if (gameOver || gameWon || isPaused) return;
-    const cell = grid[r][c];
-    if (cell.revealed) return;
+    const cell = grid[r]?.[c];
+    if (!cell || cell.revealed) return;
 
     cell.flagged = !cell.flagged;
     flags += cell.flagged ? 1 : -1;
@@ -300,7 +340,7 @@ export function mount(container, options = {}) {
       mineCountEl.textContent = totalMines - flags;
     }
 
-    renderBoard();
+    updateCellEl(r, c);
   }
 
   function revealAllMines() {
@@ -345,8 +385,6 @@ export function mount(container, options = {}) {
       if (typeof onGameOver === 'function') {
         onGameOver(score, true);
       }
-    } else {
-      renderBoard();
     }
   }
 
@@ -365,40 +403,54 @@ export function mount(container, options = {}) {
     } catch (_) {}
   };
 
-  // Event Listeners on Grid: быстрый отклик на долгое нажатие и клик
+  // Event Listeners on Grid: сверхнадёжное удержание для флага (появление -> фиксация -> снятие вторым удержанием)
   let longPressTimer = null;
-  let didLongPress = false;
+  let longPressTriggered = false;
+  let suppressClickUntil = 0;
   let touchStartX = 0;
   let touchStartY = 0;
+  let activeR = -1;
+  let activeC = -1;
 
   const onPointerDown = (e) => {
+    // Если правый клик мыши — обрабатывает contextmenu
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
     const cellEl = e.target.closest('.ms-cell');
     if (!cellEl) return;
     const r = parseInt(cellEl.dataset.r, 10);
     const c = parseInt(cellEl.dataset.c, 10);
-
-    // Если правый клик мыши — обрабатывает contextmenu
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const cell = grid[r]?.[c];
+    if (!cell || cell.revealed || gameOver || gameWon || isPaused) return;
 
     touchStartX = e.clientX;
     touchStartY = e.clientY;
-    didLongPress = false;
+    activeR = r;
+    activeC = c;
+    longPressTriggered = false;
 
-    if (longPressTimer) clearTimeout(longPressTimer);
-
-    // Долгое нажатие для установки флага (280ms)
-    longPressTimer = setTimeout(() => {
-      didLongPress = true;
-      toggleFlag(r, c);
-      triggerHaptic('medium');
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
       longPressTimer = null;
-    }, 280);
+    }
+
+    // Долгое нажатие для установки или снятия флага (260ms)
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      longPressTriggered = true;
+      suppressClickUntil = Date.now() + 650;
+
+      // При зажатии флажок появляется/исчезает и фиксируется до следующего удержания
+      toggleFlag(activeR, activeC);
+      triggerHaptic('medium');
+    }, 260);
   };
 
   const onPointerMove = (e) => {
     if (!longPressTimer) return;
     const dist = Math.hypot(e.clientX - touchStartX, e.clientY - touchStartY);
-    if (dist > 8) {
+    // Допускаем естественное микро-смещение пальца (18px)
+    if (dist > 18) {
       clearTimeout(longPressTimer);
       longPressTimer = null;
     }
@@ -416,15 +468,14 @@ export function mount(container, options = {}) {
       clearTimeout(longPressTimer);
       longPressTimer = null;
     }
-    didLongPress = false;
   };
 
   const onGridClick = (e) => {
-    // Если ячейка была помечена долгим зажатием, отменяем клик чтобы не взорвать/не открыть!
-    if (didLongPress) {
+    // Если жест был долгим зажатием, отменяем клик чтобы не открыть ячейку и не сбросить флаг
+    if (longPressTriggered || Date.now() < suppressClickUntil) {
       e.preventDefault();
       e.stopPropagation();
-      didLongPress = false;
+      longPressTriggered = false;
       return;
     }
 
@@ -432,13 +483,21 @@ export function mount(container, options = {}) {
     if (!cellEl) return;
     const r = parseInt(cellEl.dataset.r, 10);
     const c = parseInt(cellEl.dataset.c, 10);
+    const cell = grid[r]?.[c];
+    if (!cell || gameOver || gameWon || isPaused) return;
 
-    const cell = grid[r][c];
     if (cell.revealed) {
       chordCell(r, c);
-      renderBoard();
       triggerHaptic('light');
+    } else if (cell.flagged) {
+      // Ячейка с флагом:
+      if (mode === 'flag') {
+        toggleFlag(r, c);
+        triggerHaptic('light');
+      }
+      // В режиме 'dig' обычный клик по флагу защищён и ничего не делает
     } else {
+      // Закрытая ячейка без флага:
       if (mode === 'flag') {
         toggleFlag(r, c);
         triggerHaptic('light');
@@ -452,6 +511,12 @@ export function mount(container, options = {}) {
   const onGridContextMenu = (e) => {
     e.preventDefault();
     e.stopPropagation();
+
+    // Блокируем нативный вызов контекстного меню мобильного браузера, чтобы флаг не мигал
+    if (longPressTriggered || Date.now() < suppressClickUntil || e.pointerType === 'touch') {
+      return;
+    }
+
     const cellEl = e.target.closest('.ms-cell');
     if (!cellEl) return;
     const r = parseInt(cellEl.dataset.r, 10);
