@@ -125,6 +125,24 @@ export function mount(container, options = {}) {
   }
 
   // Connect Mobile Controls
+  // Direct canvas/stage tap to jump
+  const stageEl = document.getElementById('dinoStage');
+  if (stageEl) {
+    stageEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (runner.crashed) {
+        runner.restart();
+      } else {
+        triggerHaptic('light');
+        runner.onKeyDown({ keyCode: 38, type: 'keydown' });
+      }
+    });
+    stageEl.addEventListener('pointerup', (e) => {
+      e.preventDefault();
+      runner.onKeyUp({ keyCode: 38, type: 'keyup' });
+    });
+  }
+
   const jumpBtn = document.getElementById('dinoJumpBtn');
   const duckBtn = document.getElementById('dinoDuckBtn');
 
@@ -211,7 +229,7 @@ function Runner(outerContainerId, opt_config) {
 
         this.obstacles = [];
 
-        this.activated = false; // Whether the easter egg has been activated.
+        this.activated = true; // Whether the easter egg has been activated.
         this.playing = false; // Whether the game is currently in play state.
         this.crashed = false;
         this.paused = false;
@@ -483,27 +501,35 @@ function Runner(outerContainerId, opt_config) {
          * Cache the appropriate image sprite from the page and get the sprite sheet
          * definition.
          */
-        loadImages: function () {
-            if (IS_HIDPI) {
-                Runner.imageSprite = document.getElementById('offline-resources-2x');
-                this.spriteDef = Runner.spriteDefinition.HDPI;
-            } else {
-                Runner.imageSprite = document.getElementById('offline-resources-1x');
-                this.spriteDef = Runner.spriteDefinition.LDPI;
-            }
+                loadImages: function () {
+            this.spriteDef = IS_HIDPI ? Runner.spriteDefinition.HDPI : Runner.spriteDefinition.LDPI;
+            var spriteSrc = IS_HIDPI ?
+                '/static/games/assets/dino/200-offline-sprite.png' :
+                '/static/games/assets/dino/100-offline-sprite.png';
 
-            if (Runner.imageSprite.complete) {
+            var img = new Image();
+            img.src = spriteSrc;
+            Runner.imageSprite = img;
+
+            if (img.complete && img.naturalWidth > 0) {
                 this.init();
             } else {
-                // If the images are not yet loaded, add a listener.
-                Runner.imageSprite.addEventListener(Runner.events.LOAD,
-                    this.init.bind(this));
+                img.onload = function () {
+                    this.init();
+                }.bind(this);
+                img.onerror = function () {
+                    // Fallback to 100% sprite if 200% failed
+                    var fallback = new Image();
+                    fallback.src = '/static/games/assets/dino/100-offline-sprite.png';
+                    Runner.imageSprite = fallback;
+                    fallback.onload = function () {
+                        this.spriteDef = Runner.spriteDefinition.LDPI;
+                        this.init();
+                    }.bind(this);
+                }.bind(this);
             }
         },
 
-        /**
-         * Load and decode base 64 encoded sounds.
-         */
         loadSounds: function () {
             if (this.audioContext) return;
             try {
@@ -522,8 +548,9 @@ function Runner(outerContainerId, opt_config) {
                     var base64Part = soundSrc.substr(soundSrc.indexOf(',') + 1);
                     var buffer = decodeBase64ToArrayBuffer(base64Part);
 
-                    (function (self, sKey) {
+                                        (function (self, sKey) {
                         self.audioContext.decodeAudioData(buffer, function (audioData) {
+                            self.soundFx[sKey] = audioData;
                             self.soundFx[Runner.sounds[sKey]] = audioData;
                         }, function () {});
                     })(this, sound);
@@ -664,57 +691,28 @@ function Runner(outerContainerId, opt_config) {
          * Play the game intro.
          * Canvas container width expands out to the full width.
          */
-        playIntro: function () {
-            if (!this.activated && !this.crashed) {
-                this.playingIntro = true;
-                this.tRex.playingIntro = true;
-
-                // CSS animation definition.
-                var keyframes = '@-webkit-keyframes intro { ' +
-                    'from { width:' + Trex.config.WIDTH + 'px }' +
-                    'to { width: ' + this.dimensions.WIDTH + 'px }' +
-                    '}';
-                
-                // create a style sheet to put the keyframe rule in 
-                // and then place the style sheet in the html head    
-                var sheet = document.createElement('style');
-                sheet.innerHTML = keyframes;
-                document.head.appendChild(sheet);
-
-                this.containerEl.addEventListener(Runner.events.ANIM_END,
-                    this.startGame.bind(this));
-
-                this.containerEl.style.webkitAnimation = 'intro .4s ease-out 1 both';
-                this.containerEl.style.width = this.dimensions.WIDTH + 'px';
-
-                // if (this.touchController) {
-                //     this.outerContainerEl.appendChild(this.touchController);
-                // }
-                this.playing = true;
-                this.activated = true;
-            } else if (this.crashed) {
-                this.restart();
-            }
+                playIntro: function () {
+            this.startGame();
         },
 
-
-        /**
-         * Update the game status to started.
-         */
         startGame: function () {
-            this.setArcadeMode();
             this.runningTime = 0;
             this.playingIntro = false;
-            this.tRex.playingIntro = false;
-            this.containerEl.style.webkitAnimation = '';
+            if (this.tRex) {
+                this.tRex.playingIntro = false;
+                this.tRex.xPos = Trex.config.START_X_POS;
+            }
+            if (this.containerEl) {
+                this.containerEl.style.animation = '';
+                this.containerEl.style.webkitAnimation = '';
+            }
+            this.activated = true;
+            this.playing = true;
             this.playCount++;
 
-            // Handle tabbing off the page. Pause the current game.
             this.boundVisibilityChange = this.onVisibilityChange.bind(this);
             document.addEventListener(Runner.events.VISIBILITY, this.boundVisibilityChange);
-
             window.addEventListener(Runner.events.BLUR, this.boundVisibilityChange);
-
             window.addEventListener(Runner.events.FOCUS, this.boundVisibilityChange);
         },
 
@@ -730,7 +728,8 @@ function Runner(outerContainerId, opt_config) {
             this.updatePending = false;
 
             var now = getTimeStamp();
-            var deltaTime = now - (this.time || now);
+            if (!this.time) this.time = now;
+            var deltaTime = Math.min(Math.max(0, now - this.time), 60);
             this.time = now;
 
             if (this.playing) {
@@ -885,6 +884,7 @@ function Runner(outerContainerId, opt_config) {
                     if (!this.playing) {
                         this.loadSounds();
                         this.playing = true;
+                        this.time = getTimeStamp();
                         this.update();
                         if (window.errorPageController) {
                             errorPageController.trackEasterEgg();
@@ -1742,7 +1742,7 @@ function Runner(outerContainerId, opt_config) {
         this.canvas = canvas;
         this.canvasCtx = canvas.getContext('2d');
         this.spritePos = spritePos;
-        this.xPos = 0;
+        this.xPos = 50;
         this.yPos = 0;
         // Position when on the ground.
         this.groundYPos = 0;
@@ -1865,6 +1865,7 @@ function Runner(outerContainerId, opt_config) {
             this.groundYPos = Runner.defaultDimensions.HEIGHT - this.config.HEIGHT -
                 Runner.config.BOTTOM_PAD;
             this.yPos = this.groundYPos;
+            this.xPos = this.config.START_X_POS;
             this.minJumpHeight = this.groundYPos - this.config.MIN_JUMP_HEIGHT;
 
             this.draw(0, 0);
@@ -1950,21 +1951,25 @@ function Runner(outerContainerId, opt_config) {
             sourceX += this.spritePos.x;
             sourceY += this.spritePos.y;
 
+            var posX = (typeof this.xPos === 'number' && !isNaN(this.xPos)) ? this.xPos : 50;
+            var posY = (typeof this.yPos === 'number' && !isNaN(this.yPos)) ? this.yPos : this.groundYPos;
+
             // Ducking.
             if (this.ducking && this.status != Trex.status.CRASHED) {
                 this.canvasCtx.drawImage(Runner.imageSprite, sourceX, sourceY,
                     sourceWidth, sourceHeight,
-                    this.xPos, this.yPos,
+                    posX, posY,
                     this.config.WIDTH_DUCK, this.config.HEIGHT);
             } else {
                 // Crashed whilst ducking. Trex is standing up so needs adjustment.
                 if (this.ducking && this.status == Trex.status.CRASHED) {
                     this.xPos++;
+                    posX++;
                 }
                 // Standing / running
                 this.canvasCtx.drawImage(Runner.imageSprite, sourceX, sourceY,
                     sourceWidth, sourceHeight,
-                    this.xPos, this.yPos,
+                    posX, posY,
                     this.config.WIDTH, this.config.HEIGHT);
             }
         },
@@ -2026,8 +2031,8 @@ function Runner(outerContainerId, opt_config) {
          * @param {number} speed
          */
         updateJump: function (deltaTime, speed) {
-            var msPerFrame = Trex.animFrames[this.status].msPerFrame;
-            var framesElapsed = deltaTime / msPerFrame;
+            var msPerFrame = Trex.animFrames[this.status].msPerFrame || (1000 / 60);
+            var framesElapsed = Math.min(Math.max(0, deltaTime / msPerFrame), 3);
 
             // Speed drop makes Trex fall faster.
             if (this.speedDrop) {
@@ -2038,6 +2043,11 @@ function Runner(outerContainerId, opt_config) {
             }
 
             this.jumpVelocity += this.config.GRAVITY * framesElapsed;
+
+            // Safety clamp: yPos can never launch into outer space!
+            if (this.yPos < 0) {
+                this.yPos = 0;
+            }
 
             // Minimum height has been reached.
             if (this.yPos < this.minJumpHeight || this.speedDrop) {
@@ -2050,7 +2060,7 @@ function Runner(outerContainerId, opt_config) {
             }
 
             // Back down at ground level. Jump completed.
-            if (this.yPos > this.groundYPos) {
+            if (this.yPos >= this.groundYPos) {
                 this.reset();
                 this.jumpCount++;
             }

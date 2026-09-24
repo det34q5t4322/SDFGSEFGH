@@ -9061,7 +9061,7 @@ window.openGame = async function(gameId) {
   try {
     let module;
     try {
-      module = await import(`/static/games/${gameId}.js?v=20260924_v5`);
+      module = await import(`/static/games/${gameId}.js?v=20260924_v6`);
     } catch (_) {
       module = await import(`/static/games/${gameId}.js`);
     }

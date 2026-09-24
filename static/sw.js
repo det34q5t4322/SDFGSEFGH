@@ -2,7 +2,7 @@
    COLLEGE SCHEDULE APP — Resilient Offline Service Worker
    ════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'college-schedule-v42';
+const CACHE_NAME = 'college-schedule-v43';
 
 const STATIC_ASSETS = [
   '/',
