@@ -86,7 +86,8 @@ export function mount(container, options = {}) {
   // Reset any previous singleton
   Runner.instance_ = null;
 
-  const runner = new Runner('#dinoStage', {
+  const stageEl = container.querySelector('#dinoStage') || document.querySelector('#dinoStage');
+  const runner = new Runner(stageEl, {
     onScore: (actualDist, isBest) => {
       const scoreEl = document.getElementById('dinoScore');
       const bestEl = document.getElementById('dinoBest');
@@ -126,7 +127,6 @@ export function mount(container, options = {}) {
 
   // Connect Mobile Controls
   // Direct canvas/stage tap to jump
-  const stageEl = document.getElementById('dinoStage');
   if (stageEl) {
     stageEl.addEventListener('pointerdown', (e) => {
       e.preventDefault();
@@ -203,10 +203,12 @@ function Runner(outerContainerId, opt_config) {
         }
         Runner.instance_ = this;
 
-        this.outerContainerEl = document.querySelector(outerContainerId);
+        this.outerContainerEl = typeof outerContainerId === 'string' ?
+            (document.querySelector(outerContainerId) || document.getElementById(outerContainerId.replace('#', ''))) :
+            outerContainerId;
         this.containerEl = null;
         this.snackbarEl = null;
-        this.detailsButton = this.outerContainerEl.querySelector('#details-button');
+        this.detailsButton = null;
 
         this.config = opt_config || Runner.config;
 
@@ -647,42 +649,23 @@ function Runner(outerContainerId, opt_config) {
             clearInterval(this.resizeTimerId_);
             this.resizeTimerId_ = null;
 
-            var boxStyles = window.getComputedStyle(this.outerContainerEl);
-            var padding = Number(boxStyles.paddingLeft.substr(0,
-                boxStyles.paddingLeft.length - 2));
+            this.dimensions.WIDTH = DEFAULT_WIDTH;
+            this.dimensions.HEIGHT = Runner.defaultDimensions.HEIGHT;
 
-            this.dimensions.WIDTH = this.outerContainerEl.offsetWidth - padding * 2;
-            this.dimensions.WIDTH = Math.min(DEFAULT_WIDTH, this.dimensions.WIDTH); //Arcade Mode
-            if (this.activated) {
-                this.setArcadeModeContainerScale();
-            }
-            
-            // Redraw the elements back onto the canvas.
             if (this.canvas) {
-                this.canvas.width = this.dimensions.WIDTH;
-                this.canvas.height = this.dimensions.HEIGHT;
+                this.canvas.width = DEFAULT_WIDTH;
+                this.canvas.height = Runner.defaultDimensions.HEIGHT;
+                Runner.updateCanvasScaling(this.canvas, DEFAULT_WIDTH, Runner.defaultDimensions.HEIGHT);
 
-                Runner.updateCanvasScaling(this.canvas);
-
-                this.distanceMeter.calcXPos(this.dimensions.WIDTH);
-                this.clearCanvas();
-                this.horizon.update(0, 0, true);
-                this.tRex.update(0);
-
-                // Outer container and distance meter.
-                if (this.playing || this.crashed || this.paused) {
-                    this.containerEl.style.width = this.dimensions.WIDTH + 'px';
-                    this.containerEl.style.height = this.dimensions.HEIGHT + 'px';
-                    this.distanceMeter.update(0, Math.ceil(this.distanceRan));
-                    this.stop();
-                } else {
-                    this.tRex.draw(0, 0);
+                if (this.distanceMeter) {
+                    this.distanceMeter.calcXPos(DEFAULT_WIDTH);
                 }
-
-                // Game over panel.
-                if (this.crashed && this.gameOverPanel) {
-                    this.gameOverPanel.updateDimensions(this.dimensions.WIDTH);
-                    this.gameOverPanel.draw();
+                this.clearCanvas();
+                if (this.horizon) {
+                    this.horizon.update(0, 0, true);
+                }
+                if (this.tRex) {
+                    this.tRex.update(0);
                 }
             }
         },
@@ -1062,23 +1045,7 @@ function Runner(outerContainerId, opt_config) {
         /**
          * Sets the scaling for arcade mode.
          */
-        setArcadeModeContainerScale() {
-            const windowHeight = window.innerHeight;
-            const scaleHeight = windowHeight / this.dimensions.HEIGHT;
-            const scaleWidth = window.innerWidth / this.dimensions.WIDTH;
-            const scale = Math.max(1, Math.min(scaleHeight, scaleWidth));
-            const scaledCanvasHeight = this.dimensions.HEIGHT * scale;
-            // Positions the game container at 10% of the available vertical window
-            // height minus the game container height.
-            const translateY = Math.ceil(Math.max(0, (windowHeight - scaledCanvasHeight -
-                                                      Runner.config.ARCADE_MODE_INITIAL_TOP_POSITION) *
-                                                  Runner.config.ARCADE_MODE_TOP_POSITION_PERCENT)) *
-                  window.devicePixelRatio;
-
-            const cssScale = scale;
-            this.containerEl.style.transform =
-                'scale(' + cssScale + ') translateY(' + translateY + 'px)';
-        },
+        setArcadeModeContainerScale() {},
         
         /**
          * Pause the game if the tab is not in focus.
