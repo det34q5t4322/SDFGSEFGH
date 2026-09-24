@@ -12584,7 +12584,8 @@ html.banned-lock #endlessBanLoader {
   position: relative;
   width: 100%;
   max-width: 600px;
-  height: 150px;
+  aspect-ratio: 4 / 1;
+  height: auto;
   background: #f7f7f7;
   border: 1.5px solid var(--border);
   border-radius: var(--card-radius, 14px);
@@ -12604,7 +12605,8 @@ html.banned-lock #endlessBanLoader {
 .runner-container {
   position: relative;
   width: 100%;
-  height: 150px;
+  height: 100%;
+  aspect-ratio: 4 / 1;
   overflow: hidden;
 }
 
@@ -12612,12 +12614,14 @@ html.banned-lock #endlessBanLoader {
   position: absolute;
   top: 0;
   left: 0;
-  height: 150px;
-  max-width: 100%;
+  width: 100% !important;
+  height: 100% !important;
+  aspect-ratio: 4 / 1;
   opacity: 1;
   overflow: hidden;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  display: block;
 }
 
 .controller {

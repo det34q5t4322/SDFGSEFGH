@@ -125,21 +125,16 @@ export function mount(container, options = {}) {
     });
   }
 
-  // Connect Mobile Controls
-  // Direct canvas/stage tap to jump
+  // Connect Mobile Controls & Stage Taps
   if (stageEl) {
     stageEl.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      if (runner.crashed) {
-        runner.restart();
-      } else {
-        triggerHaptic('light');
-        runner.onKeyDown({ keyCode: 38, type: 'keydown' });
-      }
+      triggerHaptic('light');
+      runner.jump();
     });
     stageEl.addEventListener('pointerup', (e) => {
       e.preventDefault();
-      runner.onKeyUp({ keyCode: 38, type: 'keyup' });
+      runner.endJump();
     });
   }
 
@@ -150,11 +145,11 @@ export function mount(container, options = {}) {
     const startJump = (e) => {
       e.preventDefault();
       triggerHaptic('light');
-      runner.onKeyDown({ keyCode: 38, type: 'keydown' });
+      runner.jump();
     };
     const endJump = (e) => {
       e.preventDefault();
-      runner.onKeyUp({ keyCode: 38, type: 'keyup' });
+      runner.endJump();
     };
     jumpBtn.addEventListener('pointerdown', startJump);
     jumpBtn.addEventListener('pointerup', endJump);
@@ -164,11 +159,11 @@ export function mount(container, options = {}) {
   if (duckBtn) {
     const startDuck = (e) => {
       e.preventDefault();
-      runner.onKeyDown({ keyCode: 40, type: 'keydown' });
+      runner.duck(true);
     };
     const endDuck = (e) => {
       e.preventDefault();
-      runner.onKeyUp({ keyCode: 40, type: 'keyup' });
+      runner.duck(false);
     };
     duckBtn.addEventListener('pointerdown', startDuck);
     duckBtn.addEventListener('pointerup', endDuck);
@@ -210,7 +205,7 @@ function Runner(outerContainerId, opt_config) {
         this.snackbarEl = null;
         this.detailsButton = null;
 
-        this.config = opt_config || Runner.config;
+        this.config = Object.assign({}, Runner.config, opt_config);
 
         this.dimensions = Runner.defaultDimensions;
 
@@ -661,11 +656,11 @@ function Runner(outerContainerId, opt_config) {
                     this.distanceMeter.calcXPos(DEFAULT_WIDTH);
                 }
                 this.clearCanvas();
-                if (this.horizon) {
-                    this.horizon.update(0, 0, true);
+                if (this.horizon && this.horizon.horizonLine) {
+                    this.horizon.horizonLine.draw();
                 }
                 if (this.tRex) {
-                    this.tRex.update(0);
+                    this.tRex.draw(0, 0);
                 }
             }
         },
@@ -674,7 +669,7 @@ function Runner(outerContainerId, opt_config) {
          * Play the game intro.
          * Canvas container width expands out to the full width.
          */
-                playIntro: function () {
+        playIntro: function () {
             this.startGame();
         },
 
@@ -725,19 +720,9 @@ function Runner(outerContainerId, opt_config) {
                 this.runningTime += deltaTime;
                 var hasObstacles = this.runningTime > this.config.CLEAR_TIME;
 
-                // First jump triggers the intro.
-                if (this.tRex.jumpCount == 1 && !this.playingIntro) {
-                    this.playIntro();
-                }
-
-                // The horizon doesn't move until the intro is over.
-                if (this.playingIntro) {
-                    this.horizon.update(0, this.currentSpeed, hasObstacles);
-                } else {
-                    deltaTime = !this.activated ? 0 : deltaTime;
-                    this.horizon.update(deltaTime, this.currentSpeed, hasObstacles,
-                        this.inverted);
-                }
+                deltaTime = !this.activated ? 0 : deltaTime;
+                this.horizon.update(deltaTime, this.currentSpeed, hasObstacles,
+                    this.inverted);
 
                 // Check for collisions.
                 var collision = hasObstacles &&
@@ -851,82 +836,78 @@ function Runner(outerContainerId, opt_config) {
             }
         },
 
+        jump: function () {
+            if (this.crashed) {
+                this.restart();
+                return;
+            }
+            if (!this.playing) {
+                this.loadSounds();
+                this.playing = true;
+                this.time = getTimeStamp();
+                this.update();
+            }
+            if (this.tRex && !this.tRex.jumping && !this.tRex.ducking) {
+                this.playSound(this.soundFx.BUTTON_PRESS);
+                this.tRex.startJump(this.currentSpeed);
+            }
+        },
+
+        endJump: function () {
+            if (this.isRunning() && this.tRex) {
+                this.tRex.endJump();
+            }
+        },
+
+        duck: function (isDucking) {
+            if (!this.playing || this.crashed || !this.tRex) return;
+            if (isDucking) {
+                if (this.tRex.jumping) {
+                    this.tRex.setSpeedDrop();
+                } else if (!this.tRex.jumping && !this.tRex.ducking) {
+                    this.tRex.setDuck(true);
+                }
+            } else {
+                this.tRex.speedDrop = false;
+                this.tRex.setDuck(false);
+            }
+        },
+
         /**
          * Process keydown.
          * @param {Event} e
          */
         onKeyDown: function (e) {
-            // Prevent native page scrolling whilst tapping on mobile.
-            if (IS_MOBILE && this.playing) {
+            if (IS_MOBILE && this.playing && e.preventDefault) {
                 e.preventDefault();
             }
 
-            if (e.target != this.detailsButton) {
-                if (!this.crashed && (Runner.keycodes.JUMP[e.keyCode] ||
-                    e.type == Runner.events.TOUCHSTART)) {
-                    if (!this.playing) {
-                        this.loadSounds();
-                        this.playing = true;
-                        this.time = getTimeStamp();
-                        this.update();
-                        if (window.errorPageController) {
-                            errorPageController.trackEasterEgg();
-                        }
-                    }
-                    //  Play sound effect and jump on starting the game for the first time.
-                    if (!this.tRex.jumping && !this.tRex.ducking) {
-                        this.playSound(this.soundFx.BUTTON_PRESS);
-                        this.tRex.startJump(this.currentSpeed);
-                    }
-                }
-
-                if (this.crashed && e.type == Runner.events.TOUCHSTART &&
-                    e.currentTarget == this.containerEl) {
+            var keyCode = e.keyCode;
+            if (Runner.keycodes.JUMP[keyCode] || keyCode === 38 || keyCode === 32 ||
+                e.type === Runner.events.TOUCHSTART || e.type === Runner.events.MOUSEDOWN) {
+                if (this.crashed) {
                     this.restart();
+                } else {
+                    this.jump();
                 }
-            }
-
-            if (this.playing && !this.crashed && Runner.keycodes.DUCK[e.keyCode]) {
-                e.preventDefault();
-                if (this.tRex.jumping) {
-                    // Speed drop, activated only when jump key is not pressed.
-                    this.tRex.setSpeedDrop();
-                } else if (!this.tRex.jumping && !this.tRex.ducking) {
-                    // Duck.
-                    this.tRex.setDuck(true);
-                }
+            } else if (Runner.keycodes.DUCK[keyCode] || keyCode === 40) {
+                this.duck(true);
+            } else if (this.crashed && (Runner.keycodes.RESTART[keyCode] || keyCode === 13)) {
+                this.restart();
             }
         },
-
 
         /**
          * Process key up.
          * @param {Event} e
          */
         onKeyUp: function (e) {
-            var keyCode = String(e.keyCode);
-            var isjumpKey = Runner.keycodes.JUMP[keyCode] ||
-                e.type == Runner.events.TOUCHEND ||
-                e.type == Runner.events.MOUSEDOWN;
-
-            if (this.isRunning() && isjumpKey) {
-                this.tRex.endJump();
-            } else if (Runner.keycodes.DUCK[keyCode]) {
-                this.tRex.speedDrop = false;
-                this.tRex.setDuck(false);
-            } else if (this.crashed) {
-                // Check that enough time has elapsed before allowing jump key to restart.
-                var deltaTime = getTimeStamp() - this.time;
-
-                if (Runner.keycodes.RESTART[keyCode] || this.isLeftClickOnCanvas(e) ||
-                    (deltaTime >= this.config.GAMEOVER_CLEAR_TIME &&
-                        Runner.keycodes.JUMP[keyCode])) {
-                    this.restart();
-                }
-            } else if (this.paused && isjumpKey) {
-                // Reset the jump state
-                this.tRex.reset();
-                this.play();
+            var keyCode = e.keyCode;
+            if (Runner.keycodes.JUMP[keyCode] || keyCode === 38 || keyCode === 32 ||
+                e.type === Runner.events.TOUCHEND || e.type === Runner.events.MOUSEUP) {
+                this.endJump();
+            } else if (Runner.keycodes.DUCK[keyCode] || keyCode === 40) {
+                this.duck(false);
             }
         },
 
@@ -1016,23 +997,25 @@ function Runner(outerContainerId, opt_config) {
         },
 
         restart: function () {
-            if (!this.raqId) {
-                this.playCount++;
-                this.runningTime = 0;
-                this.playing = true;
-                this.crashed = false;
-                this.distanceRan = 0;
-                this.setSpeed(this.config.SPEED);
-                this.time = getTimeStamp();
-                this.containerEl.classList.remove(Runner.classes.CRASHED);
-                this.clearCanvas();
-                this.distanceMeter.reset(this.highestScore);
-                this.horizon.reset();
-                this.tRex.reset();
-                this.playSound(this.soundFx.BUTTON_PRESS);
-                this.invert(true);
-                this.update();
+            if (this.raqId) {
+                cancelAnimationFrame(this.raqId);
+                this.raqId = 0;
             }
+            this.playCount++;
+            this.runningTime = 0;
+            this.playing = true;
+            this.crashed = false;
+            this.distanceRan = 0;
+            this.setSpeed(this.config.SPEED);
+            this.time = getTimeStamp();
+            this.containerEl.classList.remove(Runner.classes.CRASHED);
+            this.clearCanvas();
+            this.distanceMeter.reset(this.highestScore);
+            this.horizon.reset();
+            this.tRex.reset();
+            this.playSound(this.soundFx.BUTTON_PRESS);
+            this.invert(true);
+            this.update();
         },
         
         /**
@@ -1112,31 +1095,22 @@ function Runner(outerContainerId, opt_config) {
     Runner.updateCanvasScaling = function (canvas, opt_width, opt_height) {
         var context = canvas.getContext('2d');
 
-        // Query the various pixel ratios
         var devicePixelRatio = Math.floor(window.devicePixelRatio) || 1;
         var backingStoreRatio = Math.floor(context.webkitBackingStorePixelRatio) || 1;
-        var ratio = devicePixelRatio / backingStoreRatio;
+        var ratio = Math.max(1, devicePixelRatio / backingStoreRatio);
 
-        // Upscale the canvas if the two ratios don't match
-        if (devicePixelRatio !== backingStoreRatio) {
-            var oldWidth = opt_width || canvas.width;
-            var oldHeight = opt_height || canvas.height;
+        var oldWidth = opt_width || DEFAULT_WIDTH;
+        var oldHeight = opt_height || Runner.defaultDimensions.HEIGHT;
 
-            canvas.width = oldWidth * ratio;
-            canvas.height = oldHeight * ratio;
+        canvas.width = oldWidth * ratio;
+        canvas.height = oldHeight * ratio;
 
-            canvas.style.width = oldWidth + 'px';
-            canvas.style.height = oldHeight + 'px';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
 
-            // Scale the context to counter the fact that we've manually scaled
-            // our canvas element.
+        if (ratio !== 1) {
             context.scale(ratio, ratio);
             return true;
-        } else if (devicePixelRatio == 1) {
-            // Reset the canvas width / height. Fixes scaling bug when the page is
-            // zoomed and the devicePixelRatio changes accordingly.
-            canvas.style.width = canvas.width + 'px';
-            canvas.style.height = canvas.height + 'px';
         }
         return false;
     };
@@ -2736,6 +2710,7 @@ function Runner(outerContainerId, opt_config) {
         this.cloudFrequency = this.config.CLOUD_FREQUENCY;
         this.spritePos = spritePos;
         this.nightMode = null;
+        this.runningTime = 0;
 
         // Cloud
         this.clouds = [];
@@ -2872,8 +2847,8 @@ function Runner(outerContainerId, opt_config) {
 
             // Check for multiples of the same type of obstacle.
             // Also check obstacle is available at current speed.
-            if (this.duplicateObstacleCheck(obstacleType.type) ||
-                currentSpeed < obstacleType.minSpeed) {
+            if ((this.duplicateObstacleCheck(obstacleType.type) ||
+                currentSpeed < obstacleType.minSpeed) && currentSpeed > 0) {
                 this.addNewObstacle(currentSpeed);
             } else {
                 var obstacleSpritePos = this.spritePos[obstacleType.type];
