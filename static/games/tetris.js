@@ -290,18 +290,40 @@ export function mount(container, options = {}) {
 
   function playerRotate() {
     if (!piece || gameOver || isPaused) return;
-    const pos = piece.x;
-    let offset = 1;
+    const originalX = piece.x;
+    const originalY = piece.y;
     rotate(piece.matrix, 1);
-    while (collide(grid, piece)) {
-      piece.x += offset;
-      offset = -(offset + (offset > 0 ? 1 : -1));
-      if (offset > piece.matrix[0].length) {
-        rotate(piece.matrix, -1);
-        piece.x = pos;
-        return;
+
+    // Super Rotation System (SRS) kicks: try in-place, horizontal shifts, and vertical kicks up
+    const kicks = [
+      [0, 0],
+      [1, 0],
+      [-1, 0],
+      [2, 0],
+      [-2, 0],
+      [0, -1],
+      [1, -1],
+      [-1, -1],
+      [0, -2]
+    ];
+
+    let kicked = false;
+    for (const [kx, ky] of kicks) {
+      piece.x = originalX + kx;
+      piece.y = originalY + ky;
+      if (!collide(grid, piece)) {
+        kicked = true;
+        break;
       }
     }
+
+    if (!kicked) {
+      rotate(piece.matrix, -1);
+      piece.x = originalX;
+      piece.y = originalY;
+      return;
+    }
+
     triggerHaptic('light');
   }
 
@@ -419,6 +441,16 @@ export function mount(container, options = {}) {
     targetCtx.fillRect(px + BLOCK_SIZE - 2, py, 2, BLOCK_SIZE);
   }
 
+  function drawGhostBlock(targetCtx, x, y, color) {
+    const px = x * BLOCK_SIZE;
+    const py = y * BLOCK_SIZE;
+    targetCtx.strokeStyle = color;
+    targetCtx.lineWidth = 1.5;
+    targetCtx.strokeRect(px + 1.5, py + 1.5, BLOCK_SIZE - 3, BLOCK_SIZE - 3);
+    targetCtx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    targetCtx.fillRect(px + 2, py + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4);
+  }
+
   function draw() {
     if (!ctx || !canvas) return;
 
@@ -450,6 +482,29 @@ export function mount(container, options = {}) {
         }
       });
     });
+
+    // Draw Ghost Piece projection
+    if (piece) {
+      const ghost = {
+        matrix: piece.matrix,
+        x: piece.x,
+        y: piece.y
+      };
+      while (!collide(grid, ghost)) {
+        ghost.y++;
+      }
+      ghost.y--;
+
+      if (ghost.y > piece.y) {
+        ghost.matrix.forEach((row, y) => {
+          row.forEach((value, x) => {
+            if (value !== 0) {
+              drawGhostBlock(ctx, ghost.x + x, ghost.y + y, COLORS[value] || '#818cf8');
+            }
+          });
+        });
+      }
+    }
 
     // Draw active piece
     if (piece) {
@@ -494,7 +549,8 @@ export function mount(container, options = {}) {
   function update(time = 0) {
     if (!activeInstance) return;
 
-    const deltaTime = time - lastTime;
+    if (!lastTime) lastTime = time;
+    const deltaTime = Math.min(time - lastTime, 100);
     lastTime = time;
 
     if (!isPaused && !gameOver) {
@@ -511,6 +567,10 @@ export function mount(container, options = {}) {
   function togglePause() {
     if (gameOver) return;
     isPaused = !isPaused;
+    if (!isPaused) {
+      lastTime = performance.now();
+      dropCounter = 0;
+    }
     if (pauseLabel) {
       pauseLabel.textContent = isPaused ? 'Пуск' : 'Пауза';
     }
@@ -527,6 +587,7 @@ export function mount(container, options = {}) {
     dropCounter = 0;
     gameOver = false;
     isPaused = false;
+    lastTime = performance.now();
     if (overlayEl) overlayEl.style.display = 'none';
     if (pauseLabel) pauseLabel.textContent = 'Пауза';
 
@@ -570,6 +631,9 @@ export function mount(container, options = {}) {
     if (document.hidden) {
       isPaused = true;
       if (pauseLabel) pauseLabel.textContent = 'Пуск';
+    } else if (!gameOver) {
+      lastTime = performance.now();
+      dropCounter = 0;
     }
   };
 
@@ -587,23 +651,27 @@ export function mount(container, options = {}) {
   const btnDown = container.querySelector('#tBtnDown');
   const btnDrop = container.querySelector('#tBtnDrop');
 
-  const onBtnLeft = (e) => { e.preventDefault(); playerMove(-1); };
-  const onBtnRight = (e) => { e.preventDefault(); playerMove(1); };
-  const onBtnRotate = (e) => { e.preventDefault(); playerRotate(); };
-  const onBtnDown = (e) => { e.preventDefault(); playerDrop(); };
-  const onBtnDrop = (e) => { e.preventDefault(); playerHardDrop(); };
+  const cleanups = [];
+  const bindTouch = (btn, action) => {
+    if (!btn) return;
+    let lastFire = 0;
+    const handler = (e) => {
+      const now = performance.now();
+      if (now - lastFire < 50) return;
+      lastFire = now;
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+      action();
+    };
+    btn.addEventListener('pointerdown', handler);
+    cleanups.push(() => btn.removeEventListener('pointerdown', handler));
+  };
 
-  if (btnLeft) btnLeft.addEventListener('touchstart', onBtnLeft, { passive: false });
-  if (btnRight) btnRight.addEventListener('touchstart', onBtnRight, { passive: false });
-  if (btnRotate) btnRotate.addEventListener('touchstart', onBtnRotate, { passive: false });
-  if (btnDown) btnDown.addEventListener('touchstart', onBtnDown, { passive: false });
-  if (btnDrop) btnDrop.addEventListener('touchstart', onBtnDrop, { passive: false });
-
-  if (btnLeft) btnLeft.addEventListener('click', onBtnLeft);
-  if (btnRight) btnRight.addEventListener('click', onBtnRight);
-  if (btnRotate) btnRotate.addEventListener('click', onBtnRotate);
-  if (btnDown) btnDown.addEventListener('click', onBtnDown);
-  if (btnDrop) btnDrop.addEventListener('click', onBtnDrop);
+  bindTouch(btnLeft, () => playerMove(-1));
+  bindTouch(btnRight, () => playerMove(1));
+  bindTouch(btnRotate, () => playerRotate());
+  bindTouch(btnDown, () => playerDrop());
+  bindTouch(btnDrop, () => playerHardDrop());
 
   initGame();
   lastTime = performance.now();
@@ -625,26 +693,7 @@ export function mount(container, options = {}) {
       if (restartBtn) restartBtn.removeEventListener('click', initGame);
       if (overlayBtn) overlayBtn.removeEventListener('click', initGame);
 
-      if (btnLeft) {
-        btnLeft.removeEventListener('touchstart', onBtnLeft);
-        btnLeft.removeEventListener('click', onBtnLeft);
-      }
-      if (btnRight) {
-        btnRight.removeEventListener('touchstart', onBtnRight);
-        btnRight.removeEventListener('click', onBtnRight);
-      }
-      if (btnRotate) {
-        btnRotate.removeEventListener('touchstart', onBtnRotate);
-        btnRotate.removeEventListener('click', onBtnRotate);
-      }
-      if (btnDown) {
-        btnDown.removeEventListener('touchstart', onBtnDown);
-        btnDown.removeEventListener('click', onBtnDown);
-      }
-      if (btnDrop) {
-        btnDrop.removeEventListener('touchstart', onBtnDrop);
-        btnDrop.removeEventListener('click', onBtnDrop);
-      }
+      cleanups.forEach(fn => { try { fn(); } catch (_) {} });
 
       container.innerHTML = '';
       activeInstance = null;

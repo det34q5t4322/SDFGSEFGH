@@ -1,7 +1,8 @@
 /**
  * 2048 Game Module for College Schedule WebApp
  * Based on the open-source 2048 by Gabriele Cirulli (MIT License)
- * Smooth GPU-accelerated CSS transitions with sliding tiles, pop merges, and 0 flickering.
+ * Smooth GPU-accelerated CSS transitions with sliding tiles, pop merges,
+ * robust per-move localStorage state preservation with resume modal, and undo support.
  *
  * MIT License - Copyright (c) 2014 Gabriele Cirulli
  */
@@ -14,6 +15,7 @@ export function mount(container, options = {}) {
   }
 
   const { onScoreUpdate, onGameOver } = options;
+  const STORAGE_KEY = 'game_2048_saved_state';
 
   let board = createEmptyBoard();
   let score = 0;
@@ -27,6 +29,7 @@ export function mount(container, options = {}) {
 
   let pendingAnimationTimer = null;
   let inFlightCleanup = null;
+  let undoHistory = null;
 
   // Touch tracking
   let touchStartX = 0;
@@ -47,8 +50,14 @@ export function mount(container, options = {}) {
           </div>
         </div>
         <div class="game-hud-controls">
+          <button class="game-btn game-btn-icon" id="g2048UndoBtn" type="button" title="Отменить последний ход" style="opacity:0.4;">
+            <svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>
+            </svg>
+            <span>Отмена</span>
+          </button>
           <button class="game-btn game-btn-icon" id="g2048RestartBtn" type="button" title="Начать заново">
-            <svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
               <path d="M21 3v5h-5"/>
               <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
@@ -62,6 +71,18 @@ export function mount(container, options = {}) {
       <div class="g2048-board-container" id="g2048BoardContainer">
         <div class="g2048-grid" id="g2048Grid"></div>
         <div class="g2048-tile-container" id="g2048TileContainer"></div>
+
+        <!-- Overlay: Resume Saved Game -->
+        <div class="g2048-overlay" id="g2048ResumeOverlay" style="display:none;">
+          <div class="g2048-message" style="font-size:18px; font-weight:800; margin-bottom:4px;">Продолжить партию?</div>
+          <div style="font-size:13px; color:#94a3b8; margin-bottom:14px;" id="g2048ResumeScore">Сохранённый счёт: 0</div>
+          <div style="display:flex; gap:10px; width:100%; max-width:240px;">
+            <button class="game-btn game-btn-primary" id="g2048ResumeBtn" type="button" style="flex:1;">Продолжить</button>
+            <button class="game-btn" id="g2048NewGameBtn" type="button" style="flex:1; background:rgba(255,255,255,0.08);">Заново</button>
+          </div>
+        </div>
+
+        <!-- Overlay: Game Over / Victory -->
         <div class="g2048-overlay" id="g2048Overlay" style="display:none;">
           <div class="g2048-message" id="g2048Message"></div>
           <button class="game-btn game-btn-primary" id="g2048OverlayBtn" type="button">Сыграть ещё раз</button>
@@ -69,7 +90,7 @@ export function mount(container, options = {}) {
       </div>
 
       <div class="game-instructions">
-        Свайпайте пальцем или используйте клавиши <b>Стрелок / WASD</b> для объединения плиток с одинаковыми числами.
+        Свайпайте пальцем или используйте клавиши <b>Стрелок / WASD</b> для объединения плиток с одинаковыми числами. Прогресс сохраняется автоматически!
       </div>
     </div>
   `;
@@ -82,7 +103,13 @@ export function mount(container, options = {}) {
   const messageEl = container.querySelector('#g2048Message');
   const overlayBtn = container.querySelector('#g2048OverlayBtn');
   const restartBtn = container.querySelector('#g2048RestartBtn');
+  const undoBtn = container.querySelector('#g2048UndoBtn');
   const boardContainer = container.querySelector('#g2048BoardContainer');
+
+  const resumeOverlayEl = container.querySelector('#g2048ResumeOverlay');
+  const resumeScoreEl = container.querySelector('#g2048ResumeScore');
+  const resumeBtn = container.querySelector('#g2048ResumeBtn');
+  const newGameBtn = container.querySelector('#g2048NewGameBtn');
 
   // Render static 16 background grid cells once
   if (gridEl) {
@@ -94,6 +121,23 @@ export function mount(container, options = {}) {
     }
   }
 
+  // Telegram Haptic Helper
+  const triggerHaptic = (type = 'light') => {
+    try {
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        if (type === 'error') {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+        } else if (type === 'success') {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        } else if (type === 'medium') {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+        } else {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+        }
+      }
+    } catch (_) {}
+  };
+
   function createEmptyBoard() {
     return [
       [null, null, null, null],
@@ -103,11 +147,11 @@ export function mount(container, options = {}) {
     ];
   }
 
-  function getAvailableCells() {
+  function getAvailableCells(b = board) {
     const cells = [];
     for (let r = 0; r < 4; r++) {
       for (let c = 0; c < 4; c++) {
-        if (board[r][c] === null) cells.push({ r, c });
+        if (b[r][c] === null) cells.push({ r, c });
       }
     }
     return cells;
@@ -130,15 +174,136 @@ export function mount(container, options = {}) {
     return null;
   }
 
+  // Robust progress saving
+  function saveState() {
+    try {
+      if (over) {
+        clearSavedState();
+        return;
+      }
+      const savedBoard = board.map(row =>
+        row.map(t => (t ? { id: t.id, val: t.val, r: t.r, c: t.c } : null))
+      );
+      const data = {
+        version: 1,
+        board: savedBoard,
+        score,
+        won,
+        keepPlaying,
+        tileIdCounter,
+        savedAt: Date.now()
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn('Failed to save 2048 progress:', e);
+    }
+  }
+
+  function clearSavedState() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (_) {}
+  }
+
+  function getSavedState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.board) || data.board.length !== 4) {
+        clearSavedState();
+        return null;
+      }
+      for (let r = 0; r < 4; r++) {
+        if (!Array.isArray(data.board[r]) || data.board[r].length !== 4) {
+          clearSavedState();
+          return null;
+        }
+      }
+      return data;
+    } catch (e) {
+      console.warn('Corrupted 2048 saved state, starting fresh:', e);
+      clearSavedState();
+      return null;
+    }
+  }
+
+  function restoreSavedState(data) {
+    board = createEmptyBoard();
+    tileIdCounter = data.tileIdCounter || 0;
+    score = Number(data.score) || 0;
+    won = Boolean(data.won);
+    keepPlaying = Boolean(data.keepPlaying);
+    over = false;
+
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        const t = data.board[r][c];
+        if (t && typeof t.val === 'number' && t.val > 0) {
+          const id = t.id || ++tileIdCounter;
+          if (id > tileIdCounter) tileIdCounter = id;
+          board[r][c] = {
+            id,
+            val: t.val,
+            r,
+            c,
+            isNew: false,
+            isMerged: false
+          };
+        }
+      }
+    }
+
+    if (tileContainerEl) tileContainerEl.innerHTML = '';
+    tileElements.clear();
+    syncDOMTiles();
+
+    if (scoreEl) scoreEl.textContent = score;
+    if (bestEl) bestEl.textContent = bestScore;
+    if (typeof onScoreUpdate === 'function') {
+      onScoreUpdate(score, bestScore);
+    }
+    saveState();
+  }
+
+  // Fast-input race condition resolution: flush pending animations completely
   function flushInFlight() {
+    let hadTimer = false;
     if (pendingAnimationTimer) {
       clearTimeout(pendingAnimationTimer);
       pendingAnimationTimer = null;
+      hadTimer = true;
     }
     if (inFlightCleanup) {
       inFlightCleanup();
       inFlightCleanup = null;
     }
+    if (hadTimer) {
+      addRandomTile();
+      syncDOMTiles();
+      checkGameStatus();
+      saveState();
+    }
+  }
+
+  function recordHistory() {
+    undoHistory = {
+      board: board.map(row => row.map(t => (t ? { id: t.id, val: t.val, r: t.r, c: t.c } : null))),
+      score,
+      won,
+      keepPlaying,
+      tileIdCounter
+    };
+    if (undoBtn) undoBtn.style.opacity = '1';
+  }
+
+  function undoMove() {
+    if (!undoHistory || over) return;
+    flushInFlight();
+    restoreSavedState(undoHistory);
+    undoHistory = null;
+    if (undoBtn) undoBtn.style.opacity = '0.4';
+    triggerHaptic('light');
   }
 
   function syncDOMTiles() {
@@ -228,6 +393,15 @@ export function mount(container, options = {}) {
     const tilesToRemove = [];
     const mergedTiles = [];
 
+    // Snapshot history before this move
+    const prevSnapshot = {
+      board: board.map(row => row.map(t => (t ? { id: t.id, val: t.val, r: t.r, c: t.c } : null))),
+      score,
+      won,
+      keepPlaying,
+      tileIdCounter
+    };
+
     // Reset merged flags
     for (let r = 0; r < 4; r++) {
       for (let c = 0; c < 4; c++) {
@@ -262,7 +436,6 @@ export function mount(container, options = {}) {
           const targetTile = board[nextR][nextC];
           board[r][c] = null;
 
-          // Slide this tile to target position
           tile.r = nextR;
           tile.c = nextC;
           tilesToRemove.push(tile);
@@ -299,14 +472,10 @@ export function mount(container, options = {}) {
 
     if (!moved) return;
 
-    // Trigger subtle Telegram haptics if available
-    try {
-      if (hadMerge) {
-        window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('medium');
-      } else {
-        window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
-      }
-    } catch (_) {}
+    undoHistory = prevSnapshot;
+    if (undoBtn) undoBtn.style.opacity = '1';
+
+    triggerHaptic(hadMerge ? 'medium' : 'light');
 
     score += gainedScore;
     if (score > bestScore) {
@@ -339,7 +508,6 @@ export function mount(container, options = {}) {
     }
 
     inFlightCleanup = () => {
-      // Remove elements of merged source tiles
       for (let t of tilesToRemove) {
         const el = tileElements.get(t.id);
         if (el) {
@@ -359,17 +527,25 @@ export function mount(container, options = {}) {
       addRandomTile();
       syncDOMTiles();
       checkGameStatus();
+      saveState();
     }, 105);
   }
 
-  function movesAvailable() {
-    if (getAvailableCells().length > 0) return true;
+  function movesAvailable(b = board) {
+    if (getAvailableCells(b).length > 0) return true;
     for (let r = 0; r < 4; r++) {
       for (let c = 0; c < 4; c++) {
-        const t = board[r][c];
+        const t = b[r][c];
         if (!t) return true;
-        if (c < 3 && board[r][c + 1] && board[r][c + 1].val === t.val) return true;
-        if (r < 3 && board[r + 1][c] && board[r + 1][c].val === t.val) return true;
+        const val = typeof t === 'object' ? t.val : t;
+        if (c < 3 && b[r][c + 1]) {
+          const nextVal = typeof b[r][c + 1] === 'object' ? b[r][c + 1].val : b[r][c + 1];
+          if (nextVal === val) return true;
+        }
+        if (r < 3 && b[r + 1][c]) {
+          const downVal = typeof b[r + 1][c] === 'object' ? b[r + 1][c].val : b[r + 1][c];
+          if (downVal === val) return true;
+        }
       }
     }
     return false;
@@ -377,16 +553,14 @@ export function mount(container, options = {}) {
 
   function checkGameStatus() {
     if (won && !keepPlaying) {
-      try {
-        window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
-      } catch (_) {}
+      triggerHaptic('success');
       showOverlay('Победа! Вы собрали 2048!', true);
+      clearSavedState();
       if (typeof onGameOver === 'function') onGameOver(score, true);
     } else if (!movesAvailable()) {
-      try {
-        window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('error');
-      } catch (_) {}
+      triggerHaptic('error');
       over = true;
+      clearSavedState();
       showOverlay('Игра окончена!', false);
       if (typeof onGameOver === 'function') onGameOver(score, false);
     }
@@ -400,6 +574,7 @@ export function mount(container, options = {}) {
       overlayBtn.onclick = () => {
         keepPlaying = true;
         overlayEl.style.display = 'none';
+        saveState();
       };
     } else {
       overlayBtn.textContent = 'Сыграть заново';
@@ -410,6 +585,10 @@ export function mount(container, options = {}) {
 
   function initGame() {
     flushInFlight();
+    clearSavedState();
+    undoHistory = null;
+    if (undoBtn) undoBtn.style.opacity = '0.4';
+
     board = createEmptyBoard();
     if (tileContainerEl) tileContainerEl.innerHTML = '';
     tileElements.clear();
@@ -418,17 +597,19 @@ export function mount(container, options = {}) {
     over = false;
     keepPlaying = false;
     if (overlayEl) overlayEl.style.display = 'none';
+    if (resumeOverlayEl) resumeOverlayEl.style.display = 'none';
 
     addRandomTile();
     addRandomTile();
     syncDOMTiles();
+    saveState();
 
     if (typeof onScoreUpdate === 'function') {
       onScoreUpdate(score, bestScore);
     }
   }
 
-  // Event Listeners
+  // Keyboard navigation
   const handleKeyDown = (e) => {
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
       e.preventDefault();
@@ -449,6 +630,11 @@ export function mount(container, options = {}) {
       case 'ArrowDown':
       case 'KeyS':
         move('down');
+        break;
+      case 'KeyZ':
+        if (e.ctrlKey || e.metaKey) {
+          undoMove();
+        }
         break;
     }
   };
@@ -494,11 +680,51 @@ export function mount(container, options = {}) {
     boardContainer.addEventListener('touchend', handleTouchEnd, { passive: true });
   }
 
-  if (restartBtn) {
-    restartBtn.addEventListener('click', initGame);
+  if (restartBtn) restartBtn.addEventListener('click', initGame);
+  if (undoBtn) undoBtn.addEventListener('click', undoMove);
+
+  if (resumeBtn) {
+    resumeBtn.addEventListener('click', () => {
+      const saved = getSavedState();
+      if (resumeOverlayEl) resumeOverlayEl.style.display = 'none';
+      if (saved) {
+        restoreSavedState(saved);
+      } else {
+        initGame();
+      }
+    });
   }
 
-  initGame();
+  if (newGameBtn) {
+    newGameBtn.addEventListener('click', () => {
+      if (resumeOverlayEl) resumeOverlayEl.style.display = 'none';
+      initGame();
+    });
+  }
+
+  // Start logic: check if there is an unfinished saved game
+  const savedState = getSavedState();
+  let hasPlayableSave = false;
+  if (savedState) {
+    let tileCount = 0;
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (savedState.board[r][c]) tileCount++;
+      }
+    }
+    if (tileCount >= 2 && movesAvailable(savedState.board)) {
+      hasPlayableSave = true;
+    } else {
+      clearSavedState();
+    }
+  }
+
+  if (hasPlayableSave) {
+    if (resumeScoreEl) resumeScoreEl.textContent = `Сохранённый счёт: ${savedState.score}`;
+    if (resumeOverlayEl) resumeOverlayEl.style.display = 'flex';
+  } else {
+    initGame();
+  }
 
   activeInstance = {
     unmount: () => {
@@ -510,9 +736,8 @@ export function mount(container, options = {}) {
         boardContainer.removeEventListener('touchmove', handleTouchMove);
         boardContainer.removeEventListener('touchend', handleTouchEnd);
       }
-      if (restartBtn) {
-        restartBtn.removeEventListener('click', initGame);
-      }
+      if (restartBtn) restartBtn.removeEventListener('click', initGame);
+      if (undoBtn) undoBtn.removeEventListener('click', undoMove);
       tileElements.clear();
       container.innerHTML = '';
       activeInstance = null;

@@ -26,6 +26,8 @@ def deploy():
         ('static/games/tetris.js', '/var/www/college-schedule/static/games/tetris.js'),
         ('static/games/minesweeper.js', '/var/www/college-schedule/static/games/minesweeper.js'),
         ('static/games/2048.js', '/var/www/college-schedule/static/games/2048.js'),
+        ('static/games/dino.js', '/var/www/college-schedule/static/games/dino.js'),
+        ('static/games/sudoku.js', '/var/www/college-schedule/static/games/sudoku.js'),
     ]
 
     for local, remote in files:

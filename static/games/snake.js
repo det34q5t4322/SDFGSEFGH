@@ -253,8 +253,11 @@ export function mount(container, options = {}) {
       return;
     }
 
-    // Self collision
-    if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
+    // Self collision: tail segment is excluded if not eating, because tail moves away on this tick
+    const willEat = (food && head.x === food.x && head.y === food.y) ||
+                    (bonusFood && head.x === bonusFood.x && head.y === bonusFood.y);
+    const segmentsToCheck = willEat ? snake : snake.slice(0, snake.length - 1);
+    if (segmentsToCheck.some(seg => seg.x === head.x && seg.y === head.y)) {
       handleGameOver();
       return;
     }
@@ -485,7 +488,7 @@ export function mount(container, options = {}) {
 
   function loop(timestamp) {
     if (!lastTick) lastTick = timestamp;
-    const elapsed = timestamp - lastTick;
+    const elapsed = Math.min(timestamp - lastTick, 300);
 
     if (elapsed > tickInterval) {
       tick();
@@ -549,12 +552,25 @@ export function mount(container, options = {}) {
 
   function togglePause() {
     isPaused = !isPaused;
+    if (!isPaused) {
+      lastTick = performance.now();
+    }
     if (pauseBtn) {
       pauseBtn.innerHTML = isPaused
         ? `<svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18"><polygon points="5 3 19 12 5 21 5 3"/></svg>`
         : `<svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
     }
   }
+
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      if (!isPaused && isStarted && !gameOver) {
+        togglePause();
+      }
+    } else {
+      lastTick = performance.now();
+    }
+  };
 
   // Attach D-pad listeners: прямой перехват touchstart с нулевой задержкой
   const dpadCleanups = [];
@@ -620,6 +636,7 @@ export function mount(container, options = {}) {
   canvas.addEventListener('touchend', onTouchEnd, { passive: true });
   canvas.addEventListener('click', onCanvasClick);
   window.addEventListener('keydown', onKeyDown);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   pauseBtn.addEventListener('click', togglePause);
   resetBtn.addEventListener('click', resetGame);
@@ -636,6 +653,7 @@ export function mount(container, options = {}) {
       if (animId) cancelAnimationFrame(animId);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onWindowResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (canvas) {
         canvas.removeEventListener('touchstart', onTouchStart);
         canvas.removeEventListener('touchend', onTouchEnd);

@@ -12569,6 +12569,362 @@ html.banned-lock #endlessBanLoader {
 }
 
 /* ═══════════════════════════════════════════
+   DINO RUNNER STYLES
+═══════════════════════════════════════════ */
+.dino-game-wrap {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+}
+
+.dino-canvas-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 600 / 220;
+  background: #0f172a;
+  border: 1.5px solid var(--border);
+  border-radius: var(--card-radius, 14px);
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#dinoCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: pointer;
+}
+
+.dino-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 16px;
+}
+
+.dino-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.dino-overlay-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ef4444;
+  letter-spacing: 0.5px;
+}
+
+.dino-overlay-score {
+  font-size: 14px;
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 600;
+}
+
+.dino-mobile-controls {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 340px;
+  margin-top: 14px;
+}
+
+.dino-ctrl-btn {
+  flex: 1;
+  height: 54px;
+  border-radius: 14px;
+  background: var(--bg-card2, rgba(255, 255, 255, 0.08));
+  border: 1.5px solid var(--border, rgba(255, 255, 255, 0.15));
+  color: var(--text-primary, #f8fafc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: transform 0.08s ease, background 0.12s ease;
+}
+
+.dino-ctrl-btn:active {
+  transform: scale(0.94);
+  background: var(--accent, #6366f1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.dino-btn-jump {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+.dino-btn-jump:active {
+  background: #10b981;
+}
+
+.dino-btn-duck {
+  border-color: rgba(59, 130, 246, 0.4);
+}
+.dino-btn-duck:active {
+  background: #3b82f6;
+}
+
+/* ═══════════════════════════════════════════
+   SUDOKU STYLES
+═══════════════════════════════════════════ */
+.sudoku-wrap {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+}
+
+.sudoku-diff-bar {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.sudoku-diff-btn {
+  flex: 1;
+  padding: 6px 0;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sudoku-diff-btn.active {
+  background: var(--accent, #6366f1);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+.sudoku-board-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #0f172a;
+  border: 2px solid var(--border);
+  border-radius: var(--card-radius, 14px);
+  padding: 6px;
+  box-sizing: border-box;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+
+.sudoku-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.sudoku-cell {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 600;
+  color: #e2e8f0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  box-sizing: border-box;
+}
+
+.sudoku-cell.border-right-block {
+  margin-right: 3px;
+  box-shadow: 2px 0 0 rgba(255, 255, 255, 0.18);
+}
+
+.sudoku-cell.border-bottom-block {
+  margin-bottom: 3px;
+  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.18);
+}
+
+.sudoku-cell.border-right-block.border-bottom-block {
+  box-shadow: 2px 0 0 rgba(255, 255, 255, 0.18), 0 2px 0 rgba(255, 255, 255, 0.18);
+}
+
+.sudoku-cell.initial {
+  font-weight: 800;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.sudoku-cell.user-entered {
+  font-weight: 700;
+  color: #4ade80;
+}
+
+.sudoku-cell.selected {
+  background: rgba(99, 102, 241, 0.45) !important;
+  outline: 2px solid var(--accent, #6366f1);
+  outline-offset: -2px;
+}
+
+.sudoku-cell.related {
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.sudoku-cell.same-number {
+  background: rgba(234, 179, 8, 0.25);
+  color: #facc15;
+}
+
+.sudoku-cell.conflict {
+  background: rgba(239, 68, 68, 0.32) !important;
+  color: #f87171 !important;
+}
+
+.sudoku-tools-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.sudoku-tool-btn {
+  flex: 1;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text-primary, #f8fafc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sudoku-tool-btn:active {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(0.96);
+}
+
+.sudoku-keypad {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.sudoku-key-btn {
+  height: 44px;
+  border-radius: 10px;
+  background: var(--bg-card2, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--border);
+  color: var(--text-primary, #f8fafc);
+  font-size: 18px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.sudoku-key-btn:active {
+  transform: scale(0.92);
+  background: var(--accent, #6366f1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.sudoku-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 16px;
+}
+
+.sudoku-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.sudoku-overlay-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #22c55e;
+}
+
+.sudoku-overlay-desc {
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.sudoku-overlay-time {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 6px;
+}
+
+/* ═══════════════════════════════════════════
    DOWNLOAD APP & MODAL STYLES (ANDROID / IOS)
 ═══════════════════════════════════════════ */
 .topbar-download-btn {

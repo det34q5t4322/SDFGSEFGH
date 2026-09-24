@@ -62,6 +62,9 @@ export function mount(container, options = {}) {
         </div>
 
         <div class="game-hud-controls">
+          <button class="ms-face-btn" id="msPauseBtn" type="button" aria-label="Пауза" title="Пауза">
+            <svg class="lucide-icon" id="msPauseIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          </button>
           <button class="ms-face-btn" id="msFaceBtn" type="button" aria-label="Сброс">${ICONS.smile}</button>
           <div class="ms-difficulty-selector">
             <button class="ms-diff-btn active" id="diff9" data-size="9" data-mines="10" type="button">9x9</button>
@@ -97,6 +100,8 @@ export function mount(container, options = {}) {
   const timerEl = container.querySelector('#msTimer');
   const bestEl = container.querySelector('#msBest');
   const faceBtn = container.querySelector('#msFaceBtn');
+  const pauseBtn = container.querySelector('#msPauseBtn');
+  const pauseIcon = container.querySelector('#msPauseIcon');
   const modeDigBtn = container.querySelector('#msModeDig');
   const modeFlagBtn = container.querySelector('#msModeFlag');
   const diff9Btn = container.querySelector('#diff9');
@@ -119,6 +124,20 @@ export function mount(container, options = {}) {
     }
   }
 
+  function togglePause() {
+    if (gameOver || gameWon || isFirstClick) return;
+    isPaused = !isPaused;
+    if (pauseIcon) {
+      pauseIcon.innerHTML = isPaused
+        ? '<polygon points="5 3 19 12 5 21 5 3"/>'
+        : '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+    }
+    if (gridEl) {
+      gridEl.style.filter = isPaused ? 'blur(8px)' : 'none';
+      gridEl.style.pointerEvents = isPaused ? 'none' : 'auto';
+    }
+  }
+
   function initBoard() {
     stopTimer();
     timer = 0;
@@ -127,6 +146,15 @@ export function mount(container, options = {}) {
     isFirstClick = true;
     gameOver = false;
     gameWon = false;
+    isPaused = false;
+
+    if (gridEl) {
+      gridEl.style.filter = 'none';
+      gridEl.style.pointerEvents = 'auto';
+    }
+    if (pauseIcon) {
+      pauseIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+    }
 
     if (timerEl) timerEl.textContent = '0';
     if (mineCountEl) mineCountEl.textContent = totalMines;
@@ -566,6 +594,7 @@ export function mount(container, options = {}) {
   }
 
   if (faceBtn) faceBtn.addEventListener('click', initBoard);
+  if (pauseBtn) pauseBtn.addEventListener('click', togglePause);
   if (modeDigBtn) modeDigBtn.addEventListener('click', onModeDigClick);
   if (modeFlagBtn) modeFlagBtn.addEventListener('click', onModeFlagClick);
   if (diff9Btn) diff9Btn.addEventListener('click', onDiff9Click);
@@ -590,6 +619,7 @@ export function mount(container, options = {}) {
       }
 
       if (faceBtn) faceBtn.removeEventListener('click', initBoard);
+      if (pauseBtn) pauseBtn.removeEventListener('click', togglePause);
       if (modeDigBtn) modeDigBtn.removeEventListener('click', onModeDigClick);
       if (modeFlagBtn) modeFlagBtn.removeEventListener('click', onModeFlagClick);
       if (diff9Btn) diff9Btn.removeEventListener('click', onDiff9Click);

@@ -8750,7 +8750,9 @@ const GAME_NAMES = {
   '2048': '2048',
   'tetris': 'Тетрис',
   'minesweeper': 'Сапёр',
-  'snake': 'Змейка'
+  'snake': 'Змейка',
+  'dino': 'Динозаврик',
+  'sudoku': 'Судоку'
 };
 
 window._getGameDebugState = function() {
@@ -8936,6 +8938,8 @@ window.renderGamesLeaderboard = function(gameId = _activeGamesLbTab) {
         const s = sec % 60;
         scoreVal = `${m}м ${s < 10 ? '0' + s : s}с`;
       }
+    } else if (gameId === 'dino') {
+      scoreVal = `${Number(u.high_score || 0).toLocaleString('ru-RU')} м`;
     } else {
       scoreVal = Number(u.high_score || 0).toLocaleString('ru-RU');
     }
@@ -8971,16 +8975,31 @@ window.updateGamesCatalogScores = async function() {
   const bTetris = localStorage.getItem('game_tetris_best') || '0';
   const bMine = localStorage.getItem('game_minesweeper_best') || '';
   const bSnake = localStorage.getItem('game_snake_best') || '0';
+  const bDino = localStorage.getItem('game_dino_best') || '0';
+  const bSudoku = localStorage.getItem('game_sudoku_best_easy') || '';
 
   const el2048 = document.getElementById('catalogBest2048');
   const elTetris = document.getElementById('catalogBestTetris');
   const elMine = document.getElementById('catalogBestMinesweeper');
   const elSnake = document.getElementById('catalogBestSnake');
+  const elDino = document.getElementById('catalogBestDino');
+  const elSudoku = document.getElementById('catalogBestSudoku');
 
   if (el2048) el2048.textContent = b2048;
   if (elTetris) elTetris.textContent = bTetris;
   if (elMine) elMine.textContent = bMine ? `${bMine}с` : '—';
   if (elSnake) elSnake.textContent = bSnake;
+  if (elDino) elDino.textContent = bDino;
+  if (elSudoku) {
+    if (bSudoku) {
+      const s = parseInt(bSudoku, 10);
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      elSudoku.textContent = `${m}:${sec < 10 ? '0' + sec : sec}`;
+    } else {
+      elSudoku.textContent = '—';
+    }
+  }
 
   // Отрендерить таблицу лидеров если есть кэш
   window.renderGamesLeaderboard(_activeGamesLbTab);
@@ -9010,6 +9029,10 @@ window.updateGamesCatalogScores = async function() {
         localStorage.setItem('game_snake_best', String(my['snake'].high_score));
         if (elSnake) elSnake.textContent = my['snake'].high_score;
       }
+      if (my['dino'] && my['dino'].high_score > parseInt(bDino, 10)) {
+        localStorage.setItem('game_dino_best', String(my['dino'].high_score));
+        if (elDino) elDino.textContent = my['dino'].high_score;
+      }
       window.renderGamesLeaderboard(_activeGamesLbTab);
     }
   } catch (_) {}
@@ -9038,7 +9061,7 @@ window.openGame = async function(gameId) {
   try {
     let module;
     try {
-      module = await import(`/static/games/${gameId}.js?v=20260924_v3`);
+      module = await import(`/static/games/${gameId}.js?v=20260924_v4`);
     } catch (_) {
       module = await import(`/static/games/${gameId}.js`);
     }
@@ -9058,6 +9081,16 @@ window.openGame = async function(gameId) {
         } else if (gameId === 'snake') {
           const el = document.getElementById('catalogBestSnake');
           if (el) el.textContent = best;
+        } else if (gameId === 'dino') {
+          const el = document.getElementById('catalogBestDino');
+          if (el) el.textContent = best;
+        } else if (gameId === 'sudoku') {
+          const el = document.getElementById('catalogBestSudoku');
+          if (el && typeof best === 'number') {
+            const m = Math.floor(best / 60);
+            const s = best % 60;
+            el.textContent = `${m}:${s < 10 ? '0' + s : s}`;
+          }
         }
       },
       onGameOver: (score, won) => {
