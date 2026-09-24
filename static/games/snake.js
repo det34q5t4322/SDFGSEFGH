@@ -19,11 +19,11 @@ export function mount(container, options = {}) {
   let ctx = null;
   let animId = null;
   let lastTick = 0;
-  let tickInterval = 190; // ms per step (умеренная плавная скорость)
+  let tickInterval = 135; // ms per step (быстрая и плавная реакция без задержек)
 
   let snake = [];
   let dir = { x: 1, y: 0 };
-  let nextDir = { x: 1, y: 0 };
+  let inputQueue = [];
   let food = null;
   let bonusFood = null;
   let bonusTimer = 0;
@@ -159,15 +159,16 @@ export function mount(container, options = {}) {
       { x: mid - 2, y: mid }
     ];
     dir = { x: 1, y: 0 };
-    nextDir = { x: 1, y: 0 };
+    inputQueue = [];
     score = 0;
     applesEaten = 0;
     bonusFood = null;
     bonusTimer = 0;
-    tickInterval = 190;
+    tickInterval = 135;
     gameOver = false;
     isPaused = false;
     isStarted = false;
+    lastTick = 0;
 
     if (scoreEl) scoreEl.textContent = '0';
     if (lengthEl) lengthEl.textContent = '3';
@@ -203,18 +204,47 @@ export function mount(container, options = {}) {
 
   function changeDirection(dx, dy) {
     if (gameOver || isPaused) return;
+
     if (!isStarted) {
       isStarted = true;
+      dir = { x: dx, y: dy };
+      inputQueue = [];
+      lastTick = performance.now();
+      tick();
+      draw();
+      return;
     }
-    // Prevent 180-degree immediate reversal
-    if (dx === -dir.x && dy === -dir.y) return;
-    nextDir = { x: dx, y: dy };
+
+    // Буфер из максимум 2 быстрых поворотов (для идеальных заворотов за угол)
+    if (inputQueue.length >= 2) return;
+
+    const ref = inputQueue.length > 0 ? inputQueue[inputQueue.length - 1] : dir;
+
+    // Нельзя развернуться на 180 градусов назад
+    if (dx === -ref.x && dy === -ref.y) return;
+
+    // Игнорируем повторное нажатие того же направления
+    if (dx === ref.x && dy === ref.y) return;
+
+    inputQueue.push({ x: dx, y: dy });
+
+    // Мгновенная отзывчивость: если прошло больше 40% интервала шага,
+    // совершаем шаг немедленно, убирая любую задержку управления!
+    const now = performance.now();
+    if (now - lastTick > tickInterval * 0.4) {
+      lastTick = now;
+      tick();
+      draw();
+    }
   }
 
   function tick() {
     if (gameOver || isPaused || !isStarted) return;
 
-    dir = { ...nextDir };
+    if (inputQueue.length > 0) {
+      dir = inputQueue.shift();
+    }
+
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
     // Wall collision
@@ -239,8 +269,8 @@ export function mount(container, options = {}) {
       applesEaten++;
       ate = true;
       triggerHaptic('light');
-      // Smooth, controllable acceleration
-      tickInterval = Math.max(115, 190 - Math.floor(score / 40) * 4);
+      // Плавное приятное ускорение
+      tickInterval = Math.max(85, 135 - Math.floor(score / 40) * 3);
       spawnFood();
     }
 
@@ -526,19 +556,27 @@ export function mount(container, options = {}) {
     }
   }
 
-  // Attach D-pad listeners
+  // Attach D-pad listeners: прямой перехват touchstart с нулевой задержкой
   const dpadCleanups = [];
 
   const bindDpad = (btn, dx, dy) => {
     if (!btn) return;
+    let lastTap = 0;
     const handler = (e) => {
+      const now = performance.now();
+      if (now - lastTap < 40) return;
+      lastTap = now;
       if (e.cancelable) e.preventDefault();
       e.stopPropagation();
       changeDirection(dx, dy);
       triggerHaptic('light');
     };
-    btn.addEventListener('pointerdown', handler);
-    dpadCleanups.push(() => btn.removeEventListener('pointerdown', handler));
+    btn.addEventListener('touchstart', handler, { passive: false });
+    btn.addEventListener('mousedown', handler);
+    dpadCleanups.push(() => {
+      btn.removeEventListener('touchstart', handler);
+      btn.removeEventListener('mousedown', handler);
+    });
   };
 
   bindDpad(btnUp, 0, -1);
@@ -547,18 +585,29 @@ export function mount(container, options = {}) {
   bindDpad(btnRight, 1, 0);
 
   if (btnCenter) {
+    let lastCenterTap = 0;
     const centerHandler = (e) => {
+      const now = performance.now();
+      if (now - lastCenterTap < 40) return;
+      lastCenterTap = now;
       if (e.cancelable) e.preventDefault();
       e.stopPropagation();
       if (!isStarted) {
         isStarted = true;
+        lastTick = performance.now();
+        tick();
+        draw();
       } else {
         togglePause();
       }
       triggerHaptic('medium');
     };
-    btnCenter.addEventListener('pointerdown', centerHandler);
-    dpadCleanups.push(() => btnCenter.removeEventListener('pointerdown', centerHandler));
+    btnCenter.addEventListener('touchstart', centerHandler, { passive: false });
+    btnCenter.addEventListener('mousedown', centerHandler);
+    dpadCleanups.push(() => {
+      btnCenter.removeEventListener('touchstart', centerHandler);
+      btnCenter.removeEventListener('mousedown', centerHandler);
+    });
   }
 
   const onCanvasClick = () => {
