@@ -14197,20 +14197,47 @@ html.banned-lock #endlessBanLoader {
 
 /* Игровой HUD матча */
 .duel-match-hud {
+/* Фиксация модалки и отсутствие скролла/съезжания в дуэлях */
+.games-sheet-body.is-duel {
+  overflow: hidden !important;
+  touch-action: none !important;
+  overscroll-behavior: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  padding: 6px 10px 10px !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.games-duel-room-view {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+
+.duel-match-hud {
+  width: 100%;
+  max-width: 360px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  padding: 8px 14px;
-  margin-bottom: 10px;
+  padding: 6px 12px;
+  margin-bottom: 6px;
+  box-sizing: border-box;
 }
 
 .duel-hud-player {
   display: flex;
   flex-direction: column;
-  max-width: 80px;
+  max-width: 90px;
 }
 
 .duel-hud-player.opp {
@@ -14266,7 +14293,7 @@ html.banned-lock #endlessBanLoader {
   padding: 6px 12px;
   border-radius: 8px;
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   animation: pulse-live 1.5s infinite;
 }
 
@@ -14279,7 +14306,7 @@ html.banned-lock #endlessBanLoader {
   padding: 6px 12px;
   border-radius: 8px;
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   animation: pulse-live 1s infinite;
 }
 
@@ -14289,6 +14316,10 @@ html.banned-lock #endlessBanLoader {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+  max-width: 360px;
+  touch-action: none;
+  user-select: none;
 }
 
 .duel-main-field {
@@ -14297,26 +14328,99 @@ html.banned-lock #endlessBanLoader {
   justify-content: center;
 }
 
+/* Стили Тетриса в дуэли: монолитный адаптивный блок */
+.tetris-wrap.is-duel {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  touch-action: none;
+}
+
+.tetris-wrap.is-duel .game-hud {
+  display: none !important;
+}
+
+.tetris-wrap.is-duel .tetris-main-area {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.tetris-wrap.is-duel .tetris-board-box {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tetris-wrap.is-duel #tetrisCanvas {
+  display: block;
+  height: clamp(230px, 38dvh, 290px);
+  width: auto;
+  aspect-ratio: 10 / 20;
+}
+
+.tetris-wrap.is-duel .tetris-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 82px;
+  min-width: 82px;
+}
+
+.tetris-wrap.is-duel .tetris-next-box {
+  padding: 4px;
+}
+
+.tetris-wrap.is-duel #tetrisNextCanvas {
+  width: 60px;
+  height: 60px;
+}
+
+.tetris-wrap.is-duel .tetris-level-box {
+  display: none !important;
+}
+
+/* Слот для PiP соперника в сайдбаре Тетриса */
+.tetris-pip-slot {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .duel-pip-container {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 80px;
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  width: 82px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   padding: 4px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
   pointer-events: none;
-  z-index: 10;
   backdrop-filter: blur(4px);
+}
+
+.duel-play-area > .duel-pip-container {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 15;
+}
+
+.tetris-pip-slot .duel-pip-container {
+  position: static !important;
+  width: 100% !important;
+  box-shadow: none;
 }
 
 .duel-pip-header {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
 
 .duel-pip-dot {
@@ -14339,8 +14443,60 @@ html.banned-lock #endlessBanLoader {
   width: 100%;
   height: auto;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.5);
   display: block;
+}
+
+.tetris-pip-slot .duel-pip-canvas {
+  width: 72px;
+  height: 144px;
+}
+
+/* Компактные кнопки управления Тетриса */
+.tetris-wrap.is-duel .tetris-controls {
+  margin-top: 6px;
+  gap: 6px;
+  width: 100%;
+  max-width: 320px;
+  touch-action: none;
+}
+
+.tetris-wrap.is-duel .tetris-pad-btn {
+  height: 44px;
+  touch-action: none !important;
+  -webkit-touch-callout: none !important;
+  user-select: none !important;
+}
+
+/* Змейка в дуэли */
+.snake-game-wrap.is-duel .game-hud {
+  display: none !important;
+}
+.snake-game-wrap.is-duel .game-instructions {
+  display: none !important;
+}
+.snake-game-wrap.is-duel .snake-canvas-container {
+  max-width: clamp(230px, 38dvh, 270px);
+  max-height: clamp(230px, 38dvh, 270px);
+  touch-action: none;
+}
+.snake-game-wrap.is-duel .snake-dpad {
+  margin-top: 6px;
+  transform: scale(0.9);
+  touch-action: none;
+}
+
+/* 2048 в дуэли */
+.g2048-wrap.is-duel .game-hud {
+  display: none !important;
+}
+.g2048-wrap.is-duel .game-instructions {
+  display: none !important;
+}
+.g2048-wrap.is-duel .g2048-board-container {
+  width: clamp(230px, 40dvh, 290px);
+  height: clamp(230px, 40dvh, 290px);
+  touch-action: none;
 }
 
 /* Оверлей отсчета 3..2..1 */

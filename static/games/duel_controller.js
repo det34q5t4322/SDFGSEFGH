@@ -35,6 +35,21 @@ function getDuelAuthHeaders() {
   return headers;
 }
 
+function getMyPlayerId() {
+  if (_myTelegramId) return String(_myTelegramId);
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  if (tgUser && tgUser.id) {
+    _myTelegramId = tgUser.id;
+    return String(tgUser.id);
+  }
+  const guestId = localStorage.getItem('duel_guest_id');
+  if (guestId) {
+    _myTelegramId = parseInt(guestId, 10);
+    return String(guestId);
+  }
+  return '';
+}
+
 
 // ── LOBBY & NAVIGATION ─────────────────────────────────────
 
@@ -274,6 +289,9 @@ function enterDuelRoom(room) {
   _currentRoom = room;
   _isReady = false;
 
+  const sheetBody = document.querySelector('.games-sheet-body');
+  if (sheetBody) sheetBody.classList.add('is-duel');
+
   const duelView = document.getElementById('gamesDuelView');
   const roomView = document.getElementById('gamesDuelRoomView');
   const catalogView = document.getElementById('gamesCatalogView');
@@ -321,7 +339,14 @@ function renderRoomLobby(room) {
       guestStatus.textContent = isReady ? 'ГОТОВ ✅' : 'Ожидание...';
       guestStatus.className = `duel-player-status ${isReady ? 'ready' : 'waiting'}`;
     }
-    if (readyBtn) readyBtn.style.display = 'inline-flex';
+    if (readyBtn) {
+      readyBtn.style.display = 'inline-flex';
+      const myId = getMyPlayerId();
+      const amReady = room.ready && room.ready[myId];
+      _isReady = !!amReady;
+      readyBtn.textContent = _isReady ? 'Готов! Отменить ✕' : 'Я готов! ⚔️';
+      readyBtn.style.background = _isReady ? '#64748b' : 'linear-gradient(135deg, #10b981, #059669)';
+    }
   } else {
     if (guestName) guestName.textContent = 'Ожидание игрока...';
     if (guestElo) guestElo.textContent = '—';
@@ -400,6 +425,9 @@ function handleDuelWsMessage(data) {
   switch (data.type) {
     case 'room_state':
     case 'player_connected':
+      if (data.my_id) {
+        _myTelegramId = data.my_id;
+      }
       _currentRoom = data.room;
       renderRoomLobby(data.room);
       break;
@@ -516,7 +544,7 @@ async function startDuelRound(data) {
   try {
     let module;
     try {
-      module = await import(`/static/games/${gameId}.js?v=20260924_v9`);
+      module = await import(`/static/games/${gameId}.js?v=20260924_v10`);
     } catch (_) {
       module = await import(`/static/games/${gameId}.js`);
     }
@@ -555,17 +583,30 @@ function updateDuelHud(roundNum, roundWins) {
   const myNameEl = document.getElementById('duelHudMyName');
   const oppNameEl = document.getElementById('duelHudOppName');
 
-  const myId = String(_currentRoom.host.telegram_id);
-  const oppId = _currentRoom.guest ? String(_currentRoom.guest.telegram_id) : '';
+  const myId = getMyPlayerId();
+  const hostId = _currentRoom?.host ? String(_currentRoom.host.telegram_id) : '';
+  const guestId = _currentRoom?.guest ? String(_currentRoom.guest.telegram_id) : '';
 
-  const myWins = roundWins ? (roundWins[myId] || 0) : 0;
+  const isHost = (myId === hostId);
+  const me = isHost ? _currentRoom?.host : _currentRoom?.guest;
+  const opp = isHost ? _currentRoom?.guest : _currentRoom?.host;
+
+  const meId = me ? String(me.telegram_id) : myId;
+  const oppId = opp ? String(opp.telegram_id) : '';
+
+  const myWins = roundWins ? (roundWins[meId] || 0) : 0;
   const oppWins = roundWins ? (roundWins[oppId] || 0) : 0;
 
   if (myRoundsEl) myRoundsEl.textContent = `${myWins >= 1 ? '🟢' : '⚪'} ${myWins >= 2 ? '🟢' : '⚪'}`;
   if (oppRoundsEl) oppRoundsEl.textContent = `${oppWins >= 1 ? '🟢' : '⚪'} ${oppWins >= 2 ? '🟢' : '⚪'}`;
 
-  if (myNameEl) myNameEl.textContent = _currentRoom.host.name;
-  if (oppNameEl && _currentRoom.guest) oppNameEl.textContent = _currentRoom.guest.name;
+  if (myNameEl) myNameEl.textContent = me ? (me.name || 'Вы') : 'Вы';
+  if (oppNameEl) oppNameEl.textContent = opp ? (opp.name || 'Оппонент') : 'Оппонент';
+
+  const pipTitle = document.getElementById('duelPipTitle');
+  if (pipTitle && opp) {
+    pipTitle.textContent = opp.name || 'Соперник';
+  }
 }
 
 function sendDuelState(score, grid) {
@@ -704,7 +745,8 @@ function handleDuelRoundEnd(data) {
     _activeDuelGame = null;
   }
 
-  const isMe = String(data.winner_id) === String(_currentRoom.host.telegram_id);
+  const myId = getMyPlayerId();
+  const isMe = String(data.winner_id) === myId;
   const overlay = document.getElementById('duelResultOverlay');
   const title = document.getElementById('duelResultTitle');
   const icon = document.getElementById('duelResultIcon');
@@ -713,9 +755,23 @@ function handleDuelRoundEnd(data) {
 
   if (overlay) overlay.style.display = 'flex';
   if (icon) icon.textContent = isMe ? '🔥' : '💥';
-  if (title) title.textContent = isMe ? 'Раунд выигран!' : 'Раунд проигран!';
-  if (elo) elo.textContent = `Счёт по раундам: ${data.round_wins[String(_currentRoom.host.telegram_id)] || 0} — ${data.round_wins[_currentRoom.guest ? String(_currentRoom.guest.telegram_id) : ''] || 0}`;
-  if (score) score.textContent = 'Следующий раунд начнется через несколько секунд...';
+  if (title) {
+    title.textContent = isMe ? 'ВЫ ВЫИГРАЛИ РАУНД! 🔥' : 'ВЫ ПРОИГРАЛИ РАУНД! 💥';
+    title.style.color = isMe ? '#4ade80' : '#f87171';
+  }
+
+  const hostId = _currentRoom?.host ? String(_currentRoom.host.telegram_id) : '';
+  const guestId = _currentRoom?.guest ? String(_currentRoom.guest.telegram_id) : '';
+  const oppId = (myId === hostId) ? guestId : hostId;
+
+  const myWins = data.round_wins ? (data.round_wins[myId] || 0) : 0;
+  const oppWins = data.round_wins ? (data.round_wins[oppId] || 0) : 0;
+
+  if (elo) {
+    elo.textContent = `Счёт: Вы ${myWins} — ${oppWins} Соперник`;
+    elo.style.color = '#facc15';
+  }
+  if (score) score.textContent = 'Следующий раунд начнется через секунду...';
 
   // Прячем кнопки в оверлее между раундами
   const actions = document.querySelector('.duel-result-actions');
@@ -731,7 +787,20 @@ function handleDuelMatchOver(data) {
     _activeDuelGame = null;
   }
 
-  const isMe = String(data.winner_id) === String(_currentRoom.host.telegram_id);
+  const myId = getMyPlayerId();
+  const winnerId = String(data.winner_id);
+  const isMe = (myId === winnerId);
+
+  const hostId = _currentRoom?.host ? String(_currentRoom.host.telegram_id) : '';
+  const guestId = _currentRoom?.guest ? String(_currentRoom.guest.telegram_id) : '';
+  const hostName = _currentRoom?.host ? _currentRoom.host.name : 'Игрок 1';
+  const guestName = _currentRoom?.guest ? _currentRoom.guest.name : 'Игрок 2';
+  const winnerName = (winnerId === hostId) ? hostName : ((winnerId === guestId) ? guestName : 'Победитель');
+
+  const oppId = (myId === hostId) ? guestId : hostId;
+  const myWins = data.round_wins ? (data.round_wins[myId] || 0) : 0;
+  const oppWins = data.round_wins ? (data.round_wins[oppId] || 0) : 0;
+
   const overlay = document.getElementById('duelResultOverlay');
   const title = document.getElementById('duelResultTitle');
   const icon = document.getElementById('duelResultIcon');
@@ -740,18 +809,24 @@ function handleDuelMatchOver(data) {
 
   if (overlay) overlay.style.display = 'flex';
   if (icon) icon.textContent = isMe ? '🏆' : '💀';
-  if (title) title.textContent = isMe ? 'ПОБЕДА В МАТЧЕ!' : 'ПОРАЖЕНИЕ В МАТЧЕ';
-
-  const myDelta = isMe ? (data.elo?.p1_delta || 20) : -(data.elo?.p1_delta || 20);
-  if (elo) {
-    elo.textContent = myDelta >= 0 ? `+${myDelta} ELO (Рейтинг повышен!)` : `${myDelta} ELO`;
-    elo.style.color = myDelta >= 0 ? '#facc15' : '#f87171';
+  if (title) {
+    title.textContent = isMe ? 'ВЫ ПОБЕДИЛИ В МАТЧЕ! 🎉' : 'ВЫ ПРОИГРАЛИ МАТЧ 💀';
+    title.style.color = isMe ? '#4ade80' : '#f87171';
   }
 
-  const myId = String(_currentRoom.host.telegram_id);
-  const oppId = _currentRoom.guest ? String(_currentRoom.guest.telegram_id) : '';
+  const myDelta = data.elo?.deltas?.[myId] ?? (isMe ? 20 : -20);
+  if (elo) {
+    if (isMe) {
+      elo.textContent = `+${myDelta} ELO (Рейтинг повышен!)`;
+      elo.style.color = '#facc15';
+    } else {
+      elo.textContent = `${myDelta} ELO (Рейтинг понижен)`;
+      elo.style.color = '#f87171';
+    }
+  }
+
   if (score) {
-    score.textContent = `Итоговый счёт: ${data.round_wins[myId] || 0} — ${data.round_wins[oppId] || 0}`;
+    score.innerHTML = `Победитель: <b>${escapeHtml(winnerName)}</b><br>Итоговый счёт: ${myWins} — ${oppWins}`;
   }
 
   // Показываем кнопки
@@ -795,6 +870,9 @@ window.exitDuelRoom = function() {
   if (overlay) overlay.style.display = 'none';
   if (matchHud) matchHud.style.display = 'none';
   if (playArea) playArea.style.display = 'none';
+
+  const sheetBody = document.querySelector('.games-sheet-body');
+  if (sheetBody) sheetBody.classList.remove('is-duel');
 
   switchGamesMode('duel');
 };

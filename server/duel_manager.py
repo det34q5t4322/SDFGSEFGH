@@ -216,7 +216,8 @@ class DuelManager:
         # Отправляем текущее состояние комнаты
         await room.send_to(telegram_id, {
             "type": "room_state",
-            "room": room.to_dict()
+            "room": room.to_dict(),
+            "my_id": telegram_id
         })
 
         # Уведомляем оппонента о подключении
@@ -316,17 +317,17 @@ class DuelManager:
             await room.send_to(telegram_id, {"type": "pong", "time": time.time()})
 
     async def start_round_sequence(self, room: DuelRoom):
-        """Отсчет перед раундом 3..2..1 и старт."""
+        """Быстрый динамичный отсчёт перед раундом 2..1 и старт."""
         room.status = "countdown"
         room.round_seed = random.randint(100000, 999999)
 
-        for sec in (3, 2, 1):
+        for sec in (2, 1):
             await room.broadcast({
                 "type": "countdown",
                 "seconds": sec,
                 "round": room.current_round
             })
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.7)
 
         room.status = "playing"
         await room.broadcast({
@@ -355,14 +356,13 @@ class DuelManager:
             # Матч выигран!
             await self.finish_match(room, winner_id=winner_id)
         else:
-            # Следующий раунд через 3.5 секунды
+            # Следующий раунд через 1.5 секунды (быстрый темп)
             room.current_round += 1
-            # Сброс флагов готовности перед следующим раундом
             for tid in room.ready_states:
                 room.ready_states[tid] = True
 
             async def _next_round():
-                await asyncio.sleep(3.5)
+                await asyncio.sleep(1.5)
                 if room.status == "round_over":
                     await self.start_round_sequence(room)
 
@@ -396,12 +396,29 @@ class DuelManager:
                 "p2_new_rating": 1020 if winner_id == g_id else 980
             }
 
+        p1_d = elo_result.get("p1_delta", 20 if winner_id == h_id else -20)
+        p2_d = elo_result.get("p2_delta", 20 if winner_id == g_id else -20)
+        p1_r = elo_result.get("p1_new_rating", 1000)
+        p2_r = elo_result.get("p2_new_rating", 1000)
+
+        elo_data = {
+            "winner_id": winner_id,
+            "deltas": {
+                str(h_id): p1_d,
+                str(g_id): p2_d
+            },
+            "new_ratings": {
+                str(h_id): p1_r,
+                str(g_id): p2_r
+            }
+        }
+
         await room.broadcast({
             "type": "match_over",
             "winner_id": winner_id,
             "forfeit_by": forfeit_by,
             "round_wins": {str(k): v for k, v in room.round_wins.items()},
-            "elo": elo_result
+            "elo": elo_data
         })
 
         # Планируем удаление комнаты через 5 минут

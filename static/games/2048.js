@@ -35,9 +35,9 @@ export function mount(container, options = {}) {
   let touchStartX = 0;
   let touchStartY = 0;
 
-  // DOM layout
   container.innerHTML = `
-    <div class="g2048-wrap" id="g2048Wrap">
+    <div class="g2048-wrap ${options.isDuel ? 'is-duel' : ''}" id="g2048Wrap">
+      ${!options.isDuel ? `
       <div class="game-hud">
         <div class="game-hud-scores">
           <div class="game-hud-box">
@@ -67,6 +67,7 @@ export function mount(container, options = {}) {
           </button>
         </div>
       </div>
+      ` : ''}
 
       <div class="g2048-board-container" id="g2048BoardContainer">
         <div class="g2048-grid" id="g2048Grid"></div>
@@ -89,9 +90,11 @@ export function mount(container, options = {}) {
         </div>
       </div>
 
+      ${!options.isDuel ? `
       <div class="game-instructions">
         Свайпайте пальцем или используйте клавиши <b>Стрелок / WASD</b> для объединения плиток с одинаковыми числами. Прогресс сохраняется автоматически!
       </div>
+      ` : ''}
     </div>
   `;
 

@@ -19,7 +19,7 @@ export function mount(container, options = {}) {
   let ctx = null;
   let animId = null;
   let lastTick = 0;
-  let tickInterval = 185; // ms per step (комфортная, плавная классическая скорость)
+  let tickInterval = options.isDuel ? 120 : 185; // В дуэли играем на повышенной соревновательной скорости!
 
   let snake = [];
   let dir = { x: 1, y: 0 };
@@ -51,7 +51,8 @@ export function mount(container, options = {}) {
   };
 
   container.innerHTML = `
-    <div class="snake-game-wrap" id="snakeWrap">
+    <div class="snake-game-wrap ${options.isDuel ? 'is-duel' : ''}" id="snakeWrap">
+      ${!options.isDuel ? `
       <div class="game-hud">
         <div class="game-hud-scores">
           <div class="game-hud-box">
@@ -77,6 +78,7 @@ export function mount(container, options = {}) {
           </button>
         </div>
       </div>
+      ` : ''}
 
       <div class="snake-canvas-container">
         <canvas id="snakeCanvas"></canvas>
@@ -164,7 +166,7 @@ export function mount(container, options = {}) {
     applesEaten = 0;
     bonusFood = null;
     bonusTimer = 0;
-    tickInterval = 185;
+    tickInterval = options.isDuel ? 120 : 185;
     gameOver = false;
     isPaused = false;
     isStarted = false;

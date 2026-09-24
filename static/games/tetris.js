@@ -27,7 +27,7 @@ export function mount(container, options = {}) {
   let rafId = null;
   let lastTime = 0;
   let dropCounter = 0;
-  let dropInterval = 1000;
+  let dropInterval = options.isDuel ? 450 : 1000;
   let isPaused = false;
   let gameOver = false;
 
@@ -97,7 +97,8 @@ export function mount(container, options = {}) {
 
 
   container.innerHTML = `
-    <div class="tetris-wrap" id="tetrisWrap">
+    <div class="tetris-wrap ${options.isDuel ? 'is-duel' : ''}" id="tetrisWrap">
+      ${!options.isDuel ? `
       <div class="game-hud">
         <div class="game-hud-scores">
           <div class="game-hud-box">
@@ -132,6 +133,7 @@ export function mount(container, options = {}) {
           </button>
         </div>
       </div>
+      ` : ''}
 
       <div class="tetris-main-area">
         <div class="tetris-board-box">
@@ -142,15 +144,19 @@ export function mount(container, options = {}) {
           </div>
         </div>
 
-        <div class="tetris-sidebar">
+        <div class="tetris-sidebar" id="tetrisSidebar">
           <div class="tetris-next-box">
             <div class="tetris-next-label">СЛЕДУЮЩАЯ</div>
             <canvas id="tetrisNextCanvas" width="80" height="80"></canvas>
           </div>
+          ${!options.isDuel ? `
           <div class="tetris-level-box">
             <span class="game-hud-label">УРОВЕНЬ</span>
             <span class="game-hud-value" id="tetrisLevel">1</span>
           </div>
+          ` : `
+          <div class="tetris-pip-slot" id="tetrisPipSlot"></div>
+          `}
         </div>
       </div>
 
@@ -180,6 +186,14 @@ export function mount(container, options = {}) {
       </div>
     </div>
   `;
+
+  if (options.isDuel) {
+    const pipContainer = document.getElementById('duelPipContainer');
+    const slot = container.querySelector('#tetrisPipSlot');
+    if (pipContainer && slot) {
+      slot.appendChild(pipContainer);
+    }
+  }
 
   canvas = container.querySelector('#tetrisCanvas');
   ctx = canvas.getContext('2d');
@@ -398,8 +412,9 @@ export function mount(container, options = {}) {
       score += (lineScores[rowCount] || 1000) * level;
       lines += rowCount;
       level = Math.floor(lines / 10) + 1;
-      // Умеренное плавное ускорение (40мс за уровень, предел 320мс вместо прежних 120мс)
-      dropInterval = Math.max(320, 1000 - (level - 1) * 40);
+      dropInterval = options.isDuel
+        ? Math.max(160, 450 - lines * 15)
+        : Math.max(320, 1000 - (level - 1) * 40);
 
       if (score > bestScore) {
         bestScore = score;
@@ -599,7 +614,7 @@ export function mount(container, options = {}) {
     score = 0;
     lines = 0;
     level = 1;
-    dropInterval = 1000;
+    dropInterval = options.isDuel ? 450 : 1000;
     dropCounter = 0;
     gameOver = false;
     isPaused = false;
@@ -620,21 +635,26 @@ export function mount(container, options = {}) {
     switch (e.code) {
       case 'ArrowLeft':
       case 'KeyA':
+        if (e.cancelable) e.preventDefault();
         playerMove(-1);
         break;
       case 'ArrowRight':
       case 'KeyD':
+        if (e.cancelable) e.preventDefault();
         playerMove(1);
         break;
       case 'ArrowUp':
       case 'KeyW':
+        if (e.cancelable) e.preventDefault();
         playerRotate();
         break;
       case 'ArrowDown':
       case 'KeyS':
+        if (e.cancelable) e.preventDefault();
         playerDrop();
         break;
       case 'Space':
+        if (e.cancelable) e.preventDefault();
         playerHardDrop();
         break;
       case 'KeyP':
@@ -673,13 +693,16 @@ export function mount(container, options = {}) {
     let lastFire = 0;
     const handler = (e) => {
       const now = performance.now();
-      if (now - lastFire < 50) return;
+      if (now - lastFire < 40) return;
       lastFire = now;
       if (e.cancelable) e.preventDefault();
       e.stopPropagation();
       action();
     };
     btn.addEventListener('pointerdown', handler);
+    btn.addEventListener('touchstart', (e) => {
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
     cleanups.push(() => btn.removeEventListener('pointerdown', handler));
   };
 
@@ -740,6 +763,12 @@ export function mount(container, options = {}) {
       if (overlayBtn) overlayBtn.removeEventListener('click', initGame);
 
       cleanups.forEach(fn => { try { fn(); } catch (_) {} });
+
+      const pipContainer = document.getElementById('duelPipContainer');
+      const playArea = document.getElementById('duelPlayArea');
+      if (pipContainer && playArea && container.contains(pipContainer)) {
+        playArea.appendChild(pipContainer);
+      }
 
       container.innerHTML = '';
       activeInstance = null;
