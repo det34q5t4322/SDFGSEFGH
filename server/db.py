@@ -913,14 +913,14 @@ def get_duel_rank(rating: int) -> Dict[str, Any]:
     8. Академик (2000+) 👑
     """
     TIERS = [
-        ("apprentice", "Ученик", "🥉", "#b45309", 0, 799),
-        ("adept", "Адепт", "🛡️", "#94a3b8", 800, 999),
-        ("specialist", "Специалист", "⚔️", "#f59e0b", 1000, 1199),
-        ("expert", "Эксперт", "🏹", "#10b981", 1200, 1399),
-        ("magister", "Магистр", "🔮", "#818cf8", 1400, 1599),
-        ("grandmaster", "Гроссмейстер", "⚡", "#38bdf8", 1600, 1799),
-        ("archmage", "Архимаг", "🌟", "#c084fc", 1800, 1999),
-        ("academician", "Академик", "👑", "#f43f5e", 2000, 99999),
+        ("apprentice", "Ученик", "apprentice", "#b45309", 0, 799),
+        ("adept", "Адепт", "adept", "#94a3b8", 800, 999),
+        ("specialist", "Специалист", "specialist", "#f59e0b", 1000, 1199),
+        ("expert", "Эксперт", "expert", "#10b981", 1200, 1399),
+        ("magister", "Магистр", "magister", "#818cf8", 1400, 1599),
+        ("grandmaster", "Гроссмейстер", "grandmaster", "#38bdf8", 1600, 1799),
+        ("archmage", "Архимаг", "archmage", "#c084fc", 1800, 1999),
+        ("academician", "Академик", "academician", "#f43f5e", 2000, 99999),
     ]
 
     r = max(100, int(rating or 1000))
@@ -931,14 +931,14 @@ def get_duel_rank(rating: int) -> Dict[str, Any]:
         else:
             break
 
-    tier_id, name, icon, color, min_r, max_r = current_tier
+    tier_id, name, icon_id, color, min_r, max_r = current_tier
     roman_stars = ["I", "II", "III", "IV", "V"]
 
     if tier_id == "academician":
         star_idx = min(5, max(1, (r - 2000) // 100 + 1))
         stars_str = roman_stars[star_idx - 1]
         progress = 100 if (star_idx == 5 and r >= 2400) else min(100, max(0, (r - 2000) % 100))
-        rank_title = f"{icon} {name} {stars_str}"
+        rank_title = f"{name} {stars_str}"
         stars = star_idx
     else:
         range_size = (max_r - min_r + 1) / 5.0
@@ -946,7 +946,7 @@ def get_duel_rank(rating: int) -> Dict[str, Any]:
         star_idx = min(5, max(1, int(offset / range_size) + 1))
         stars = star_idx
         stars_str = roman_stars[star_idx - 1]
-        rank_title = f"{icon} {name} {stars_str}"
+        rank_title = f"{name} {stars_str}"
         curr_star_min = min_r + (star_idx - 1) * range_size
         progress = min(100, max(0, int(((r - curr_star_min) / range_size) * 100)))
 
@@ -955,7 +955,7 @@ def get_duel_rank(rating: int) -> Dict[str, Any]:
         "name": name,
         "stars": stars,
         "stars_str": stars_str,
-        "icon": icon,
+        "icon": icon_id,
         "color": color,
         "rank_title": rank_title,
         "progress": progress

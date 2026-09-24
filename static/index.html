@@ -1845,12 +1845,13 @@
             <div class="duel-profile-info">
               <div class="duel-profile-name" id="duelProfileName">Игрок</div>
               <div class="duel-profile-meta" id="duelProfileMeta">Матчи: 0 • 0В / 0П • 0% винрейт</div>
-              <div class="duel-rank-wrap">
-                <span class="dota-rank-badge" id="duelProfileRankBadge">⚔️ Специалист I</span>
+              <div class="duel-rank-wrap is-clickable" onclick="openDuelRanksModal()" role="button" tabindex="0" title="Нажмите, чтобы посмотреть все ранги">
+                <span class="dota-rank-badge" id="duelProfileRankBadge"><span class="duel-rank-svg-wrap"><svg class="rank-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 17.5-11.5-11.5v-3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m14.5 6.5 3.5-3.5h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/></svg></span> <span>Специалист I</span></span>
                 <span class="dota-rank-stars" id="duelProfileRankStars">★☆☆☆☆</span>
+                <span class="duel-rank-hint-pill" title="Таблица рангов">Все ранги 🏆</span>
               </div>
             </div>
-            <div class="duel-profile-rating-badge">
+            <div class="duel-profile-rating-badge is-clickable" onclick="openDuelRanksModal()" role="button" tabindex="0" title="Нажмите, чтобы посмотреть все ранги">
               <span class="duel-elo-val" id="duelProfileElo">1000</span>
               <span class="duel-elo-lbl">ELO</span>
               <div class="duel-rank-progress-wrap" title="Прогресс до следующей звезды">
@@ -1949,7 +1950,7 @@
               <div class="duel-player-card" id="duelHostCard">
                 <div class="duel-player-avatar" id="duelHostAvatar">👤</div>
                 <div class="duel-player-name" id="duelHostName">Хост</div>
-                <div class="duel-player-rank" id="duelHostRank">⚔️ Специалист I</div>
+                <div class="duel-player-rank is-clickable" id="duelHostRank" onclick="openDuelRanksModal()">Специалист I</div>
                 <div class="duel-player-elo" id="duelHostElo">1000 ELO</div>
                 <div class="duel-player-status waiting" id="duelHostStatus">Ожидание...</div>
               </div>
@@ -2029,7 +2030,7 @@
             <div class="duel-result-card">
               <div class="duel-result-icon" id="duelResultIcon">🏆</div>
               <div class="duel-result-title" id="duelResultTitle">Победа в матче!</div>
-              <div class="duel-result-rank" id="duelResultRank">⚔️ Специалист I ★☆☆☆☆</div>
+              <div class="duel-result-rank is-clickable" id="duelResultRank" onclick="openDuelRanksModal()">Специалист I ★☆☆☆☆</div>
               <div class="duel-result-elo" id="duelResultElo">+20 ELO</div>
               <div class="duel-result-score" id="duelResultScore">Счёт: 2 — 1</div>
               <div class="duel-result-actions">
@@ -2079,6 +2080,33 @@
           </label>
         </div>
         <button class="create-duel-submit-btn" id="createDuelSubmitBtn" onclick="submitCreateDuel()" type="button">Создать комнату ⚔️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модалка таблицы соревновательных рангов -->
+  <div class="modal-backdrop" id="duelRanksModal" style="display:none;" onclick="if (event.target === this) closeDuelRanksModal()">
+    <div class="modal-sheet duel-ranks-sheet">
+      <div class="modal-sheet-header">
+        <div class="modal-sheet-title" style="display:flex; align-items:center; gap:8px;">
+          <span>🏆 Таблица рангов дуэлей</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeDuelRanksModal()" type="button" aria-label="Закрыть">
+          <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-sheet-body duel-ranks-body">
+        <div class="duel-ranks-current-summary" id="duelRanksCurrentSummary">
+          <div class="duel-ranks-curr-label">Ваш текущий ранг:</div>
+          <div class="duel-ranks-curr-badge" id="duelRanksCurrBadge">Специалист I</div>
+          <div class="duel-ranks-curr-meta" id="duelRanksCurrMeta">1000 ELO • ★☆☆☆☆ (0% до следующей звезды)</div>
+        </div>
+        <div class="duel-ranks-intro">
+          Побеждайте в дуэлях 1v1, чтобы повышать ELO, открывать звёзды и подниматься по ступеням:
+        </div>
+        <div class="duel-ranks-list" id="duelRanksListContainer">
+          <!-- Генерируется через renderDuelRanksList() -->
+        </div>
       </div>
     </div>
   </div>

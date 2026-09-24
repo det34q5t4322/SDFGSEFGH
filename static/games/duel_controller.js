@@ -98,16 +98,32 @@ window.loadDuelLobbyData = async function() {
   loadDuelLeaderboard();
 };
 
+const RANK_SVGS = {
+  apprentice: (s = 18, sw = 2) => `<svg class="rank-svg" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>`,
+  adept: (s = 18, sw = 2) => `<svg class="rank-svg" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+  specialist: (s = 18, sw = 2) => `<svg class="rank-svg" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 17.5-11.5-11.5v-3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m14.5 6.5 3.5-3.5h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/></svg>`,
+  expert: (s = 18, sw = 2) => `<svg class="rank-svg" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/><circle cx="12" cy="12" r="3"/></svg>`,
+  magister: (s = 18, sw = 2) => `<svg class="rank-svg" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 18 3 22 9 12 22 2 9"/><polyline points="11 3 8 9 12 22"/><polyline points="13 3 16 9 12 22"/><line x1="2" y1="9" x2="22" y2="9"/></svg>`,
+  grandmaster: (s = 18, sw = 2) => `<svg class="rank-svg" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+  archmage: (s = 18, sw = 2) => `<svg class="rank-svg" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>`,
+  academician: (s = 18, sw = 2) => `<svg class="rank-svg" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>`
+};
+
+function getRankSvg(tierId, size = 18, strokeWidth = 2) {
+  const fn = RANK_SVGS[tierId] || RANK_SVGS['specialist'];
+  return fn(size, strokeWidth);
+}
+
 function getDuelRank(rating) {
   const TIERS = [
-    { id: 'apprentice', name: 'Ученик', icon: '🥉', color: '#b45309', min: 0, max: 799 },
-    { id: 'adept', name: 'Адепт', icon: '🛡️', color: '#94a3b8', min: 800, max: 999 },
-    { id: 'specialist', name: 'Специалист', icon: '⚔️', color: '#f59e0b', min: 1000, max: 1199 },
-    { id: 'expert', name: 'Эксперт', icon: '🏹', color: '#10b981', min: 1200, max: 1399 },
-    { id: 'magister', name: 'Магистр', icon: '🔮', color: '#818cf8', min: 1400, max: 1599 },
-    { id: 'grandmaster', name: 'Гроссмейстер', icon: '⚡', color: '#38bdf8', min: 1600, max: 1799 },
-    { id: 'archmage', name: 'Архимаг', icon: '🌟', color: '#c084fc', min: 1800, max: 1999 },
-    { id: 'academician', name: 'Академик', icon: '👑', color: '#f43f5e', min: 2000, max: 99999 }
+    { id: 'apprentice', name: 'Ученик', color: '#b45309', min: 0, max: 799 },
+    { id: 'adept', name: 'Адепт', color: '#94a3b8', min: 800, max: 999 },
+    { id: 'specialist', name: 'Специалист', color: '#f59e0b', min: 1000, max: 1199 },
+    { id: 'expert', name: 'Эксперт', color: '#10b981', min: 1200, max: 1399 },
+    { id: 'magister', name: 'Магистр', color: '#818cf8', min: 1400, max: 1599 },
+    { id: 'grandmaster', name: 'Гроссмейстер', color: '#38bdf8', min: 1600, max: 1799 },
+    { id: 'archmage', name: 'Архимаг', color: '#c084fc', min: 1800, max: 1999 },
+    { id: 'academician', name: 'Академик', color: '#f43f5e', min: 2000, max: 99999 }
   ];
 
   const r = Math.max(100, Math.round(rating || 1000));
@@ -135,13 +151,13 @@ function getDuelRank(rating) {
   const romanStr = roman[starIdx - 1];
   const fullStars = '★'.repeat(starIdx);
   const emptyStars = '☆'.repeat(5 - starIdx);
-  const title = `${tier.icon} ${tier.name} ${romanStr}`;
+  const title = `${tier.name} ${romanStr}`;
 
   return {
     tierId: tier.id,
     tier_id: tier.id,
     name: tier.name,
-    icon: tier.icon,
+    icon: tier.id,
     color: tier.color,
     stars: starIdx,
     starsStr: romanStr,
@@ -194,9 +210,11 @@ window.loadDuelStats = async function() {
         name.textContent = window.Telegram.WebApp.initDataUnsafe.user.first_name;
       }
 
-      const rTitle = `${rank.icon} ${rank.name} ${rank.stars_str || rank.starsStr || ''}`.trim();
+      const tid = rank.tier_id || rank.tierId || 'specialist';
+      const rName = rank.name || 'Специалист';
+      const rStars = rank.stars_str || rank.starsStr || 'I';
       if (badge) {
-        badge.textContent = rTitle;
+        badge.innerHTML = `<span class="duel-rank-svg-wrap">${getRankSvg(tid, 16)}</span> <span>${rName} ${rStars}</span>`;
         badge.style.borderColor = rank.color;
         badge.style.color = rank.color;
         badge.style.background = `${rank.color}18`;
@@ -342,8 +360,11 @@ window.loadDuelLeaderboard = async function() {
     let html = '';
     leaders.forEach((u, i) => {
       const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : `${i + 1}.`));
-      const rank = u.rank || getDotaRank(u.rating);
-      const rankTitle = `${rank.icon} ${rank.name} ${rank.stars_str || rank.starsStr || ''}`.trim();
+      const rank = u.rank || getDuelRank(u.rating);
+      const tid = rank.tier_id || rank.tierId || 'specialist';
+      const rName = rank.name || 'Специалист';
+      const rStars = rank.stars_str || rank.starsStr || '';
+      const rankTitle = `${rName} ${rStars}`.trim();
 
       html += `
         <div class="duel-lb-row ${i < 3 ? 'top-three' : ''}">
@@ -351,8 +372,9 @@ window.loadDuelLeaderboard = async function() {
             <span class="duel-lb-rank-num">${medal}</span>
             <div class="duel-lb-user-details">
               <span class="duel-lb-user-name">${esc(u.display_name)}</span>
-              <span class="duel-lb-dota-badge" style="border-color:${rank.color}44; color:${rank.color}; background:${rank.color}15;">
-                ${rankTitle}
+              <span class="duel-lb-dota-badge is-clickable" onclick="openDuelRanksModal()" title="Посмотреть таблицу всех рангов" style="border-color:${rank.color}44; color:${rank.color}; background:${rank.color}15; cursor:pointer;">
+                <span class="duel-rank-svg-wrap">${getRankSvg(tid, 14)}</span>
+                <span>${rankTitle}</span>
               </span>
             </div>
           </div>
@@ -387,6 +409,87 @@ window.closeCreateDuelModal = function() {
     setTimeout(() => { modal.style.display = 'none'; }, 200);
   }
 };
+
+window.openDuelRanksModal = function() {
+  const modal = document.getElementById('duelRanksModal');
+  if (!modal) return;
+
+  const eloEl = document.getElementById('duelProfileElo');
+  const myRating = eloEl ? (parseInt(eloEl.textContent, 10) || 1000) : 1000;
+  const currentRank = getDuelRank(myRating);
+
+  const currBadge = document.getElementById('duelRanksCurrBadge');
+  const currMeta = document.getElementById('duelRanksCurrMeta');
+  if (currBadge) {
+    currBadge.innerHTML = `<span class="duel-rank-svg-wrap" style="color:${currentRank.color};">${getRankSvg(currentRank.tier_id, 20)}</span> <span>${currentRank.name} ${currentRank.stars_str}</span>`;
+    currBadge.style.color = currentRank.color;
+  }
+  if (currMeta) {
+    const starsIcons = currentRank.starsIcons || '★☆☆☆☆';
+    currMeta.textContent = `${myRating} ELO • ${starsIcons} (${currentRank.progress}% до следующей звезды)`;
+  }
+
+  renderDuelRanksList(myRating, currentRank);
+
+  modal.style.display = 'flex';
+  setTimeout(() => { modal.classList.add('open'); }, 10);
+};
+
+window.closeDuelRanksModal = function() {
+  const modal = document.getElementById('duelRanksModal');
+  if (modal) {
+    modal.classList.remove('open');
+    setTimeout(() => { modal.style.display = 'none'; }, 200);
+  }
+};
+
+function renderDuelRanksList(currentRating, currentRank) {
+  const container = document.getElementById('duelRanksListContainer');
+  if (!container) return;
+
+  const TIERS_DETAILS = [
+    { id: 'apprentice', name: 'Ученик', color: '#b45309', range: '0 — 799 ELO' },
+    { id: 'adept', name: 'Адепт', color: '#94a3b8', range: '800 — 999 ELO' },
+    { id: 'specialist', name: 'Специалист', color: '#f59e0b', range: '1000 — 1199 ELO' },
+    { id: 'expert', name: 'Эксперт', color: '#10b981', range: '1200 — 1399 ELO' },
+    { id: 'magister', name: 'Магистр', color: '#818cf8', range: '1400 — 1599 ELO' },
+    { id: 'grandmaster', name: 'Гроссмейстер', color: '#38bdf8', range: '1600 — 1799 ELO' },
+    { id: 'archmage', name: 'Архимаг', color: '#c084fc', range: '1800 — 1999 ELO' },
+    { id: 'academician', name: 'Академик', color: '#f43f5e', range: '2000+ ELO' }
+  ];
+
+  let html = '';
+  TIERS_DETAILS.forEach((tier) => {
+    const isCurrent = (currentRank && currentRank.tier_id === tier.id);
+
+    html += `
+      <div class="duel-rank-card-row ${isCurrent ? 'is-current' : ''}" style="border-left-color: ${tier.color};">
+        <div class="duel-rank-card-icon" style="background: ${tier.color}1c; border-color: ${tier.color}45; color: ${tier.color};">
+          ${getRankSvg(tier.id, 22, 2)}
+        </div>
+        <div class="duel-rank-card-body">
+          <div class="duel-rank-card-header">
+            <span class="duel-rank-card-name" style="color: ${tier.color};">${tier.name}</span>
+            <span class="duel-rank-card-range">${tier.range}</span>
+            ${isCurrent ? '<span class="duel-rank-current-tag">ВЫ ЗДЕСЬ</span>' : ''}
+          </div>
+          <div class="duel-rank-card-stars-row">Дивизионы со звёздами: <b>I, II, III, IV, V ★★★★★</b></div>
+          ${isCurrent ? `
+            <div class="duel-rank-card-progress-box">
+              <div class="duel-rank-card-progress-txt">Ваш текущий дивизион: <b style="color:${tier.color};">${currentRank.name} ${currentRank.stars_str}</b> (${currentRank.progress}% до след. звезды)</div>
+              <div class="duel-rank-progress-wrap">
+                <div class="duel-rank-progress-fill" style="width:${currentRank.progress}%; background:${tier.color};"></div>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
 
 
 window.selectCreateDuelGame = function(gameId, el) {
@@ -492,10 +595,12 @@ function renderRoomLobby(room) {
 
   if (hostName) hostName.textContent = room.host.name;
   const hRating = room.host.rating || 1000;
-  const hRank = getDotaRank(hRating);
+  const hRank = getDuelRank(hRating);
   if (hostRank) {
-    hostRank.textContent = `${hRank.icon} ${hRank.rank_title}`;
+    hostRank.innerHTML = `<span class="duel-rank-svg-wrap">${getRankSvg(hRank.tier_id, 14)}</span> <span>${hRank.name} ${hRank.stars_str}</span>`;
     hostRank.style.color = hRank.color;
+    hostRank.classList.add('is-clickable');
+    hostRank.onclick = openDuelRanksModal;
   }
   if (hostElo) hostElo.textContent = `${hRating} ELO`;
   if (hostStatus) {
@@ -514,11 +619,13 @@ function renderRoomLobby(room) {
   if (room.guest) {
     if (guestName) guestName.textContent = room.guest.name;
     const gRating = room.guest.rating || 1000;
-    const gRank = getDotaRank(gRating);
+    const gRank = getDuelRank(gRating);
     if (guestRank) {
-      guestRank.textContent = `${gRank.icon} ${gRank.rank_title}`;
+      guestRank.innerHTML = `<span class="duel-rank-svg-wrap">${getRankSvg(gRank.tier_id, 14)}</span> <span>${gRank.name} ${gRank.stars_str}</span>`;
       guestRank.style.color = gRank.color;
-      guestRank.style.display = 'block';
+      guestRank.style.display = 'inline-flex';
+      guestRank.classList.add('is-clickable');
+      guestRank.onclick = openDuelRanksModal;
     }
     if (guestElo) guestElo.textContent = `${gRating} ELO`;
     if (guestAvatar) guestAvatar.textContent = '👤';
@@ -1017,9 +1124,11 @@ function handleDuelMatchOver(data) {
   const resultRank = document.getElementById('duelResultRank');
   const newRating = data.elo?.new_ratings?.[myId];
   if (newRating != null && resultRank) {
-    const rInfo = getDotaRank(newRating);
-    resultRank.innerHTML = `${rInfo.icon} <span style="color:${rInfo.color}; font-weight:700;">${rInfo.rank_title}</span> <span style="color:#94a3b8; font-size:13px;">(${newRating} ELO)</span>`;
-    resultRank.style.display = 'block';
+    const rInfo = getDuelRank(newRating);
+    resultRank.innerHTML = `<span class="duel-rank-svg-wrap" style="color:${rInfo.color};">${getRankSvg(rInfo.tier_id, 18)}</span> <span style="color:${rInfo.color}; font-weight:700;">${rInfo.name} ${rInfo.stars_str}</span> <span style="color:#94a3b8; font-size:13px;">(${newRating} ELO)</span>`;
+    resultRank.style.display = 'inline-flex';
+    resultRank.classList.add('is-clickable');
+    resultRank.onclick = openDuelRanksModal;
   } else if (resultRank) {
     resultRank.style.display = 'none';
   }
