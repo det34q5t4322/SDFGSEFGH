@@ -12483,13 +12483,14 @@ html.banned-lock #endlessBanLoader {
 }
 
 .snake-dpad {
-  margin-top: 14px;
+  margin-top: 16px;
+  margin-bottom: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
   width: 100%;
-  max-width: 260px;
+  max-width: 280px;
   touch-action: none;
 }
 
@@ -12497,16 +12498,16 @@ html.banned-lock #endlessBanLoader {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
   width: 100%;
 }
 
 .snake-dpad-btn {
-  width: 76px;
-  height: 60px;
-  border-radius: 16px;
+  width: 72px;
+  height: 58px;
+  border-radius: 18px;
   background: var(--bg-card2, rgba(255, 255, 255, 0.08));
-  border: 1.5px solid var(--border, rgba(255, 255, 255, 0.14));
+  border: 1.5px solid var(--border, rgba(255, 255, 255, 0.15));
   color: var(--text-primary, #f8fafc);
   display: flex;
   align-items: center;
@@ -12516,7 +12517,7 @@ html.banned-lock #endlessBanLoader {
   -webkit-user-select: none;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
   transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
 }
 .snake-dpad-btn svg {
@@ -12527,15 +12528,15 @@ html.banned-lock #endlessBanLoader {
 .snake-dpad-btn:active {
   transform: scale(0.92);
   background: var(--accent, #6366f1);
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 255, 255, 0.5);
   color: #fff;
   box-shadow: 0 0 16px rgba(99, 102, 241, 0.5);
 }
 
 .snake-dpad-center {
-  width: 76px;
-  height: 60px;
-  border-radius: 16px;
+  width: 72px;
+  height: 58px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px dashed rgba(255, 255, 255, 0.15);
   display: flex;
@@ -12545,6 +12546,7 @@ html.banned-lock #endlessBanLoader {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
+  -webkit-tap-highlight-color: transparent;
   transition: all 0.12s ease;
 }
 .snake-dpad-center:active {
