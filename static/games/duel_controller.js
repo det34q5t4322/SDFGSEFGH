@@ -114,6 +114,57 @@ function getRankSvg(tierId, size = 18, strokeWidth = 2) {
   return fn(size, strokeWidth);
 }
 
+const GAME_SVGS = {
+  tetris: (s = 20) => `<svg class="duel-svg-icon" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="8" x="3" y="3" rx="1.5"/><rect width="8" height="8" x="13" y="3" rx="1.5"/><rect width="8" height="8" x="8" y="13" rx="1.5"/></svg>`,
+  '2048': (s = 20) => `<svg class="duel-svg-icon" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="3"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/></svg>`,
+  snake: (s = 20) => `<svg class="duel-svg-icon" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18c2-3 5-3 7 0s5 3 7 0"/><path d="M4 12c2-3 5-3 7 0s5 3 7 0"/><circle cx="18" cy="6" r="2.5"/><path d="M15.5 6H8a4 4 0 0 0-4 4"/></svg>`
+};
+
+function getGameSvg(gameId, size = 20) {
+  const fn = GAME_SVGS[gameId] || GAME_SVGS['tetris'];
+  return fn(size);
+}
+
+function getLeaderboardMedalSvg(pos, size = 20) {
+  if (pos === 0) {
+    return `<span class="duel-medal-badge gold"><svg class="duel-medal-svg gold" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span>`;
+  } else if (pos === 1) {
+    return `<span class="duel-medal-badge silver"><svg class="duel-medal-svg silver" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>`;
+  } else if (pos === 2) {
+    return `<span class="duel-medal-badge bronze"><svg class="duel-medal-svg bronze" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>`;
+  }
+  return `<span class="duel-lb-rank-num-plain">${pos + 1}</span>`;
+}
+
+function getVictoryTrophySvg(size = 56) {
+  return `<svg class="duel-result-big-svg victory" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34"/><path d="M6 4h12a2 2 0 0 1 2 2v3a6 6 0 0 1-6 6h0a6 6 0 0 1-6-6V6a2 2 0 0 1 2-2Z"/></svg>`;
+}
+
+function getDefeatSvg(size = 56) {
+  return `<svg class="duel-result-big-svg defeat" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>`;
+}
+
+function getRoundFlameSvg(size = 48) {
+  return `<svg class="duel-result-round-svg win" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 3.5z"/></svg>`;
+}
+
+function getRoundBrokenSvg(size = 48) {
+  return `<svg class="duel-result-round-svg loss" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`;
+}
+
+function getAvatarSilhouetteSvg(isWaiting = false) {
+  if (isWaiting) {
+    return `<svg class="duel-avatar-svg waiting" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+  }
+  return `<svg class="duel-avatar-svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+}
+
+function renderRoundDotsHtml(winsCount) {
+  const dot1 = winsCount >= 1 ? '<span class="duel-round-pip won"></span>' : '<span class="duel-round-pip"></span>';
+  const dot2 = winsCount >= 2 ? '<span class="duel-round-pip won"></span>' : '<span class="duel-round-pip"></span>';
+  return `${dot1}${dot2}`;
+}
+
 function getDuelRank(rating) {
   const TIERS = [
     { id: 'apprentice', name: 'Ученик', color: '#b45309', min: 0, max: 799 },
@@ -221,7 +272,7 @@ window.loadDuelStats = async function() {
       }
       if (stars) {
         const sCount = rank.stars || 1;
-        stars.textContent = (rank.tier_id === 'immortal' || rank.tierId === 'immortal') ? '🏆 Топ' : ('★'.repeat(sCount) + '☆'.repeat(Math.max(0, 5 - sCount)));
+        stars.textContent = '★'.repeat(sCount) + '☆'.repeat(Math.max(0, 5 - sCount));
       }
       if (fill) {
         fill.style.width = `${rank.progress || 0}%`;
@@ -256,13 +307,18 @@ window.loadDuelHistory = async function() {
     history.forEach(m => {
       const isWin = m.is_winner;
       const isDraw = m.is_draw;
-      const resText = isWin ? 'Победа 🏆' : (isDraw ? 'Ничья 🤝' : 'Поражение 💀');
       const resClass = isWin ? 'win' : (isDraw ? 'draw' : 'loss');
       const deltaStr = m.delta > 0 ? `+${m.delta}` : (m.delta < 0 ? `${m.delta}` : '0');
       const deltaColor = m.delta > 0 ? '#4ade80' : (m.delta < 0 ? '#f87171' : '#94a3b8');
 
-      const gIcon = m.game_id === 'tetris' ? '🧱' : (m.game_id === '2048' ? '🔢' : '🐍');
+      const gIcon = getGameSvg(m.game_id, 20);
       const gName = DUEL_GAME_NAMES[m.game_id] || m.game_id;
+
+      const resBadgeHtml = isWin
+        ? `<span class="duel-hist-res-badge win"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Победа</span>`
+        : (isDraw
+          ? `<span class="duel-hist-res-badge draw"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg> Ничья</span>`
+          : `<span class="duel-hist-res-badge loss"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Поражение</span>`);
 
       let dateStr = '';
       try {
@@ -278,7 +334,7 @@ window.loadDuelHistory = async function() {
             <span class="duel-hist-game-icon">${gIcon}</span>
             <div class="duel-hist-info">
               <div class="duel-hist-opp-row">
-                <span class="duel-hist-res-badge ${resClass}">${resText}</span>
+                ${resBadgeHtml}
                 <span class="duel-hist-opp-name">vs ${esc(m.opponent_name)}</span>
               </div>
               <div class="duel-hist-date">${gName} • ${dateStr}</div>
@@ -320,20 +376,23 @@ window.refreshDuelRooms = async function() {
     let html = '';
     for (const r of rooms) {
       const gName = DUEL_GAME_NAMES[r.game_id] || r.game_id;
-      const gIcon = r.game_id === 'tetris' ? '🧱' : (r.game_id === '2048' ? '2048' : '🐍');
+      const gIcon = getGameSvg(r.game_id, 20);
       const hName = esc(r.host.name || 'Хост');
       const hRating = r.host.rating || 1000;
-      const hRank = getDotaRank(hRating);
+      const hRank = getDuelRank(hRating);
       html += `
         <div class="duel-room-card">
           <div class="duel-room-card-main">
             <div class="duel-room-card-icon">${gIcon}</div>
             <div class="duel-room-card-text">
               <div class="duel-room-card-title">${gName} • ${r.room_id}</div>
-              <div class="duel-room-card-sub">${hName} (${hRank.icon} ${hRank.name} ${hRank.starsStr} • ${hRating} ELO)</div>
+              <div class="duel-room-card-sub">${hName} (<span class="duel-rank-svg-wrap" style="color:${hRank.color};">${getRankSvg(hRank.tier_id, 12)}</span> <span style="color:${hRank.color}; font-weight:600;">${hRank.name} ${hRank.stars_str}</span> • ${hRating} ELO)</div>
             </div>
           </div>
-          <button class="duel-room-join-btn" onclick="joinDuelRoom('${r.room_id}')" type="button">В бой ⚔️</button>
+          <button class="duel-room-join-btn" onclick="joinDuelRoom('${r.room_id}')" type="button">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m14.5 17.5-11.5-11.5v-3h3l11.5 11.5"/><path d="m13 19 6-6"/></svg>
+            <span>В бой</span>
+          </button>
         </div>
       `;
     }
@@ -359,7 +418,7 @@ window.loadDuelLeaderboard = async function() {
 
     let html = '';
     leaders.forEach((u, i) => {
-      const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : `${i + 1}.`));
+      const medal = getLeaderboardMedalSvg(i);
       const rank = u.rank || getDuelRank(u.rating);
       const tid = rank.tier_id || rank.tierId || 'specialist';
       const rName = rank.name || 'Специалист';
@@ -605,7 +664,9 @@ function renderRoomLobby(room) {
   if (hostElo) hostElo.textContent = `${hRating} ELO`;
   if (hostStatus) {
     const isReady = room.ready && room.ready[String(room.host.telegram_id)];
-    hostStatus.textContent = isReady ? 'ГОТОВ ✅' : 'Ожидание...';
+    hostStatus.innerHTML = isReady
+      ? '<span class="duel-status-ready-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> ГОТОВ</span>'
+      : '<span class="duel-status-waiting-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 15"/></svg> Ожидание</span>';
     hostStatus.className = `duel-player-status ${isReady ? 'ready' : 'waiting'}`;
   }
 
@@ -628,10 +689,12 @@ function renderRoomLobby(room) {
       guestRank.onclick = openDuelRanksModal;
     }
     if (guestElo) guestElo.textContent = `${gRating} ELO`;
-    if (guestAvatar) guestAvatar.textContent = '👤';
+    if (guestAvatar) guestAvatar.innerHTML = getAvatarSilhouetteSvg(false);
     if (guestStatus) {
       const isReady = room.ready && room.ready[String(room.guest.telegram_id)];
-      guestStatus.textContent = isReady ? 'ГОТОВ ✅' : 'Ожидание...';
+      guestStatus.innerHTML = isReady
+        ? '<span class="duel-status-ready-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> ГОТОВ</span>'
+        : '<span class="duel-status-waiting-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 15"/></svg> Ожидание</span>';
       guestStatus.className = `duel-player-status ${isReady ? 'ready' : 'waiting'}`;
     }
     if (readyBtn) {
@@ -639,16 +702,18 @@ function renderRoomLobby(room) {
       const myId = getMyPlayerId();
       const amReady = room.ready && room.ready[myId];
       _isReady = !!amReady;
-      readyBtn.textContent = _isReady ? 'Готов! Отменить ✕' : 'Я готов! ⚔️';
-      readyBtn.style.background = _isReady ? '#64748b' : 'linear-gradient(135deg, #10b981, #059669)';
+      readyBtn.innerHTML = _isReady
+        ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> <span>Готов! Отменить</span>'
+        : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> <span>Я готов к бою!</span>';
+      readyBtn.style.background = _isReady ? 'linear-gradient(135deg, #64748b, #475569)' : 'linear-gradient(135deg, #10b981, #059669)';
     }
   } else {
     if (guestName) guestName.textContent = 'Ожидание игрока...';
     if (guestRank) guestRank.style.display = 'none';
     if (guestElo) guestElo.textContent = '—';
-    if (guestAvatar) guestAvatar.textContent = '⏳';
+    if (guestAvatar) guestAvatar.innerHTML = getAvatarSilhouetteSvg(true);
     if (guestStatus) {
-      guestStatus.textContent = 'Не в сети';
+      guestStatus.innerHTML = '<span class="duel-status-waiting-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 15"/></svg> Не в сети</span>';
       guestStatus.className = 'duel-player-status waiting';
     }
     if (readyBtn) readyBtn.style.display = 'none';
@@ -773,8 +838,10 @@ window.toggleDuelReady = function() {
   _isReady = !_isReady;
   const btn = document.getElementById('duelReadyBtn');
   if (btn) {
-    btn.textContent = _isReady ? 'Готов! Отменить ✕' : 'Я готов! ⚔️';
-    btn.style.background = _isReady ? '#64748b' : 'linear-gradient(135deg, #10b981, #059669)';
+    btn.innerHTML = _isReady
+      ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> <span>Готов! Отменить</span>'
+      : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> <span>Я готов к бою!</span>';
+    btn.style.background = _isReady ? 'linear-gradient(135deg, #64748b, #475569)' : 'linear-gradient(135deg, #10b981, #059669)';
   }
   if (_duelWs && _duelWs.readyState === WebSocket.OPEN) {
     _duelWs.send(JSON.stringify({ type: 'ready', ready: _isReady }));
@@ -893,8 +960,8 @@ function updateDuelHud(roundNum, roundWins) {
   const myWins = roundWins ? (roundWins[meId] || 0) : 0;
   const oppWins = roundWins ? (roundWins[oppId] || 0) : 0;
 
-  if (myRoundsEl) myRoundsEl.textContent = `${myWins >= 1 ? '🟢' : '⚪'} ${myWins >= 2 ? '🟢' : '⚪'}`;
-  if (oppRoundsEl) oppRoundsEl.textContent = `${oppWins >= 1 ? '🟢' : '⚪'} ${oppWins >= 2 ? '🟢' : '⚪'}`;
+  if (myRoundsEl) myRoundsEl.innerHTML = renderRoundDotsHtml(myWins);
+  if (oppRoundsEl) oppRoundsEl.innerHTML = renderRoundDotsHtml(oppWins);
 
   if (myNameEl) myNameEl.textContent = me ? (me.name || 'Вы') : 'Вы';
   if (oppNameEl) oppNameEl.textContent = opp ? (opp.name || 'Оппонент') : 'Оппонент';
@@ -1050,9 +1117,9 @@ function handleDuelRoundEnd(data) {
   const elo = document.getElementById('duelResultElo');
 
   if (overlay) overlay.style.display = 'flex';
-  if (icon) icon.textContent = isMe ? '🔥' : '💥';
+  if (icon) icon.innerHTML = isMe ? getRoundFlameSvg(48) : getRoundBrokenSvg(48);
   if (title) {
-    title.textContent = isMe ? 'ВЫ ВЫИГРАЛИ РАУНД! 🔥' : 'ВЫ ПРОИГРАЛИ РАУНД! 💥';
+    title.textContent = isMe ? 'Раунд выигран!' : 'Раунд проигран';
     title.style.color = isMe ? '#4ade80' : '#f87171';
   }
 
@@ -1104,9 +1171,9 @@ function handleDuelMatchOver(data) {
   const elo = document.getElementById('duelResultElo');
 
   if (overlay) overlay.style.display = 'flex';
-  if (icon) icon.textContent = isMe ? '🏆' : '💀';
+  if (icon) icon.innerHTML = isMe ? getVictoryTrophySvg(56) : getDefeatSvg(56);
   if (title) {
-    title.textContent = isMe ? 'ВЫ ПОБЕДИЛИ В МАТЧЕ! 🎉' : 'ВЫ ПРОИГРАЛИ МАТЧ 💀';
+    title.textContent = isMe ? 'ПОБЕДА В МАТЧЕ!' : 'ПОРАЖЕНИЕ В МАТЧЕ';
     title.style.color = isMe ? '#4ade80' : '#f87171';
   }
 

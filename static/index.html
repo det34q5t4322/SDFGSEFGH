@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260924_v39">
+  <link rel="stylesheet" href="/static/style.css?v=20260925_v1">
 
 
   <script>
@@ -1840,20 +1840,31 @@
 
         <!-- 3. 1vs1 Дуэли: Лобби и список комнат -->
         <div class="games-duel-view" id="gamesDuelView" style="display:none;">
-          <!-- Карточка рейтинга игрока в стиле Dota 2 -->
+          <!-- Карточка рейтинга игрока -->
           <div class="duel-profile-card" id="duelProfileCard">
-            <div class="duel-profile-info">
-              <div class="duel-profile-name" id="duelProfileName">Игрок</div>
-              <div class="duel-profile-meta" id="duelProfileMeta">Матчи: 0 • 0В / 0П • 0% винрейт</div>
-              <div class="duel-rank-wrap is-clickable" onclick="openDuelRanksModal()" role="button" tabindex="0" title="Нажмите, чтобы посмотреть все ранги">
-                <span class="dota-rank-badge" id="duelProfileRankBadge"><span class="duel-rank-svg-wrap"><svg class="rank-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 17.5-11.5-11.5v-3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m14.5 6.5 3.5-3.5h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/></svg></span> <span>Специалист I</span></span>
-                <span class="dota-rank-stars" id="duelProfileRankStars">★☆☆☆☆</span>
-                <span class="duel-rank-hint-pill" title="Таблица рангов">Все ранги 🏆</span>
+            <div class="duel-profile-user-group">
+              <div class="duel-profile-avatar-box">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span class="duel-status-dot online"></span>
+              </div>
+              <div class="duel-profile-info">
+                <div class="duel-profile-name" id="duelProfileName">Игрок</div>
+                <div class="duel-profile-meta" id="duelProfileMeta">Матчи: 0 • 0В / 0П • 0% винрейт</div>
+                <div class="duel-rank-wrap is-clickable" onclick="openDuelRanksModal()" role="button" tabindex="0" title="Нажмите, чтобы посмотреть все ранги">
+                  <span class="dota-rank-badge" id="duelProfileRankBadge"><span class="duel-rank-svg-wrap"><svg class="rank-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 17.5-11.5-11.5v-3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m14.5 6.5 3.5-3.5h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/></svg></span> <span>Специалист I</span></span>
+                  <span class="dota-rank-stars" id="duelProfileRankStars">★☆☆☆☆</span>
+                  <span class="duel-rank-hint-pill" title="Таблица всех рангов">
+                    <span>Все ранги</span>
+                    <svg class="lucide-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                  </span>
+                </div>
               </div>
             </div>
             <div class="duel-profile-rating-badge is-clickable" onclick="openDuelRanksModal()" role="button" tabindex="0" title="Нажмите, чтобы посмотреть все ранги">
-              <span class="duel-elo-val" id="duelProfileElo">1000</span>
-              <span class="duel-elo-lbl">ELO</span>
+              <div class="duel-elo-val-row">
+                <span class="duel-elo-val" id="duelProfileElo">1000</span>
+                <span class="duel-elo-lbl">ELO</span>
+              </div>
               <div class="duel-rank-progress-wrap" title="Прогресс до следующей звезды">
                 <div class="duel-rank-progress-fill" id="duelProfileRankFill" style="width: 0%;"></div>
               </div>
@@ -1863,25 +1874,34 @@
           <!-- Кнопки действий: Создать дуэль и Подключиться по коду -->
           <div class="duel-actions-row">
             <button class="duel-create-btn" onclick="openCreateDuelModal()" type="button">
-              <svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Создать дуэль
+              <svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Создать дуэль</span>
             </button>
             <div class="duel-code-join-wrap">
-              <input type="text" class="duel-code-input" id="duelCodeInput" placeholder="КОД КОМНАТЫ" maxlength="6" autocomplete="off" autocorrect="off" autocapitalize="characters" />
-              <button class="duel-code-join-btn" onclick="joinDuelByInputCode()" type="button">Войти</button>
+              <div class="duel-code-input-box">
+                <svg class="lucide-icon duel-code-input-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <input type="text" class="duel-code-input" id="duelCodeInput" placeholder="КОД КОМНАТЫ" maxlength="6" autocomplete="off" autocorrect="off" autocapitalize="characters" />
+              </div>
+              <button class="duel-code-join-btn" onclick="joinDuelByInputCode()" type="button">
+                <span>Войти</span>
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
             </div>
           </div>
 
           <!-- Под-вкладки режима Дуэли: Лобби / История игр / Таблица лидеров -->
           <div class="duel-subnav-bar">
             <button class="duel-subnav-btn active" id="duelSubnavRooms" onclick="switchDuelSubTab('rooms')" type="button">
-              ⚔️ Лобби
+              <svg class="lucide-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="m14.5 17.5-11.5-11.5v-3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m14.5 6.5 3.5-3.5h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/></svg>
+              <span>Лобби</span>
             </button>
             <button class="duel-subnav-btn" id="duelSubnavHistory" onclick="switchDuelSubTab('history')" type="button">
-              📜 История игр
+              <svg class="lucide-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>История игр</span>
             </button>
             <button class="duel-subnav-btn" id="duelSubnavLeaderboard" onclick="switchDuelSubTab('leaderboard')" type="button">
-              🏆 Лидеры
+              <svg class="lucide-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+              <span>Лидеры</span>
             </button>
           </div>
 
@@ -1948,15 +1968,22 @@
 
             <div class="duel-players-grid">
               <div class="duel-player-card" id="duelHostCard">
-                <div class="duel-player-avatar" id="duelHostAvatar">👤</div>
+                <div class="duel-player-avatar" id="duelHostAvatar">
+                  <svg class="duel-avatar-svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
                 <div class="duel-player-name" id="duelHostName">Хост</div>
                 <div class="duel-player-rank is-clickable" id="duelHostRank" onclick="openDuelRanksModal()">Специалист I</div>
                 <div class="duel-player-elo" id="duelHostElo">1000 ELO</div>
                 <div class="duel-player-status waiting" id="duelHostStatus">Ожидание...</div>
               </div>
-              <div class="duel-vs-badge">VS</div>
+              <div class="duel-vs-badge">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span>VS</span>
+              </div>
               <div class="duel-player-card" id="duelGuestCard">
-                <div class="duel-player-avatar" id="duelGuestAvatar">⏳</div>
+                <div class="duel-player-avatar" id="duelGuestAvatar">
+                  <svg class="duel-avatar-svg waiting" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
                 <div class="duel-player-name" id="duelGuestName">Ожидание игрока...</div>
                 <div class="duel-player-rank" id="duelGuestRank"></div>
                 <div class="duel-player-elo" id="duelGuestElo">—</div>
@@ -1970,7 +1997,8 @@
                 Позвать друга в Telegram
               </button>
               <button class="duel-ready-btn" id="duelReadyBtn" onclick="toggleDuelReady()" type="button" style="display:none;">
-                Я готов! ⚔️
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Я готов к бою!</span>
               </button>
             </div>
           </div>
@@ -1979,7 +2007,10 @@
           <div class="duel-match-hud" id="duelMatchHud" style="display:none;">
             <div class="duel-hud-player me">
               <div class="duel-hud-name" id="duelHudMyName">Я</div>
-              <div class="duel-hud-rounds" id="duelHudMyRounds">⚪ ⚪</div>
+              <div class="duel-hud-rounds" id="duelHudMyRounds">
+                <span class="duel-round-pip"></span>
+                <span class="duel-round-pip"></span>
+              </div>
             </div>
             <div class="duel-hud-center">
               <div class="duel-hud-round-title" id="duelHudRoundTitle">Раунд 1</div>
@@ -1991,18 +2022,23 @@
             </div>
             <div class="duel-hud-player opp">
               <div class="duel-hud-name" id="duelHudOppName">Соперник</div>
-              <div class="duel-hud-rounds" id="duelHudOppRounds">⚪ ⚪</div>
+              <div class="duel-hud-rounds" id="duelHudOppRounds">
+                <span class="duel-round-pip"></span>
+                <span class="duel-round-pip"></span>
+              </div>
             </div>
           </div>
 
           <!-- Предупреждение о дисконнекте -->
           <div class="duel-disconnect-banner" id="duelDisconnectBanner" style="display:none;">
-            ⚠️ Соперник отключился! До тех. поражения: <span id="duelDisconnectTimer">15</span>с
+            <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Соперник отключился! До тех. поражения: <span id="duelDisconnectTimer">15</span>с</span>
           </div>
 
           <!-- Баннер входящей атаки (Тетрис) -->
           <div class="duel-attack-banner" id="duelAttackBanner" style="display:none;">
-            💥 +<span id="duelAttackLinesCount">1</span> линия от соперника!
+            <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span>+<span id="duelAttackLinesCount">1</span> линия от соперника!</span>
           </div>
 
           <!-- Окно матча: игровое поле + PiP экран противника -->
@@ -2028,14 +2064,20 @@
           <!-- Оверлей завершения матча / раунда -->
           <div class="duel-result-overlay" id="duelResultOverlay" style="display:none;">
             <div class="duel-result-card">
-              <div class="duel-result-icon" id="duelResultIcon">🏆</div>
+              <div class="duel-result-icon" id="duelResultIcon"></div>
               <div class="duel-result-title" id="duelResultTitle">Победа в матче!</div>
               <div class="duel-result-rank is-clickable" id="duelResultRank" onclick="openDuelRanksModal()">Специалист I ★☆☆☆☆</div>
               <div class="duel-result-elo" id="duelResultElo">+20 ELO</div>
               <div class="duel-result-score" id="duelResultScore">Счёт: 2 — 1</div>
               <div class="duel-result-actions">
-                <button class="duel-rematch-btn" onclick="requestDuelRematch()" type="button">Реванш 🔄</button>
-                <button class="duel-leave-btn" onclick="exitDuelRoom()" type="button">В лобби</button>
+                <button class="duel-rematch-btn" onclick="requestDuelRematch()" type="button">
+                  <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+                  <span>Реванш</span>
+                </button>
+                <button class="duel-leave-btn" onclick="exitDuelRoom()" type="button">
+                  <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  <span>В лобби</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2048,7 +2090,10 @@
   <div class="modal-backdrop" id="createDuelModal" style="display:none;" onclick="if (event.target === this) closeCreateDuelModal()">
     <div class="modal-sheet modal-sheet-compact">
       <div class="modal-sheet-header">
-        <div class="modal-sheet-title">Создать дуэль 1vs1</div>
+        <div class="modal-sheet-title" style="display:flex; align-items:center; gap:8px;">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m14.5 17.5-11.5-11.5v-3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/></svg>
+          <span>Создать дуэль 1vs1</span>
+        </div>
         <button class="modal-close-btn" onclick="closeCreateDuelModal()" type="button"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="modal-sheet-body">
@@ -2056,7 +2101,9 @@
         <div class="create-duel-games-list">
           <label class="create-duel-game-opt selected" onclick="selectCreateDuelGame('tetris', this)">
             <input type="radio" name="duelGameSelect" value="tetris" checked style="display:none;" />
-            <div class="create-duel-opt-icon tetris">🧱</div>
+            <div class="create-duel-opt-icon tetris">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect width="8" height="8" x="3" y="3" rx="1.5"/><rect width="8" height="8" x="13" y="3" rx="1.5"/><rect width="8" height="8" x="8" y="13" rx="1.5"/></svg>
+            </div>
             <div class="create-duel-opt-info">
               <div class="create-duel-opt-title">Тетрис</div>
               <div class="create-duel-opt-desc">С атаками: сжигай линии и засыпай стакан соперника!</div>
@@ -2064,7 +2111,9 @@
           </label>
           <label class="create-duel-game-opt" onclick="selectCreateDuelGame('2048', this)">
             <input type="radio" name="duelGameSelect" value="2048" style="display:none;" />
-            <div class="create-duel-opt-icon g2048">2048</div>
+            <div class="create-duel-opt-icon g2048">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="3"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+            </div>
             <div class="create-duel-opt-info">
               <div class="create-duel-opt-title">2048</div>
               <div class="create-duel-opt-desc">Синхронная гонка плиток. Выживи и набери больше очков!</div>
@@ -2072,14 +2121,19 @@
           </label>
           <label class="create-duel-game-opt" onclick="selectCreateDuelGame('snake', this)">
             <input type="radio" name="duelGameSelect" value="snake" style="display:none;" />
-            <div class="create-duel-opt-icon snake">🐍</div>
+            <div class="create-duel-opt-icon snake">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18c2-3 5-3 7 0s5 3 7 0"/><path d="M4 12c2-3 5-3 7 0s5 3 7 0"/><circle cx="18" cy="6" r="2.5"/><path d="M15.5 6H8a4 4 0 0 0-4 4"/></svg>
+            </div>
             <div class="create-duel-opt-info">
               <div class="create-duel-opt-title">Змейка</div>
               <div class="create-duel-opt-desc">Битва на выживание. Не врежься первым!</div>
             </div>
           </label>
         </div>
-        <button class="create-duel-submit-btn" id="createDuelSubmitBtn" onclick="submitCreateDuel()" type="button">Создать комнату ⚔️</button>
+        <button class="create-duel-submit-btn" id="createDuelSubmitBtn" onclick="submitCreateDuel()" type="button">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m14.5 17.5-11.5-11.5v-3h3l11.5 11.5"/><path d="m13 19 6-6"/></svg>
+          <span>Создать комнату</span>
+        </button>
       </div>
     </div>
   </div>
@@ -2089,7 +2143,8 @@
     <div class="modal-sheet duel-ranks-sheet">
       <div class="modal-sheet-header">
         <div class="modal-sheet-title" style="display:flex; align-items:center; gap:8px;">
-          <span>🏆 Таблица рангов дуэлей</span>
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+          <span>Таблица рангов дуэлей</span>
         </div>
         <button class="modal-close-btn" onclick="closeDuelRanksModal()" type="button" aria-label="Закрыть">
           <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -2497,12 +2552,9 @@
   </div>
 
   <script src="/static/sortable.min.js"></script>
-  <script src="/static/onboarding.js?v=20260924_v27"></script>
-  <script src="/static/games/duel_controller.js?v=20260924_v10"></script>
-
-
-
-  <script src="/static/app.js?v=20260924_v36"></script>
+  <script src="/static/onboarding.js?v=20260925_v1"></script>
+  <script src="/static/games/duel_controller.js?v=20260925_v1"></script>
+  <script src="/static/app.js?v=20260925_v1"></script>
 
 </body>
 </html>
