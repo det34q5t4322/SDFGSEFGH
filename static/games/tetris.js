@@ -85,8 +85,16 @@ export function mount(container, options = {}) {
     4: '#eab308', // O - Yellow
     5: '#22c55e', // S - Green
     6: '#a855f7', // T - Purple
-    7: '#ef4444'  // Z - Red
+    7: '#ef4444', // Z - Red
+    8: '#64748b'  // Garbage block - Slate Gray
   };
+
+  let rngSeed = options.roundSeed || Math.floor(Math.random() * 1000000);
+  function seededRandom() {
+    rngSeed = (rngSeed * 9301 + 49297) % 233280;
+    return rngSeed / 233280;
+  }
+
 
   container.innerHTML = `
     <div class="tetris-wrap" id="tetrisWrap">
@@ -220,9 +228,10 @@ export function mount(container, options = {}) {
     const pieces = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
     // Fisher-Yates тасование
     for (let i = pieces.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(seededRandom() * (i + 1));
       [pieces[i], pieces[j]] = [pieces[j], pieces[i]];
     }
+
     bag.push(...pieces);
   }
 
@@ -397,12 +406,18 @@ export function mount(container, options = {}) {
         localStorage.setItem('game_tetris_best', String(bestScore));
       }
 
+      if (typeof options.onAttack === 'function' && rowCount >= 2) {
+        const garbage = rowCount === 4 ? 4 : (rowCount === 3 ? 2 : 1);
+        options.onAttack(garbage);
+      }
+
       updateUI();
       if (typeof onScoreUpdate === 'function') {
-        onScoreUpdate(score, bestScore);
+        onScoreUpdate(score, bestScore, grid);
       }
     }
   }
+
 
   function playerReset() {
     piece = nextPiece || randomPiece();
@@ -678,8 +693,38 @@ export function mount(container, options = {}) {
   lastTime = performance.now();
   rafId = requestAnimationFrame(update);
 
+  function receiveGarbageLines(count) {
+    if (gameOver) return;
+    triggerHaptic('medium');
+    for (let i = 0; i < count; i++) {
+      grid.shift();
+      const hole = Math.floor(Math.random() * COLS);
+      const row = new Array(COLS).fill(8);
+      row[hole] = 0;
+      grid.push(row);
+    }
+    if (piece && collide(grid, piece)) {
+      piece.y--;
+      if (piece.y < 0) {
+        gameOver = true;
+        if (typeof onGameOver === 'function') onGameOver(score, false);
+      }
+    }
+    draw();
+  }
+
+  function getSnapshot() {
+    return {
+      score,
+      grid
+    };
+  }
+
   activeInstance = {
+    receiveGarbageLines,
+    getSnapshot,
     unmount: () => {
+
       // 1. Explicitly cancel requestAnimationFrame
       if (rafId !== null) {
         cancelAnimationFrame(rafId);

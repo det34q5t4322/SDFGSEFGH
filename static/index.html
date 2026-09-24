@@ -16,7 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260924_v36">
+  <link rel="stylesheet" href="/static/style.css?v=20260924_v38">
+
+
   <script>
     (function() {
       try {
@@ -1722,6 +1724,18 @@
       </div>
 
       <div class="games-sheet-body">
+        <!-- Переключатель режимов: Одиночные игры / 1vs1 Дуэли -->
+        <div class="games-mode-switcher" id="gamesModeSwitcher">
+          <button class="games-mode-btn active" id="gamesModeBtnSolo" onclick="switchGamesMode('solo')" type="button">
+            <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16"><rect width="20" height="12" x="2" y="6" rx="6"/><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><circle cx="15" cy="13" r="1"/><circle cx="18" cy="11" r="1"/></svg>
+            Одиночные
+          </button>
+          <button class="games-mode-btn" id="gamesModeBtnDuel" onclick="switchGamesMode('duel')" type="button">
+            <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none"><path d="m14.5 17.5 3 3 3-3-3-3 3-3-3-3-3 3"/><path d="m9.5 6.5-3-3-3 3 3 3-3 3 3 3 3-3"/><path d="m14 14-4-4"/></svg>
+            1vs1 Дуэли <span class="duel-live-pill">LIVE</span>
+          </button>
+        </div>
+
         <!-- 1. Каталог игр -->
         <div class="games-catalog-view" id="gamesCatalogView">
           <div class="games-catalog-intro">
@@ -1819,13 +1833,214 @@
           </div>
         </div>
 
-        <!-- 2. Игровой экран (динамический порт) -->
+        <!-- 2. Игровой экран (одиночный динамический порт) -->
         <div class="games-play-view" id="gamesPlayView" style="display:none;">
           <div class="game-viewport" id="gameViewport"></div>
+        </div>
+
+        <!-- 3. 1vs1 Дуэли: Лобби и список комнат -->
+        <div class="games-duel-view" id="gamesDuelView" style="display:none;">
+          <!-- Карточка рейтинга игрока -->
+          <div class="duel-profile-card" id="duelProfileCard">
+            <div class="duel-profile-info">
+              <div class="duel-profile-name" id="duelProfileName">Игрок</div>
+              <div class="duel-profile-meta" id="duelProfileMeta">Матчи: 0 • Винрейт: 0%</div>
+            </div>
+            <div class="duel-profile-rating-badge">
+              <span class="duel-elo-val" id="duelProfileElo">1000</span>
+              <span class="duel-elo-lbl">ELO 🏆</span>
+            </div>
+          </div>
+
+          <!-- Кнопки действий: Создать дуэль и Подключиться по коду -->
+          <div class="duel-actions-row">
+            <button class="duel-create-btn" onclick="openCreateDuelModal()" type="button">
+              <svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Создать дуэль
+            </button>
+            <div class="duel-code-join-wrap">
+              <input type="text" class="duel-code-input" id="duelCodeInput" placeholder="КОД КОМНАТЫ" maxlength="6" autocomplete="off" autocorrect="off" autocapitalize="characters" />
+              <button class="duel-code-join-btn" onclick="joinDuelByInputCode()" type="button">Войти</button>
+            </div>
+          </div>
+
+          <!-- Список открытых комнат -->
+          <div class="duel-rooms-section">
+            <div class="duel-section-header">
+              <span class="duel-section-title">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Открытые лобби
+              </span>
+              <button class="duel-refresh-btn" onclick="refreshDuelRooms()" type="button" title="Обновить список">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="14" height="14"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+              </button>
+            </div>
+            <div class="duel-rooms-list" id="duelRoomsList">
+              <div class="admin-empty-state">Поиск комнат...</div>
+            </div>
+          </div>
+
+          <!-- Топ дуэлянтов -->
+          <div class="duel-leaderboard-section">
+            <div class="duel-section-header">
+              <span class="duel-section-title">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" style="color:#eab308;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                Топ дуэлянтов по ELO
+              </span>
+            </div>
+            <div class="duel-lb-list" id="duelLeaderboardList">
+              <div class="admin-empty-state">Загрузка рейтинга...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Экран активной комнаты / боя -->
+        <div class="games-duel-room-view" id="gamesDuelRoomView" style="display:none;">
+          <!-- Стадия лобби / ожидания -->
+          <div class="duel-lobby-card" id="duelLobbyCard">
+            <div class="duel-lobby-room-code-wrap">
+              <span class="duel-room-label">Код комнаты:</span>
+              <span class="duel-room-code" id="duelRoomCodeDisplay">------</span>
+              <button class="duel-copy-code-btn" id="duelCopyCodeBtn" onclick="copyDuelRoomCode()" type="button" title="Скопировать код">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+            </div>
+
+            <div class="duel-players-grid">
+              <div class="duel-player-card" id="duelHostCard">
+                <div class="duel-player-avatar" id="duelHostAvatar">👤</div>
+                <div class="duel-player-name" id="duelHostName">Хост</div>
+                <div class="duel-player-elo" id="duelHostElo">1000 ELO</div>
+                <div class="duel-player-status waiting" id="duelHostStatus">Ожидание...</div>
+              </div>
+              <div class="duel-vs-badge">VS</div>
+              <div class="duel-player-card" id="duelGuestCard">
+                <div class="duel-player-avatar" id="duelGuestAvatar">⏳</div>
+                <div class="duel-player-name" id="duelGuestName">Ожидание игрока...</div>
+                <div class="duel-player-elo" id="duelGuestElo">—</div>
+                <div class="duel-player-status waiting" id="duelGuestStatus">Не в сети</div>
+              </div>
+            </div>
+
+            <div class="duel-lobby-actions" id="duelLobbyActions">
+              <button class="duel-share-btn" id="duelShareInviteBtn" onclick="shareDuelInvite()" type="button">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="18" height="18"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Позвать друга в Telegram
+              </button>
+              <button class="duel-ready-btn" id="duelReadyBtn" onclick="toggleDuelReady()" type="button" style="display:none;">
+                Я готов! ⚔️
+              </button>
+            </div>
+          </div>
+
+          <!-- Игровой HUD матча -->
+          <div class="duel-match-hud" id="duelMatchHud" style="display:none;">
+            <div class="duel-hud-player me">
+              <div class="duel-hud-name" id="duelHudMyName">Я</div>
+              <div class="duel-hud-rounds" id="duelHudMyRounds">⚪ ⚪</div>
+            </div>
+            <div class="duel-hud-center">
+              <div class="duel-hud-round-title" id="duelHudRoundTitle">Раунд 1</div>
+              <div class="duel-hud-score-row">
+                <span class="duel-hud-my-score" id="duelHudMyScore">0</span>
+                <span class="duel-hud-score-divider">:</span>
+                <span class="duel-hud-opp-score" id="duelHudOppScore">0</span>
+              </div>
+            </div>
+            <div class="duel-hud-player opp">
+              <div class="duel-hud-name" id="duelHudOppName">Соперник</div>
+              <div class="duel-hud-rounds" id="duelHudOppRounds">⚪ ⚪</div>
+            </div>
+          </div>
+
+          <!-- Предупреждение о дисконнекте -->
+          <div class="duel-disconnect-banner" id="duelDisconnectBanner" style="display:none;">
+            ⚠️ Соперник отключился! До тех. поражения: <span id="duelDisconnectTimer">15</span>с
+          </div>
+
+          <!-- Баннер входящей атаки (Тетрис) -->
+          <div class="duel-attack-banner" id="duelAttackBanner" style="display:none;">
+            💥 +<span id="duelAttackLinesCount">1</span> линия от соперника!
+          </div>
+
+          <!-- Окно матча: игровое поле + PiP экран противника -->
+          <div class="duel-play-area" id="duelPlayArea" style="display:none;">
+            <!-- Основное поле игрока -->
+            <div class="duel-main-field" id="duelMainField"></div>
+
+            <!-- Picture-in-Picture мини-поле соперника -->
+            <div class="duel-pip-container" id="duelPipContainer">
+              <div class="duel-pip-header">
+                <span class="duel-pip-dot"></span>
+                <span class="duel-pip-title" id="duelPipTitle">Соперник</span>
+              </div>
+              <canvas class="duel-pip-canvas" id="duelPipCanvas" width="100" height="200"></canvas>
+            </div>
+          </div>
+
+          <!-- Оверлей отсчета 3..2..1 -->
+          <div class="duel-countdown-overlay" id="duelCountdownOverlay" style="display:none;">
+            <div class="duel-countdown-number" id="duelCountdownNumber">3</div>
+          </div>
+
+          <!-- Оверлей завершения матча / раунда -->
+          <div class="duel-result-overlay" id="duelResultOverlay" style="display:none;">
+            <div class="duel-result-card">
+              <div class="duel-result-icon" id="duelResultIcon">🏆</div>
+              <div class="duel-result-title" id="duelResultTitle">Победа в матче!</div>
+              <div class="duel-result-elo" id="duelResultElo">+20 ELO</div>
+              <div class="duel-result-score" id="duelResultScore">Счёт: 2 — 1</div>
+              <div class="duel-result-actions">
+                <button class="duel-rematch-btn" onclick="requestDuelRematch()" type="button">Реванш 🔄</button>
+                <button class="duel-leave-btn" onclick="exitDuelRoom()" type="button">В лобби</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Модалка создания комнаты дуэли -->
+  <div class="modal-backdrop" id="createDuelModal" style="display:none;" onclick="if (event.target === this) closeCreateDuelModal()">
+    <div class="modal-sheet modal-sheet-compact">
+      <div class="modal-sheet-header">
+        <div class="modal-sheet-title">Создать дуэль 1vs1</div>
+        <button class="modal-close-btn" onclick="closeCreateDuelModal()" type="button"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+      </div>
+      <div class="modal-sheet-body">
+        <div class="create-duel-subtitle">Выберите игру для дуэли (Best of 3):</div>
+        <div class="create-duel-games-list">
+          <label class="create-duel-game-opt selected" onclick="selectCreateDuelGame('tetris', this)">
+            <input type="radio" name="duelGameSelect" value="tetris" checked style="display:none;" />
+            <div class="create-duel-opt-icon tetris">🧱</div>
+            <div class="create-duel-opt-info">
+              <div class="create-duel-opt-title">Тетрис</div>
+              <div class="create-duel-opt-desc">С атаками: сжигай линии и засыпай стакан соперника!</div>
+            </div>
+          </label>
+          <label class="create-duel-game-opt" onclick="selectCreateDuelGame('2048', this)">
+            <input type="radio" name="duelGameSelect" value="2048" style="display:none;" />
+            <div class="create-duel-opt-icon g2048">2048</div>
+            <div class="create-duel-opt-info">
+              <div class="create-duel-opt-title">2048</div>
+              <div class="create-duel-opt-desc">Синхронная гонка плиток. Выживи и набери больше очков!</div>
+            </div>
+          </label>
+          <label class="create-duel-game-opt" onclick="selectCreateDuelGame('snake', this)">
+            <input type="radio" name="duelGameSelect" value="snake" style="display:none;" />
+            <div class="create-duel-opt-icon snake">🐍</div>
+            <div class="create-duel-opt-info">
+              <div class="create-duel-opt-title">Змейка</div>
+              <div class="create-duel-opt-desc">Битва на выживание. Не врежься первым!</div>
+            </div>
+          </label>
+        </div>
+        <button class="create-duel-submit-btn" id="createDuelSubmitBtn" onclick="submitCreateDuel()" type="button">Создать комнату ⚔️</button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- ══════════════════════════════════════════════════
        АДМИН-ПАНЕЛЬ (ДОСТУП СТРОГО ДЛЯ ВЛАДЕЛЬЦА)
@@ -2213,6 +2428,11 @@
 
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260924_v27"></script>
-  <script src="/static/app.js?v=20260924_v35"></script>
+  <script src="/static/games/duel_controller.js?v=20260924_v4"></script>
+
+
+
+  <script src="/static/app.js?v=20260924_v36"></script>
+
 </body>
 </html>

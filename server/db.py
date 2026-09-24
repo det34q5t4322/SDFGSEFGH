@@ -236,6 +236,35 @@ def init_db() -> None:
                 )
             ''')
 
+            # 3.2 1vs1 Duel Tables
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS duel_ratings (
+                    telegram_id INTEGER NOT NULL,
+                    game_id TEXT NOT NULL,
+                    rating INTEGER DEFAULT 1000,
+                    wins INTEGER DEFAULT 0,
+                    losses INTEGER DEFAULT 0,
+                    draws INTEGER DEFAULT 0,
+                    last_match TEXT NOT NULL,
+                    PRIMARY KEY (telegram_id, game_id)
+                )
+            ''')
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS duel_matches (
+                    match_id TEXT PRIMARY KEY,
+                    game_id TEXT NOT NULL,
+                    player1_id INTEGER NOT NULL,
+                    player2_id INTEGER NOT NULL,
+                    player1_score INTEGER DEFAULT 0,
+                    player2_score INTEGER DEFAULT 0,
+                    winner_id INTEGER DEFAULT 0,
+                    rating_delta INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )
+            ''')
+
+
             # Одноразовая нормализация завышенных счетчиков визитов
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -848,6 +877,206 @@ def get_user_game_stats(telegram_id: Optional[int] = None) -> Dict[str, Any]:
             "my_stats": user_stats,
             "leaderboards": leaderboards
         }
+
+
+# ── DUEL 1VS1 RATING & MATCHES ─────────────────────────────
+
+def get_or_create_duel_rating(cursor, telegram_id: int, game_id: str = "overall") -> Dict[str, Any]:
+    """Возвращает текущий ELO рейтинг игрока или инициализирует его со значением 1000."""
+    now_iso = datetime.now().isoformat()
+    clean_game = str(game_id).strip().lower() or "overall"
+    cursor.execute('''
+        SELECT rating, wins, losses, draws, last_match
+        FROM duel_ratings
+        WHERE telegram_id = ? AND game_id = ?
+    ''', (telegram_id, clean_game))
+    row = cursor.fetchone()
+    if row:
+        return dict(row)
+    cursor.execute('''
+        INSERT OR IGNORE INTO duel_ratings (telegram_id, game_id, rating, wins, losses, draws, last_match)
+        VALUES (?, ?, 1000, 0, 0, 0, ?)
+    ''', (telegram_id, clean_game, now_iso))
+    return {"rating": 1000, "wins": 0, "losses": 0, "draws": 0, "last_match": now_iso}
+
+
+def get_user_duel_stats(telegram_id: Optional[int]) -> Dict[str, Any]:
+    """Возвращает профиль дуэлянта (общий ELO, победы/поражения, винрейт, по играм)."""
+    if not telegram_id or telegram_id <= 10000 or telegram_id in (1000000001, 1000000002):
+        return {
+            "rating": 1000,
+            "wins": 0,
+            "losses": 0,
+            "draws": 0,
+            "total_matches": 0,
+            "win_rate": 0,
+            "by_game": {}
+        }
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT game_id, rating, wins, losses, draws, last_match
+            FROM duel_ratings
+            WHERE telegram_id = ?
+        ''', (telegram_id,))
+        rows = cursor.fetchall()
+        by_game = {r["game_id"]: dict(r) for r in rows}
+
+        overall = by_game.get("overall")
+        if not overall:
+            overall = get_or_create_duel_rating(cursor, telegram_id, "overall")
+            conn.commit()
+
+        total = overall["wins"] + overall["losses"] + overall["draws"]
+        win_rate = round((overall["wins"] / total * 100)) if total > 0 else 0
+
+        return {
+            "rating": overall["rating"],
+            "wins": overall["wins"],
+            "losses": overall["losses"],
+            "draws": overall["draws"],
+            "total_matches": total,
+            "win_rate": win_rate,
+            "by_game": by_game
+        }
+
+
+def record_duel_match_result(
+    match_id: str,
+    game_id: str,
+    p1_id: int,
+    p2_id: int,
+    p1_score: int,
+    p2_score: int,
+    winner_id: int
+) -> Dict[str, Any]:
+    """
+    Рассчитывает ELO дельту (K=32), обновляет рейтинги игроков и сохраняет матч.
+    """
+    clean_game = str(game_id).strip().lower() or "tetris"
+    now_iso = datetime.now().isoformat()
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # Получаем общий рейтинг
+        p1_r = get_or_create_duel_rating(cursor, p1_id, "overall")["rating"]
+        p2_r = get_or_create_duel_rating(cursor, p2_id, "overall")["rating"]
+
+        # ELO расчет
+        e1 = 1.0 / (1.0 + 10.0 ** ((p2_r - p1_r) / 400.0))
+        e2 = 1.0 / (1.0 + 10.0 ** ((p1_r - p2_r) / 400.0))
+
+        if winner_id == p1_id:
+            s1, s2 = 1.0, 0.0
+        elif winner_id == p2_id:
+            s1, s2 = 0.0, 1.0
+        else:
+            s1, s2 = 0.5, 0.5
+
+        k = 32
+        d1 = max(-40, min(40, round(k * (s1 - e1))))
+        d2 = max(-40, min(40, round(k * (s2 - e2))))
+
+        new_p1_r = max(100, p1_r + d1)
+        new_p2_r = max(100, p2_r + d2)
+
+        # Обновляем 'overall' и конкретную игру
+        for gid in ("overall", clean_game):
+            # p1
+            cursor.execute('''
+                INSERT INTO duel_ratings (telegram_id, game_id, rating, wins, losses, draws, last_match)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(telegram_id, game_id) DO UPDATE SET
+                    rating = MAX(100, duel_ratings.rating + ?),
+                    wins = duel_ratings.wins + ?,
+                    losses = duel_ratings.losses + ?,
+                    draws = duel_ratings.draws + ?,
+                    last_match = excluded.last_match
+            ''', (
+                p1_id, gid, new_p1_r,
+                1 if winner_id == p1_id else 0,
+                1 if winner_id == p2_id else 0,
+                1 if winner_id == 0 else 0,
+                now_iso,
+                d1,
+                1 if winner_id == p1_id else 0,
+                1 if winner_id == p2_id else 0,
+                1 if winner_id == 0 else 0
+            ))
+
+            # p2
+            cursor.execute('''
+                INSERT INTO duel_ratings (telegram_id, game_id, rating, wins, losses, draws, last_match)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(telegram_id, game_id) DO UPDATE SET
+                    rating = MAX(100, duel_ratings.rating + ?),
+                    wins = duel_ratings.wins + ?,
+                    losses = duel_ratings.losses + ?,
+                    draws = duel_ratings.draws + ?,
+                    last_match = excluded.last_match
+            ''', (
+                p2_id, gid, new_p2_r,
+                1 if winner_id == p2_id else 0,
+                1 if winner_id == p1_id else 0,
+                1 if winner_id == 0 else 0,
+                now_iso,
+                d2,
+                1 if winner_id == p2_id else 0,
+                1 if winner_id == p1_id else 0,
+                1 if winner_id == 0 else 0
+            ))
+
+        cursor.execute('''
+            INSERT OR REPLACE INTO duel_matches (
+                match_id, game_id, player1_id, player2_id,
+                player1_score, player2_score, winner_id, rating_delta, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (match_id, clean_game, p1_id, p2_id, p1_score, p2_score, winner_id, abs(d1), now_iso))
+
+        conn.commit()
+
+        return {
+            "p1_id": p1_id,
+            "p2_id": p2_id,
+            "winner_id": winner_id,
+            "p1_delta": d1,
+            "p2_delta": d2,
+            "p1_new_rating": new_p1_r,
+            "p2_new_rating": new_p2_r
+        }
+
+
+def get_duel_leaderboard(game_id: str = "overall", limit: int = 15) -> List[Dict[str, Any]]:
+    """Возвращает топ игроков по ELO рейтингу в дуэлях."""
+    clean_game = str(game_id).strip().lower() or "overall"
+    now_iso = datetime.now().isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT d.telegram_id, d.rating, d.wins, d.losses, d.draws,
+                   COALESCE(NULLIF(u.first_name, ''), NULLIF(u.username, ''), 'Игрок') as display_name,
+                   u.photo_url, u.selected_group
+            FROM duel_ratings d
+            LEFT JOIN user_activity u ON d.telegram_id = u.telegram_id
+            WHERE d.game_id = ?
+              AND (d.wins + d.losses + d.draws) > 0
+              AND d.telegram_id > 10000
+              AND d.telegram_id NOT IN (1000000001, 1000000002)
+              AND d.telegram_id NOT IN (
+                  SELECT telegram_id FROM banned_users
+                  WHERE banned_until IS NULL OR banned_until > ?
+              )
+            ORDER BY d.rating DESC, d.wins DESC
+            LIMIT ?
+        ''', (clean_game, now_iso, max(1, min(limit, 50))))
+        rows = [dict(r) for r in cursor.fetchall()]
+        for r in rows:
+            tot = r["wins"] + r["losses"] + r["draws"]
+            r["win_rate"] = round((r["wins"] / tot) * 100) if tot > 0 else 0
+        return rows
+
 
 
 def get_user_activity_history(limit: int = 100) -> List[Dict]:

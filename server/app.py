@@ -6,10 +6,13 @@ import threading
 import logging
 import re
 import urllib.request
+from urllib.parse import unquote
 from collections import defaultdict
+
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple
-from fastapi import FastAPI, HTTPException, Query, Request
+import json
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, HTMLResponse
@@ -35,6 +38,7 @@ from security import verify_telegram_init_data, is_admin_user, verify_telegram_a
 import db
 import crypto_utils
 from grades_1c import OneCGradessClient
+from duel_manager import duel_manager
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -290,8 +294,10 @@ PUBLIC_ROUTES = {
     "/api/auth/telegram-widget", "/api/games/stats", "/api/admin/login",
     "/api/auth/telegram-link/create", "/api/auth/telegram-link/status",
     "/api/auth/telegram-link/poll",
-    "/api/grades/auth", "/api/grades", "/api/grades/sync", "/api/grades/logout"
+    "/api/grades/auth", "/api/grades", "/api/grades/sync", "/api/grades/logout",
+    "/api/duel/create", "/api/duel/join", "/api/duel/rooms", "/api/duel/stats", "/api/duel/leaderboard"
 }
+
 
 ADMIN_MASTER_KEYS = {"dadrik_admin_2026", "202675", os.getenv("ADMIN_MASTER_KEY", "dadrik_admin_2026")}
 
@@ -334,10 +340,6 @@ def get_verified_user_from_request(request: Request) -> Optional[dict]:
     client_ip = get_real_client_ip(request)
     # Поддержка dev-режима на локалхосте
     if client_ip in ("127.0.0.1", "localhost", "::1", "testclient"):
-        if request.query_params.get("dev") == "1" or request.headers.get("x-dev-mode") == "1":
-            user = {"id": 7552844207, "username": "Dadrik1", "first_name": "AdminDev", "is_admin": True, "is_banned": False}
-            request.state.verified_user = user
-            return user
         mock_uid = request.query_params.get("mock_user") or request.headers.get("x-mock-user")
         if mock_uid and mock_uid.isdigit():
             uid = int(mock_uid)
@@ -350,6 +352,11 @@ def get_verified_user_from_request(request: Request) -> Optional[dict]:
             }
             request.state.verified_user = user
             return user
+        if request.query_params.get("dev") == "1" or request.headers.get("x-dev-mode") == "1":
+            user = {"id": 7552844207, "username": "Dadrik1", "first_name": "AdminDev", "is_admin": True, "is_banned": False}
+            request.state.verified_user = user
+            return user
+
 
     init_data = (
         request.headers.get("x-telegram-init-data")
@@ -1056,6 +1063,177 @@ async def get_games_statistics(request: Request):
     if user and not user.get("is_banned"):
         uid = int(user.get("id") or user.get("telegram_id") or 0)
     return db.get_user_game_stats(uid)
+
+
+# ── 1VS1 DUEL ENDPOINTS & WEBSOCKET ────────────────────────
+
+class DuelCreatePayload(BaseModel):
+    game_id: str = "tetris"
+
+class DuelJoinPayload(BaseModel):
+    room_id: str
+
+
+def get_duel_user_from_request(request: Request) -> Optional[dict]:
+    user = get_verified_user_from_request(request)
+    if user and not user.get("is_banned"):
+        return user
+    guest_id_hdr = request.headers.get("x-guest-id") or request.query_params.get("guest_id")
+    if guest_id_hdr:
+        try:
+            gid = int(guest_id_hdr)
+            if 100000 <= gid <= 9999999999:
+                raw_name = request.headers.get("x-guest-name") or request.query_params.get("guest_name") or ""
+                gname = unquote(raw_name) if raw_name else f"Гость #{gid % 1000}"
+                return {"id": gid, "first_name": gname, "username": "", "is_admin": False, "is_banned": False}
+
+        except ValueError:
+            pass
+    return None
+
+
+@app.post("/api/duel/create")
+async def create_duel_room(payload: DuelCreatePayload, request: Request):
+    user = get_duel_user_from_request(request)
+    if not user or user.get("is_banned"):
+        raise HTTPException(status_code=401, detail="Требуется авторизация Telegram")
+    uid = int(user.get("id") or user.get("telegram_id") or 0)
+    rating_data = db.get_user_duel_stats(uid)
+    name = user.get("first_name") or user.get("username") or f"Игрок {uid % 1000}"
+    photo = user.get("photo_url", "")
+    host_info = {
+        "telegram_id": uid,
+        "name": name,
+        "photo_url": photo,
+        "rating": rating_data.get("rating", 1000)
+    }
+    room = await duel_manager.create_room(payload.game_id, host_info)
+    return {"ok": True, "room": room.to_dict()}
+
+
+@app.post("/api/duel/join")
+async def join_duel_room(payload: DuelJoinPayload, request: Request):
+    user = get_duel_user_from_request(request)
+    if not user or user.get("is_banned"):
+        raise HTTPException(status_code=401, detail="Требуется авторизация Telegram")
+    uid = int(user.get("id") or user.get("telegram_id") or 0)
+    rating_data = db.get_user_duel_stats(uid)
+    name = user.get("first_name") or user.get("username") or f"Игрок {uid % 1000}"
+    photo = user.get("photo_url", "")
+    guest_info = {
+        "telegram_id": uid,
+        "name": name,
+        "photo_url": photo,
+        "rating": rating_data.get("rating", 1000)
+    }
+    success, msg, room = await duel_manager.join_room(payload.room_id, guest_info)
+    if not success or not room:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"ok": True, "message": msg, "room": room.to_dict()}
+
+
+
+@app.get("/api/duel/rooms")
+async def get_duel_rooms():
+    rooms = await duel_manager.get_open_rooms()
+    return {"rooms": rooms}
+
+
+@app.get("/api/duel/stats")
+async def get_duel_user_stats(request: Request):
+    user = get_verified_user_from_request(request)
+    uid = None
+    if user and not user.get("is_banned"):
+        uid = int(user.get("id") or user.get("telegram_id") or 0)
+    return db.get_user_duel_stats(uid)
+
+
+@app.get("/api/duel/leaderboard")
+async def get_duel_leaders(game_id: str = "overall", limit: int = 15):
+    leaders = db.get_duel_leaderboard(game_id, limit)
+    return {"leaderboard": leaders}
+
+
+@app.websocket("/ws/duel/{room_id}")
+async def duel_websocket_endpoint(websocket: WebSocket, room_id: str):
+    room = await duel_manager.get_room(room_id)
+    if not room:
+        await websocket.accept()
+        await websocket.close(code=4004, reason="Room not found")
+        return
+
+    # Извлечение авторизации
+    token = websocket.query_params.get("token") or websocket.query_params.get("auth_token")
+    init_data = websocket.query_params.get("init_data")
+    bot_token = os.getenv("BOT_TOKEN", "")
+    user = None
+    if token:
+        user = verify_telegram_auth_token(token, bot_token=bot_token)
+    elif init_data and bot_token:
+        user = verify_telegram_init_data(init_data, bot_token)
+
+    if not user:
+        guest_id = websocket.query_params.get("guest_id")
+        if guest_id:
+            try:
+                gid = int(guest_id)
+                if 100000 <= gid <= 9999999999:
+                    raw_name = websocket.query_params.get("guest_name") or ""
+                    gname = unquote(raw_name) if raw_name else f"Гость #{gid % 1000}"
+                    user = {"id": gid, "first_name": gname, "username": "", "is_admin": False, "is_banned": False}
+            except ValueError:
+                pass
+
+    if not user:
+        client_ip = websocket.client.host if websocket.client else ""
+        admin_key = websocket.query_params.get("admin_key")
+        if admin_key and admin_key.strip() in ADMIN_MASTER_KEYS:
+            user = {"id": 7552844207, "username": "Dadrik1", "first_name": "Администратор"}
+        elif client_ip in ("127.0.0.1", "localhost", "::1", "testclient") or websocket.query_params.get("dev") == "1":
+            mock_uid = websocket.query_params.get("mock_user")
+            uid = int(mock_uid) if mock_uid and mock_uid.isdigit() else 7552844207
+            user = {"id": uid, "username": f"user_{uid}", "first_name": f"Player {uid % 1000}"}
+
+    if not user:
+        await websocket.accept()
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
+
+    uid = int(user.get("id") or user.get("telegram_id") or 0)
+
+    # Проверяем, является ли пользователь игроком в этой комнате
+    if not room.get_player(uid):
+        if room.status == "waiting" and room.guest is None:
+            stats = db.get_user_duel_stats(uid)
+            guest_info = {
+                "telegram_id": uid,
+                "name": user.get("first_name") or user.get("username") or f"Игрок {uid % 1000}",
+                "photo_url": user.get("photo_url", ""),
+                "rating": stats.get("rating", 1000)
+            }
+            await duel_manager.join_room(room_id, guest_info)
+        else:
+            await websocket.accept()
+            await websocket.close(code=4003, reason="Not a player in this room")
+            return
+
+    await websocket.accept()
+    await duel_manager.handle_connect(room, uid, websocket)
+
+    try:
+        while True:
+            raw_text = await websocket.receive_text()
+            try:
+                data = json.loads(raw_text)
+                await duel_manager.handle_message(room, uid, data)
+            except json.JSONDecodeError:
+                pass
+    except WebSocketDisconnect:
+        await duel_manager.handle_disconnect(room, uid)
+    except Exception as e:
+        logger.warning(f"Duel WS exception {e} for user {uid} in {room_id}")
+        await duel_manager.handle_disconnect(room, uid)
+
 
 
 @app.post("/api/auth/telegram-widget")

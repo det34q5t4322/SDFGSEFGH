@@ -637,10 +637,31 @@ export function mount(container, options = {}) {
   window.addEventListener('resize', onWindowResize);
 
   resetGame();
+  function getSnapshot() {
+    const grid = Array.from({ length: 20 }, () => new Array(20).fill(0));
+    if (snake) {
+      snake.forEach(pt => {
+        if (pt.x >= 0 && pt.x < 20 && pt.y >= 0 && pt.y < 20) {
+          grid[pt.y][pt.x] = 1;
+        }
+      });
+    }
+    if (food && food.x >= 0 && food.x < 20 && food.y >= 0 && food.y < 20) {
+      grid[food.y][food.x] = 2;
+    }
+    return {
+      score,
+      grid
+    };
+  }
+
   animId = requestAnimationFrame(loop);
 
   activeInstance = {
+    getSnapshot,
+
     unmount: () => {
+
       if (animId) cancelAnimationFrame(animId);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onWindowResize);

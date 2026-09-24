@@ -719,16 +719,25 @@ export function mount(container, options = {}) {
     }
   }
 
-  if (hasPlayableSave) {
+  if (hasPlayableSave && !options.isDuel) {
     if (resumeScoreEl) resumeScoreEl.textContent = `Сохранённый счёт: ${savedState.score}`;
     if (resumeOverlayEl) resumeOverlayEl.style.display = 'flex';
   } else {
     initGame();
   }
 
+  function getSnapshot() {
+    return {
+      score,
+      grid: board.map(row => row.map(cell => (cell ? cell.value : 0)))
+    };
+  }
+
   activeInstance = {
+    getSnapshot,
     unmount: () => {
       flushInFlight();
+
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (boardContainer) {
