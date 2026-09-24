@@ -900,8 +900,64 @@ def get_or_create_duel_rating(cursor, telegram_id: int, game_id: str = "overall"
     return {"rating": 1000, "wins": 0, "losses": 0, "draws": 0, "last_match": now_iso}
 
 
+def get_dota_rank(rating: int) -> Dict[str, Any]:
+    """
+    Возвращает ранг и звёзды в стиле Dota 2 на основе ELO:
+    Рекрут (Herald), Страж (Guardian), Рыцарь (Crusader),
+    Герой (Archon), Легенда (Legend), Властелин (Ancient),
+    Божество (Divine), Титан (Immortal).
+    """
+    TIERS = [
+        ("herald", "Рекрут", "🥉", "#a87957", 0, 799),
+        ("guardian", "Страж", "🛡️", "#94a3b8", 800, 999),
+        ("crusader", "Рыцарь", "⚔️", "#f59e0b", 1000, 1199),
+        ("archon", "Герой", "🏹", "#10b981", 1200, 1399),
+        ("legend", "Легенда", "👑", "#ef4444", 1400, 1599),
+        ("ancient", "Властелин", "⚡", "#06b6d4", 1600, 1799),
+        ("divine", "Божество", "🌟", "#a855f7", 1800, 1999),
+        ("immortal", "Титан", "🏆", "#f43f5e", 2000, 99999),
+    ]
+
+    r = max(100, int(rating or 1000))
+    current_tier = TIERS[0]
+    for t in TIERS:
+        if r >= t[4]:
+            current_tier = t
+        else:
+            break
+
+    tier_id, name, icon, color, min_r, max_r = current_tier
+
+    if tier_id == "immortal":
+        stars = 0
+        stars_str = ""
+        progress = 100
+        rank_title = f"{icon} {name}"
+    else:
+        range_size = (max_r - min_r + 1) / 5.0
+        offset = r - min_r
+        star_idx = min(5, max(1, int(offset / range_size) + 1))
+        stars = star_idx
+        roman_stars = ["I", "II", "III", "IV", "V"][star_idx - 1]
+        stars_str = roman_stars
+        rank_title = f"{icon} {name} {roman_stars}"
+        curr_star_min = min_r + (star_idx - 1) * range_size
+        progress = min(100, max(0, int(((r - curr_star_min) / range_size) * 100)))
+
+    return {
+        "tier_id": tier_id,
+        "name": name,
+        "stars": stars,
+        "stars_str": stars_str,
+        "icon": icon,
+        "color": color,
+        "rank_title": rank_title,
+        "progress": progress
+    }
+
+
 def get_user_duel_stats(telegram_id: Optional[int]) -> Dict[str, Any]:
-    """Возвращает профиль дуэлянта (общий ELO, победы/поражения, винрейт, по играм)."""
+    """Возвращает профиль дуэлянта (общий ELO, победы/поражения, винрейт, по играм, ранг Dota)."""
     if not telegram_id or telegram_id <= 10000 or telegram_id in (1000000001, 1000000002):
         return {
             "rating": 1000,
@@ -910,7 +966,8 @@ def get_user_duel_stats(telegram_id: Optional[int]) -> Dict[str, Any]:
             "draws": 0,
             "total_matches": 0,
             "win_rate": 0,
-            "by_game": {}
+            "by_game": {},
+            "rank": get_dota_rank(1000)
         }
 
     with get_db_connection() as conn:
@@ -938,7 +995,8 @@ def get_user_duel_stats(telegram_id: Optional[int]) -> Dict[str, Any]:
             "draws": overall["draws"],
             "total_matches": total,
             "win_rate": win_rate,
-            "by_game": by_game
+            "by_game": by_game,
+            "rank": get_dota_rank(overall["rating"])
         }
 
 
@@ -1049,7 +1107,7 @@ def record_duel_match_result(
 
 
 def get_duel_leaderboard(game_id: str = "overall", limit: int = 15) -> List[Dict[str, Any]]:
-    """Возвращает топ игроков по ELO рейтингу в дуэлях."""
+    """Возвращает топ игроков по ELO рейтингу в дуэлях (с рангами Dota 2)."""
     clean_game = str(game_id).strip().lower() or "overall"
     now_iso = datetime.now().isoformat()
     with get_db_connection() as conn:
@@ -1063,7 +1121,11 @@ def get_duel_leaderboard(game_id: str = "overall", limit: int = 15) -> List[Dict
             WHERE d.game_id = ?
               AND (d.wins + d.losses + d.draws) > 0
               AND d.telegram_id > 10000
-              AND d.telegram_id NOT IN (1000000001, 1000000002)
+              AND d.telegram_id NOT IN (
+                  1000000001, 1000000002, 12345, 999888777, 501908883, 981318843, 981656117,
+                  999111001, 999111002, 999222001, 999222002, 999333001, 999333002,
+                  555111222, 555333444, 888111222, 888333444, 777666555, 9876543210, 26800787
+              )
               AND d.telegram_id NOT IN (
                   SELECT telegram_id FROM banned_users
                   WHERE banned_until IS NULL OR banned_until > ?
@@ -1075,7 +1137,77 @@ def get_duel_leaderboard(game_id: str = "overall", limit: int = 15) -> List[Dict
         for r in rows:
             tot = r["wins"] + r["losses"] + r["draws"]
             r["win_rate"] = round((r["wins"] / tot) * 100) if tot > 0 else 0
+            r["rank"] = get_dota_rank(r["rating"])
         return rows
+
+
+def get_user_duel_history(telegram_id: Optional[int], limit: int = 20) -> List[Dict[str, Any]]:
+    """Возвращает историю недавних дуэльных матчей для игрока с рангами Dota 2."""
+    if not telegram_id:
+        return []
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT m.match_id, m.game_id, m.player1_id, m.player2_id,
+                   m.player1_score, m.player2_score, m.winner_id,
+                   m.rating_delta, m.created_at,
+                   COALESCE(NULLIF(u1.first_name, ''), NULLIF(u1.username, ''), 'Игрок') as p1_name,
+                   u1.photo_url as p1_photo,
+                   COALESCE(NULLIF(u2.first_name, ''), NULLIF(u2.username, ''), 'Игрок') as p2_name,
+                   u2.photo_url as p2_photo
+            FROM duel_matches m
+            LEFT JOIN user_activity u1 ON m.player1_id = u1.telegram_id
+            LEFT JOIN user_activity u2 ON m.player2_id = u2.telegram_id
+            WHERE m.player1_id = ? OR m.player2_id = ?
+            ORDER BY m.created_at DESC
+            LIMIT ?
+        ''', (telegram_id, telegram_id, max(1, min(limit, 50))))
+        rows = [dict(r) for r in cursor.fetchall()]
+
+    result = []
+    for r in rows:
+        is_p1 = (telegram_id == r["player1_id"])
+        opp_id = r["player2_id"] if is_p1 else r["player1_id"]
+        opp_name = r["p2_name"] if is_p1 else r["p1_name"]
+        opp_photo = r["p2_photo"] if is_p1 else r["p1_photo"]
+        my_score = r["player1_score"] if is_p1 else r["player2_score"]
+        opp_score = r["player2_score"] if is_p1 else r["player1_score"]
+        is_winner = (r["winner_id"] == telegram_id)
+        is_draw = (r["winner_id"] == 0)
+
+        delta = r["rating_delta"] if is_winner else (-r["rating_delta"] if not is_draw else 0)
+
+        result.append({
+            "match_id": r["match_id"],
+            "game_id": r["game_id"],
+            "opponent_id": opp_id,
+            "opponent_name": opp_name or f"Игрок #{opp_id % 1000}",
+            "opponent_photo": opp_photo or "",
+            "is_winner": is_winner,
+            "is_draw": is_draw,
+            "my_score": my_score,
+            "opp_score": opp_score,
+            "delta": delta,
+            "created_at": r["created_at"]
+        })
+    return result
+
+
+def reset_all_duel_data() -> None:
+    """Полный сброс всех рейтингов дуэлей, истории матчей и очистка тестовых ботов."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM duel_ratings")
+        cursor.execute("DELETE FROM duel_matches")
+        cursor.execute("""
+            DELETE FROM user_game_stats
+            WHERE telegram_id IN (12345, 999888777, 501908883, 981318843, 981656117,
+                                  999111001, 999111002, 999222001, 999222002,
+                                  999333001, 999333002, 555111222, 555333444,
+                                  888111222, 888333444, 777666555, 9876543210, 26800787)
+        """)
+        conn.commit()
 
 
 

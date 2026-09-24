@@ -8831,17 +8831,38 @@ window.closeGamesModal = function(force = false) {
 };
 
 window.backToGamesCatalog = function() {
+  if (typeof exitDuelRoom === 'function' && document.getElementById('gamesDuelRoomView')?.style.display === 'block') {
+    exitDuelRoom();
+    return;
+  }
   unmountCurrentGame();
   const catalog = document.getElementById('gamesCatalogView');
   const playView = document.getElementById('gamesPlayView');
+  const duelRoomView = document.getElementById('gamesDuelRoomView');
+  const duelView = document.getElementById('gamesDuelView');
   const backBtn = document.getElementById('gamesBackBtn');
   const title = document.getElementById('gamesModalTitle');
-  if (catalog) catalog.style.display = 'flex';
+
+  const isDuelActive = document.getElementById('gamesModeBtnDuel')?.classList.contains('active');
+
   if (playView) playView.style.display = 'none';
-  if (backBtn) backBtn.style.display = 'none';
-  if (title) title.textContent = 'Игры на перемене';
-  updateGamesCatalogScores();
+  if (duelRoomView) duelRoomView.style.display = 'none';
+
+  if (isDuelActive) {
+    if (catalog) catalog.style.display = 'none';
+    if (duelView) duelView.style.display = 'block';
+    if (backBtn) backBtn.style.display = 'none';
+    if (title) title.textContent = '1vs1 Дуэли';
+    if (typeof loadDuelLobbyData === 'function') loadDuelLobbyData();
+  } else {
+    if (catalog) catalog.style.display = 'flex';
+    if (duelView) duelView.style.display = 'none';
+    if (backBtn) backBtn.style.display = 'none';
+    if (title) title.textContent = 'Игры на перемене';
+    updateGamesCatalogScores();
+  }
 };
+
 
 let _gamesStatsCache = null;
 let _activeGamesLbTab = '2048';

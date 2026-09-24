@@ -98,22 +98,185 @@ window.loadDuelLobbyData = async function() {
   loadDuelLeaderboard();
 };
 
+function getDotaRank(rating) {
+  const TIERS = [
+    { id: 'herald', name: 'Рекрут', icon: '🥉', color: '#a87957', min: 0, max: 799 },
+    { id: 'guardian', name: 'Страж', icon: '🛡️', color: '#94a3b8', min: 800, max: 999 },
+    { id: 'crusader', name: 'Рыцарь', icon: '⚔️', color: '#f59e0b', min: 1000, max: 1199 },
+    { id: 'archon', name: 'Герой', icon: '🏹', color: '#10b981', min: 1200, max: 1399 },
+    { id: 'legend', name: 'Легенда', icon: '👑', color: '#ef4444', min: 1400, max: 1599 },
+    { id: 'ancient', name: 'Властелин', icon: '⚡', color: '#06b6d4', min: 1600, max: 1799 },
+    { id: 'divine', name: 'Божество', icon: '🌟', color: '#a855f7', min: 1800, max: 1999 },
+    { id: 'immortal', name: 'Титан', icon: '🏆', color: '#f43f5e', min: 2000, max: 99999 }
+  ];
+
+  const r = Math.max(100, Math.round(rating || 1000));
+  let tier = TIERS[0];
+  for (const t of TIERS) {
+    if (r >= t.min) tier = t;
+    else break;
+  }
+
+  if (tier.id === 'immortal') {
+    return {
+      tierId: tier.id,
+      name: tier.name,
+      icon: tier.icon,
+      color: tier.color,
+      stars: 0,
+      starsStr: '',
+      rankTitle: `${tier.icon} ${tier.name}`,
+      progress: 100,
+      starsIcons: '🏆 Топ'
+    };
+  }
+
+  const rangeSize = (tier.max - tier.min + 1) / 5;
+  const offset = r - tier.min;
+  const starIdx = Math.min(5, Math.max(1, Math.floor(offset / rangeSize) + 1));
+  const roman = ['I', 'II', 'III', 'IV', 'V'][starIdx - 1];
+  const currStarMin = tier.min + (starIdx - 1) * rangeSize;
+  const progress = Math.min(100, Math.max(0, Math.round(((r - currStarMin) / rangeSize) * 100)));
+
+  const fullStars = '★'.repeat(starIdx);
+  const emptyStars = '☆'.repeat(5 - starIdx);
+
+  return {
+    tierId: tier.id,
+    name: tier.name,
+    icon: tier.icon,
+    color: tier.color,
+    stars: starIdx,
+    starsStr: roman,
+    rankTitle: `${tier.icon} ${tier.name} ${roman}`,
+    progress,
+    starsIcons: fullStars + emptyStars
+  };
+}
+
+window.switchDuelSubTab = function(tabName) {
+  const tabs = ['rooms', 'history', 'leaderboard'];
+  tabs.forEach(t => {
+    const btn = document.getElementById(`duelSubnav${t.charAt(0).toUpperCase() + t.slice(1)}`);
+    const pane = document.getElementById(t === 'rooms' ? 'duelRoomsTabPane' : (t === 'history' ? 'duelHistoryTabPane' : 'duelLeaderboardTabPane'));
+    if (btn) btn.classList.toggle('active', t === tabName);
+    if (pane) pane.style.display = (t === tabName) ? 'block' : 'none';
+  });
+
+  if (tabName === 'history') {
+    loadDuelHistory();
+  } else if (tabName === 'leaderboard') {
+    loadDuelLeaderboard();
+  } else if (tabName === 'rooms') {
+    refreshDuelRooms();
+  }
+};
+
 window.loadDuelStats = async function() {
   try {
     const res = await fetchWithTimeout(`${API}/duel/stats`, { headers: getDuelAuthHeaders() }, 4000);
 
     if (res.ok) {
       const data = await res.json();
+      const rating = data.rating || 1000;
+      const rank = data.rank || getDotaRank(rating);
+
       const elo = document.getElementById('duelProfileElo');
       const meta = document.getElementById('duelProfileMeta');
       const name = document.getElementById('duelProfileName');
-      if (elo) elo.textContent = data.rating || 1000;
+      const badge = document.getElementById('duelProfileRankBadge');
+      const stars = document.getElementById('duelProfileRankStars');
+      const fill = document.getElementById('duelProfileRankFill');
+
+      if (elo) elo.textContent = rating;
       if (meta) meta.textContent = `Матчи: ${data.total_matches || 0} • ${data.wins || 0}В / ${data.losses || 0}П • ${data.win_rate || 0}% винрейт`;
       if (name && window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name) {
         name.textContent = window.Telegram.WebApp.initDataUnsafe.user.first_name;
       }
+
+      const rTitle = `${rank.icon} ${rank.name} ${rank.stars_str || rank.starsStr || ''}`.trim();
+      if (badge) {
+        badge.textContent = rTitle;
+        badge.style.borderColor = rank.color;
+        badge.style.color = rank.color;
+        badge.style.background = `${rank.color}18`;
+      }
+      if (stars) {
+        const sCount = rank.stars || 1;
+        stars.textContent = (rank.tier_id === 'immortal' || rank.tierId === 'immortal') ? '🏆 Топ' : ('★'.repeat(sCount) + '☆'.repeat(Math.max(0, 5 - sCount)));
+      }
+      if (fill) {
+        fill.style.width = `${rank.progress || 0}%`;
+        fill.style.background = rank.color;
+      }
     }
   } catch (_) {}
+};
+
+window.loadDuelHistory = async function() {
+  const container = document.getElementById('duelHistoryList');
+  if (!container) return;
+  container.innerHTML = '<div class="admin-empty-state">Загрузка истории матчей...</div>';
+
+  try {
+    const res = await fetchWithTimeout(`${API}/duel/history`, { headers: getDuelAuthHeaders() }, 4000);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    const history = data.history || [];
+
+    if (history.length === 0) {
+      container.innerHTML = `
+        <div class="admin-empty-state" style="padding:24px 10px;">
+          У вас пока нет сыгранных дуэлей.<br/>
+          Создайте комнату или подключитесь по коду!
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    history.forEach(m => {
+      const isWin = m.is_winner;
+      const isDraw = m.is_draw;
+      const resText = isWin ? 'Победа 🏆' : (isDraw ? 'Ничья 🤝' : 'Поражение 💀');
+      const resClass = isWin ? 'win' : (isDraw ? 'draw' : 'loss');
+      const deltaStr = m.delta > 0 ? `+${m.delta}` : (m.delta < 0 ? `${m.delta}` : '0');
+      const deltaColor = m.delta > 0 ? '#4ade80' : (m.delta < 0 ? '#f87171' : '#94a3b8');
+
+      const gIcon = m.game_id === 'tetris' ? '🧱' : (m.game_id === '2048' ? '🔢' : '🐍');
+      const gName = DUEL_GAME_NAMES[m.game_id] || m.game_id;
+
+      let dateStr = '';
+      try {
+        const d = new Date(m.created_at);
+        dateStr = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      } catch (_) {
+        dateStr = m.created_at || '';
+      }
+
+      html += `
+        <div class="duel-history-card ${resClass}">
+          <div class="duel-hist-left">
+            <span class="duel-hist-game-icon">${gIcon}</span>
+            <div class="duel-hist-info">
+              <div class="duel-hist-opp-row">
+                <span class="duel-hist-res-badge ${resClass}">${resText}</span>
+                <span class="duel-hist-opp-name">vs ${esc(m.opponent_name)}</span>
+              </div>
+              <div class="duel-hist-date">${gName} • ${dateStr}</div>
+            </div>
+          </div>
+          <div class="duel-hist-right">
+            <div class="duel-hist-score">${m.my_score} : ${m.opp_score}</div>
+            <div class="duel-hist-delta" style="color:${deltaColor};">${deltaStr} ELO</div>
+          </div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  } catch (_) {
+    container.innerHTML = '<div class="admin-empty-state" style="color:#ef4444;">Не удалось загрузить историю</div>';
+  }
 };
 
 window.refreshDuelRooms = async function() {
@@ -142,13 +305,14 @@ window.refreshDuelRooms = async function() {
       const gIcon = r.game_id === 'tetris' ? '🧱' : (r.game_id === '2048' ? '2048' : '🐍');
       const hName = esc(r.host.name || 'Хост');
       const hRating = r.host.rating || 1000;
+      const hRank = getDotaRank(hRating);
       html += `
         <div class="duel-room-card">
           <div class="duel-room-card-main">
             <div class="duel-room-card-icon">${gIcon}</div>
             <div class="duel-room-card-text">
               <div class="duel-room-card-title">${gName} • ${r.room_id}</div>
-              <div class="duel-room-card-sub">${hName} (${hRating} ELO)</div>
+              <div class="duel-room-card-sub">${hName} (${hRank.icon} ${hRank.name} ${hRank.starsStr} • ${hRating} ELO)</div>
             </div>
           </div>
           <button class="duel-room-join-btn" onclick="joinDuelRoom('${r.room_id}')" type="button">В бой ⚔️</button>
@@ -171,21 +335,30 @@ window.loadDuelLeaderboard = async function() {
     const leaders = data.leaderboard || [];
 
     if (leaders.length === 0) {
-      container.innerHTML = '<div class="admin-empty-state">Сыграйте первую дуэль, чтобы попасть в топ!</div>';
+      container.innerHTML = '<div class="admin-empty-state">Сыграйте первую дуэль, чтобы возглавить топ!</div>';
       return;
     }
 
     let html = '';
     leaders.forEach((u, i) => {
       const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : `${i + 1}.`));
+      const rank = u.rank || getDotaRank(u.rating);
+      const rankTitle = `${rank.icon} ${rank.name} ${rank.stars_str || rank.starsStr || ''}`.trim();
+
       html += `
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:12px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-weight:700; width:22px;">${medal}</span>
-            <span style="font-weight:600; color:#f1f5f9;">${esc(u.display_name)}</span>
+        <div class="duel-lb-row ${i < 3 ? 'top-three' : ''}">
+          <div class="duel-lb-left">
+            <span class="duel-lb-rank-num">${medal}</span>
+            <div class="duel-lb-user-details">
+              <span class="duel-lb-user-name">${esc(u.display_name)}</span>
+              <span class="duel-lb-dota-badge" style="border-color:${rank.color}44; color:${rank.color}; background:${rank.color}15;">
+                ${rankTitle}
+              </span>
+            </div>
           </div>
-          <div style="font-family:monospace; font-weight:800; color:#facc15;">
-            ${u.rating} ELO <span style="font-weight:400; font-size:11px; color:#94a3b8;">(${u.wins}В/${u.losses}П)</span>
+          <div class="duel-lb-right">
+            <span class="duel-lb-rating">${u.rating} ELO</span>
+            <span class="duel-lb-stats">${u.wins}В / ${u.losses}П (${u.win_rate}%)</span>
           </div>
         </div>
       `;
@@ -313,11 +486,18 @@ function renderRoomLobby(room) {
   if (codeDisplay) codeDisplay.textContent = room.room_id;
 
   const hostName = document.getElementById('duelHostName');
+  const hostRank = document.getElementById('duelHostRank');
   const hostElo = document.getElementById('duelHostElo');
   const hostStatus = document.getElementById('duelHostStatus');
 
   if (hostName) hostName.textContent = room.host.name;
-  if (hostElo) hostElo.textContent = `${room.host.rating} ELO`;
+  const hRating = room.host.rating || 1000;
+  const hRank = getDotaRank(hRating);
+  if (hostRank) {
+    hostRank.textContent = `${hRank.icon} ${hRank.rank_title}`;
+    hostRank.style.color = hRank.color;
+  }
+  if (hostElo) hostElo.textContent = `${hRating} ELO`;
   if (hostStatus) {
     const isReady = room.ready && room.ready[String(room.host.telegram_id)];
     hostStatus.textContent = isReady ? 'ГОТОВ ✅' : 'Ожидание...';
@@ -325,6 +505,7 @@ function renderRoomLobby(room) {
   }
 
   const guestName = document.getElementById('duelGuestName');
+  const guestRank = document.getElementById('duelGuestRank');
   const guestElo = document.getElementById('duelGuestElo');
   const guestStatus = document.getElementById('duelGuestStatus');
   const guestAvatar = document.getElementById('duelGuestAvatar');
@@ -332,7 +513,14 @@ function renderRoomLobby(room) {
 
   if (room.guest) {
     if (guestName) guestName.textContent = room.guest.name;
-    if (guestElo) guestElo.textContent = `${room.guest.rating} ELO`;
+    const gRating = room.guest.rating || 1000;
+    const gRank = getDotaRank(gRating);
+    if (guestRank) {
+      guestRank.textContent = `${gRank.icon} ${gRank.rank_title}`;
+      guestRank.style.color = gRank.color;
+      guestRank.style.display = 'block';
+    }
+    if (guestElo) guestElo.textContent = `${gRating} ELO`;
     if (guestAvatar) guestAvatar.textContent = '👤';
     if (guestStatus) {
       const isReady = room.ready && room.ready[String(room.guest.telegram_id)];
@@ -349,6 +537,7 @@ function renderRoomLobby(room) {
     }
   } else {
     if (guestName) guestName.textContent = 'Ожидание игрока...';
+    if (guestRank) guestRank.style.display = 'none';
     if (guestElo) guestElo.textContent = '—';
     if (guestAvatar) guestAvatar.textContent = '⏳';
     if (guestStatus) {
@@ -825,6 +1014,16 @@ function handleDuelMatchOver(data) {
     }
   }
 
+  const resultRank = document.getElementById('duelResultRank');
+  const newRating = data.elo?.new_ratings?.[myId];
+  if (newRating != null && resultRank) {
+    const rInfo = getDotaRank(newRating);
+    resultRank.innerHTML = `${rInfo.icon} <span style="color:${rInfo.color}; font-weight:700;">${rInfo.rank_title}</span> <span style="color:#94a3b8; font-size:13px;">(${newRating} ELO)</span>`;
+    resultRank.style.display = 'block';
+  } else if (resultRank) {
+    resultRank.style.display = 'none';
+  }
+
   if (score) {
     score.innerHTML = `Победитель: <b>${escapeHtml(winnerName)}</b><br>Итоговый счёт: ${myWins} — ${oppWins}`;
   }
@@ -837,6 +1036,12 @@ function handleDuelMatchOver(data) {
   if (window.Telegram?.WebApp?.HapticFeedback) {
     window.Telegram.WebApp.HapticFeedback.notificationOccurred(isMe ? 'success' : 'error');
   }
+
+  // Refresh stats & match history in the background
+  try {
+    if (typeof loadDuelStats === 'function') setTimeout(loadDuelStats, 400);
+    if (typeof loadDuelHistory === 'function') setTimeout(loadDuelHistory, 600);
+  } catch (_) {}
 }
 
 window.requestDuelRematch = function() {

@@ -1141,11 +1141,32 @@ async def get_duel_rooms():
 
 @app.get("/api/duel/stats")
 async def get_duel_user_stats(request: Request):
-    user = get_verified_user_from_request(request)
+    user = get_duel_user_from_request(request)
     uid = None
     if user and not user.get("is_banned"):
         uid = int(user.get("id") or user.get("telegram_id") or 0)
     return db.get_user_duel_stats(uid)
+
+
+@app.get("/api/duel/history")
+async def get_duel_history_endpoint(request: Request, limit: int = 20):
+    user = get_duel_user_from_request(request)
+    if not user or user.get("is_banned"):
+        return {"history": []}
+    uid = int(user.get("id") or user.get("telegram_id") or 0)
+    history = db.get_user_duel_history(uid, limit)
+    return {"history": history}
+
+
+@app.post("/api/duel/reset")
+async def reset_duel_ratings_endpoint(request: Request):
+    user = get_verified_user_from_request(request)
+    is_admin = bool(user and user.get("is_admin", False))
+    admin_key = request.headers.get("x-admin-master-key") or request.query_params.get("admin_key")
+    if not is_admin and (not admin_key or admin_key.strip() not in ADMIN_MASTER_KEYS):
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
+    db.reset_all_duel_data()
+    return {"ok": True, "message": "Рейтинги и матчи успешно сброшены, боты удалены"}
 
 
 @app.get("/api/duel/leaderboard")

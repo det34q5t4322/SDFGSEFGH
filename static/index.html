@@ -1840,15 +1840,22 @@
 
         <!-- 3. 1vs1 Дуэли: Лобби и список комнат -->
         <div class="games-duel-view" id="gamesDuelView" style="display:none;">
-          <!-- Карточка рейтинга игрока -->
+          <!-- Карточка рейтинга игрока в стиле Dota 2 -->
           <div class="duel-profile-card" id="duelProfileCard">
             <div class="duel-profile-info">
               <div class="duel-profile-name" id="duelProfileName">Игрок</div>
-              <div class="duel-profile-meta" id="duelProfileMeta">Матчи: 0 • Винрейт: 0%</div>
+              <div class="duel-profile-meta" id="duelProfileMeta">Матчи: 0 • 0В / 0П • 0% винрейт</div>
+              <div class="duel-rank-wrap">
+                <span class="dota-rank-badge" id="duelProfileRankBadge">⚔️ Рыцарь I</span>
+                <span class="dota-rank-stars" id="duelProfileRankStars">★☆☆☆☆</span>
+              </div>
             </div>
             <div class="duel-profile-rating-badge">
               <span class="duel-elo-val" id="duelProfileElo">1000</span>
-              <span class="duel-elo-lbl">ELO 🏆</span>
+              <span class="duel-elo-lbl">ELO</span>
+              <div class="duel-rank-progress-wrap" title="Прогресс до следующей звезды">
+                <div class="duel-rank-progress-fill" id="duelProfileRankFill" style="width: 0%;"></div>
+              </div>
             </div>
           </div>
 
@@ -1864,8 +1871,21 @@
             </div>
           </div>
 
-          <!-- Список открытых комнат -->
-          <div class="duel-rooms-section">
+          <!-- Под-вкладки режима Дуэли: Лобби / История игр / Таблица лидеров -->
+          <div class="duel-subnav-bar">
+            <button class="duel-subnav-btn active" id="duelSubnavRooms" onclick="switchDuelSubTab('rooms')" type="button">
+              ⚔️ Лобби
+            </button>
+            <button class="duel-subnav-btn" id="duelSubnavHistory" onclick="switchDuelSubTab('history')" type="button">
+              📜 История игр
+            </button>
+            <button class="duel-subnav-btn" id="duelSubnavLeaderboard" onclick="switchDuelSubTab('leaderboard')" type="button">
+              🏆 Лидеры
+            </button>
+          </div>
+
+          <!-- Вкладка 1: Открытые лобби комнат -->
+          <div class="duel-rooms-section duel-subtab-pane" id="duelRoomsTabPane">
             <div class="duel-section-header">
               <span class="duel-section-title">
                 <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -1880,13 +1900,32 @@
             </div>
           </div>
 
-          <!-- Топ дуэлянтов -->
-          <div class="duel-leaderboard-section">
+          <!-- Вкладка 2: История недавних дуэльных матчей -->
+          <div class="duel-history-section duel-subtab-pane" id="duelHistoryTabPane" style="display:none;">
+            <div class="duel-section-header">
+              <span class="duel-section-title">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+                История ваших дуэлей
+              </span>
+              <button class="duel-refresh-btn" onclick="loadDuelHistory()" type="button" title="Обновить историю">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="14" height="14"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+              </button>
+            </div>
+            <div class="duel-history-list" id="duelHistoryList">
+              <div class="admin-empty-state">Загрузка истории матчей...</div>
+            </div>
+          </div>
+
+          <!-- Вкладка 3: Топ дуэлянтов по ELO -->
+          <div class="duel-leaderboard-section duel-subtab-pane" id="duelLeaderboardTabPane" style="display:none;">
             <div class="duel-section-header">
               <span class="duel-section-title">
                 <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" style="color:#eab308;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                 Топ дуэлянтов по ELO
               </span>
+              <button class="duel-refresh-btn" onclick="loadDuelLeaderboard()" type="button" title="Обновить рейтинг">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="14" height="14"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+              </button>
             </div>
             <div class="duel-lb-list" id="duelLeaderboardList">
               <div class="admin-empty-state">Загрузка рейтинга...</div>
@@ -1910,6 +1949,7 @@
               <div class="duel-player-card" id="duelHostCard">
                 <div class="duel-player-avatar" id="duelHostAvatar">👤</div>
                 <div class="duel-player-name" id="duelHostName">Хост</div>
+                <div class="duel-player-rank" id="duelHostRank">⚔️ Рыцарь I</div>
                 <div class="duel-player-elo" id="duelHostElo">1000 ELO</div>
                 <div class="duel-player-status waiting" id="duelHostStatus">Ожидание...</div>
               </div>
@@ -1917,6 +1957,7 @@
               <div class="duel-player-card" id="duelGuestCard">
                 <div class="duel-player-avatar" id="duelGuestAvatar">⏳</div>
                 <div class="duel-player-name" id="duelGuestName">Ожидание игрока...</div>
+                <div class="duel-player-rank" id="duelGuestRank"></div>
                 <div class="duel-player-elo" id="duelGuestElo">—</div>
                 <div class="duel-player-status waiting" id="duelGuestStatus">Не в сети</div>
               </div>
@@ -1988,6 +2029,7 @@
             <div class="duel-result-card">
               <div class="duel-result-icon" id="duelResultIcon">🏆</div>
               <div class="duel-result-title" id="duelResultTitle">Победа в матче!</div>
+              <div class="duel-result-rank" id="duelResultRank">⚔️ Рыцарь I ★☆☆☆☆</div>
               <div class="duel-result-elo" id="duelResultElo">+20 ELO</div>
               <div class="duel-result-score" id="duelResultScore">Счёт: 2 — 1</div>
               <div class="duel-result-actions">
