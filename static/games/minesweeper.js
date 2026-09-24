@@ -186,7 +186,8 @@ export function mount(container, options = {}) {
   function renderBoard() {
     if (!gridEl) return;
     gridEl.innerHTML = '';
-    gridEl.style.gridTemplateColumns = `repeat(${width}, 1fr)`;
+    gridEl.style.gridTemplateColumns = `repeat(${width}, minmax(0, 1fr))`;
+    gridEl.style.gridTemplateRows = `repeat(${height}, minmax(0, 1fr))`;
 
     for (let r = 0; r < height; r++) {
       for (let c = 0; c < width; c++) {
@@ -349,10 +350,84 @@ export function mount(container, options = {}) {
     }
   }
 
-  // Event Listeners on Grid
+  // Telegram Haptic Helper
+  const triggerHaptic = (type = 'light') => {
+    try {
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        if (type === 'error') {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+        } else if (type === 'medium') {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+        } else {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+        }
+      }
+    } catch (_) {}
+  };
+
+  // Event Listeners on Grid: быстрый отклик на долгое нажатие и клик
   let longPressTimer = null;
+  let didLongPress = false;
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  const onPointerDown = (e) => {
+    const cellEl = e.target.closest('.ms-cell');
+    if (!cellEl) return;
+    const r = parseInt(cellEl.dataset.r, 10);
+    const c = parseInt(cellEl.dataset.c, 10);
+
+    // Если правый клик мыши — обрабатывает contextmenu
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    touchStartX = e.clientX;
+    touchStartY = e.clientY;
+    didLongPress = false;
+
+    if (longPressTimer) clearTimeout(longPressTimer);
+
+    // Долгое нажатие для установки флага (280ms)
+    longPressTimer = setTimeout(() => {
+      didLongPress = true;
+      toggleFlag(r, c);
+      triggerHaptic('medium');
+      longPressTimer = null;
+    }, 280);
+  };
+
+  const onPointerMove = (e) => {
+    if (!longPressTimer) return;
+    const dist = Math.hypot(e.clientX - touchStartX, e.clientY - touchStartY);
+    if (dist > 8) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  };
+
+  const onPointerUp = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  };
+
+  const onPointerCancel = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+    didLongPress = false;
+  };
 
   const onGridClick = (e) => {
+    // Если ячейка была помечена долгим зажатием, отменяем клик чтобы не взорвать/не открыть!
+    if (didLongPress) {
+      e.preventDefault();
+      e.stopPropagation();
+      didLongPress = false;
+      return;
+    }
+
     const cellEl = e.target.closest('.ms-cell');
     if (!cellEl) return;
     const r = parseInt(cellEl.dataset.r, 10);
@@ -362,48 +437,27 @@ export function mount(container, options = {}) {
     if (cell.revealed) {
       chordCell(r, c);
       renderBoard();
+      triggerHaptic('light');
     } else {
       if (mode === 'flag') {
         toggleFlag(r, c);
+        triggerHaptic('light');
       } else {
         revealCell(r, c);
+        triggerHaptic('light');
       }
     }
   };
 
   const onGridContextMenu = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     const cellEl = e.target.closest('.ms-cell');
     if (!cellEl) return;
     const r = parseInt(cellEl.dataset.r, 10);
     const c = parseInt(cellEl.dataset.c, 10);
     toggleFlag(r, c);
-  };
-
-  const onTouchStart = (e) => {
-    const cellEl = e.target.closest('.ms-cell');
-    if (!cellEl) return;
-    const r = parseInt(cellEl.dataset.r, 10);
-    const c = parseInt(cellEl.dataset.c, 10);
-
-    longPressTimer = setTimeout(() => {
-      toggleFlag(r, c);
-      longPressTimer = null;
-    }, 380);
-  };
-
-  const onTouchEnd = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  };
-
-  const onTouchMove = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
+    triggerHaptic('medium');
   };
 
   const handleVisibilityChange = () => {
@@ -440,9 +494,10 @@ export function mount(container, options = {}) {
   if (gridEl) {
     gridEl.addEventListener('click', onGridClick);
     gridEl.addEventListener('contextmenu', onGridContextMenu);
-    gridEl.addEventListener('touchstart', onTouchStart, { passive: true });
-    gridEl.addEventListener('touchend', onTouchEnd, { passive: true });
-    gridEl.addEventListener('touchmove', onTouchMove, { passive: true });
+    gridEl.addEventListener('pointerdown', onPointerDown);
+    gridEl.addEventListener('pointermove', onPointerMove);
+    gridEl.addEventListener('pointerup', onPointerUp);
+    gridEl.addEventListener('pointercancel', onPointerCancel);
   }
 
   if (faceBtn) faceBtn.addEventListener('click', initBoard);
@@ -463,9 +518,10 @@ export function mount(container, options = {}) {
       if (gridEl) {
         gridEl.removeEventListener('click', onGridClick);
         gridEl.removeEventListener('contextmenu', onGridContextMenu);
-        gridEl.removeEventListener('touchstart', onTouchStart);
-        gridEl.removeEventListener('touchend', onTouchEnd);
-        gridEl.removeEventListener('touchmove', onTouchMove);
+        gridEl.removeEventListener('pointerdown', onPointerDown);
+        gridEl.removeEventListener('pointermove', onPointerMove);
+        gridEl.removeEventListener('pointerup', onPointerUp);
+        gridEl.removeEventListener('pointercancel', onPointerCancel);
       }
 
       if (faceBtn) faceBtn.removeEventListener('click', initBoard);

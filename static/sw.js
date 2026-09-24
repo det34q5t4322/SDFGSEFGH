@@ -2,7 +2,7 @@
    COLLEGE SCHEDULE APP — Resilient Offline Service Worker
    ════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'college-schedule-v36';
+const CACHE_NAME = 'college-schedule-v37';
 
 const STATIC_ASSETS = [
   '/',
@@ -59,7 +59,7 @@ self.addEventListener('fetch', (event) => {
           }
           return res;
         })
-        .catch(() => caches.match(req).then((cached) => cached || caches.match('/')))
+        .catch(() => caches.match(req, { ignoreSearch: true }).then((cached) => cached || caches.match('/')))
     );
     return;
   }
@@ -75,15 +75,15 @@ self.addEventListener('fetch', (event) => {
           }
           return res;
         })
-        .catch(() => caches.match(req))
+        .catch(() => caches.match(req, { ignoreSearch: true }))
     );
     return;
   }
 
-  // 3. Static assets: Stale-While-Revalidate
+  // 3. Static assets: Stale-While-Revalidate with ignoreSearch for versioned queries (?v=...)
   if (url.pathname.startsWith('/static/') || url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(req).then((cached) => {
+      caches.match(req, { ignoreSearch: true }).then((cached) => {
         const fetchPromise = fetch(req).then((netRes) => {
           if (netRes && netRes.status === 200) {
             const clone = netRes.clone();

@@ -13,7 +13,8 @@ export function mount(container, options = {}) {
 
   const { onScoreUpdate, onGameOver } = options;
 
-  const GRID_SIZE = 18;
+  const GRID_SIZE = 16;
+  const INTERNAL_SIZE = 320;
   let canvas = null;
   let ctx = null;
   let animId = null;
@@ -88,31 +89,33 @@ export function mount(container, options = {}) {
         </div>
       </div>
 
-      <!-- Touch D-Pad for precise mobile navigation -->
+      <!-- Touch D-Pad: удобный большой эргономичный джойстик -->
       <div class="snake-dpad">
         <div class="snake-dpad-row">
           <button class="snake-dpad-btn" id="sBtnUp" type="button" aria-label="Вверх">
-            <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="12 4 4 16 20 16 12 4"/></svg>
+            <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="12 4 4 17 20 17 12 4"/></svg>
           </button>
         </div>
         <div class="snake-dpad-row">
           <button class="snake-dpad-btn" id="sBtnLeft" type="button" aria-label="Влево">
-            <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="4 12 16 20 16 4 4 12"/></svg>
+            <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="4 12 17 20 17 4 4 12"/></svg>
           </button>
-          <div class="snake-dpad-center"></div>
+          <button class="snake-dpad-center" id="sBtnCenter" type="button" aria-label="Пауза / Старт" title="Пауза / Старт">
+            <div class="snake-dpad-dot"></div>
+          </button>
           <button class="snake-dpad-btn" id="sBtnRight" type="button" aria-label="Вправо">
-            <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="20 12 8 4 8 20 20 12"/></svg>
+            <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="20 12 7 4 7 20 20 12"/></svg>
           </button>
         </div>
         <div class="snake-dpad-row">
           <button class="snake-dpad-btn" id="sBtnDown" type="button" aria-label="Вниз">
-            <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="12 20 20 8 4 8 12 20"/></svg>
+            <svg class="lucide-icon" viewBox="0 0 24 24"><polygon points="12 20 20 7 4 7 12 20"/></svg>
           </button>
         </div>
       </div>
 
       <div class="game-instructions">
-        Управляйте свайпами по полю, экранными кнопками или стрелками / <b>WASD</b>.
+        Управляйте большим джойстиком, свайпами по полю или <b>WASD / Стрелками</b>.
       </div>
     </div>
   `;
@@ -134,18 +137,15 @@ export function mount(container, options = {}) {
   const btnDown = container.querySelector('#sBtnDown');
   const btnLeft = container.querySelector('#sBtnLeft');
   const btnRight = container.querySelector('#sBtnRight');
+  const btnCenter = container.querySelector('#sBtnCenter');
 
-  // Resize canvas according to container
+  // Фиксированная эталонная система координат: поле всегда одинаковое на всех экранах!
   function resizeCanvas() {
-    if (!canvas) return;
-    const parentWidth = Math.min(360, container.clientWidth - 20);
-    const size = Math.max(280, Math.floor(parentWidth));
+    if (!canvas || !ctx) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    canvas.style.width = size + 'px';
-    canvas.style.height = size + 'px';
-    canvas.width = Math.floor(size * dpr);
-    canvas.height = Math.floor(size * dpr);
+    canvas.width = Math.floor(INTERNAL_SIZE * dpr);
+    canvas.height = Math.floor(INTERNAL_SIZE * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
   }
 
@@ -188,15 +188,15 @@ export function mount(container, options = {}) {
     if (freeCells.length > 0) {
       food = freeCells[Math.floor(Math.random() * freeCells.length)];
     } else {
-      food = null;
+      food = { x: 0, y: 0 };
     }
 
-    // Every 5 regular apples, spawn a bonus gold apple with limited life
+    // Каждые 5 яблок появляется золотое бонусное яблоко с таймером
     if (applesEaten > 0 && applesEaten % 5 === 0 && !bonusFood) {
-      const bonusCandidates = freeCells.filter(c => c.x !== food?.x || c.y !== food?.y);
+      const bonusCandidates = freeCells.filter(c => !food || c.x !== food.x || c.y !== food.y);
       if (bonusCandidates.length > 0) {
         bonusFood = bonusCandidates[Math.floor(Math.random() * bonusCandidates.length)];
-        bonusTimer = 40; // 40 ticks life
+        bonusTimer = 45; // 45 тиков жизни
       }
     }
   }
@@ -292,7 +292,7 @@ export function mount(container, options = {}) {
 
   function draw() {
     if (!canvas || !ctx) return;
-    const visualSize = parseFloat(canvas.style.width);
+    const visualSize = INTERNAL_SIZE;
     const cellSize = visualSize / GRID_SIZE;
 
     // Background
@@ -314,7 +314,10 @@ export function mount(container, options = {}) {
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, visualSize - 1, visualSize - 1);
 
-    // Bonus food (Golden pulse)
+    // Гарантируем, что яблоко всегда существует
+    if (!food) spawnFood();
+
+    // Bonus food (Golden pulse with star)
     if (bonusFood) {
       const bx = bonusFood.x * cellSize + cellSize / 2;
       const by = bonusFood.y * cellSize + cellSize / 2;
@@ -322,39 +325,50 @@ export function mount(container, options = {}) {
 
       ctx.save();
       ctx.shadowColor = '#eab308';
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = 12;
       ctx.fillStyle = '#facc15';
       ctx.beginPath();
       ctx.arc(bx, by, r, 0, Math.PI * 2);
       ctx.fill();
 
       // Star sparkle
+      ctx.shadowBlur = 0;
       ctx.fillStyle = '#ffffff';
-      ctx.font = `${Math.floor(cellSize * 0.6)}px sans-serif`;
+      ctx.font = `bold ${Math.floor(cellSize * 0.55)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('★', bx, by);
+      ctx.fillText('★', bx, by + 1);
       ctx.restore();
     }
 
-    // Normal food (Red neon apple)
+    // Normal food (Сочное яркое неоновое яблоко с 3D-бликом и листочком)
     if (food) {
       const fx = food.x * cellSize + cellSize / 2;
       const fy = food.y * cellSize + cellSize / 2;
       const r = cellSize * 0.38;
 
       ctx.save();
-      ctx.shadowColor = 'rgba(239, 68, 68, 0.6)';
-      ctx.shadowBlur = 8;
+      // Glow
+      ctx.shadowColor = 'rgba(239, 68, 68, 0.8)';
+      ctx.shadowBlur = 10;
+
+      // Apple Body
       ctx.fillStyle = '#ef4444';
       ctx.beginPath();
       ctx.arc(fx, fy, r, 0, Math.PI * 2);
       ctx.fill();
 
-      // Leaf
+      // Specular 3D Highlight
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.beginPath();
+      ctx.arc(fx - r * 0.32, fy - r * 0.32, r * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Emerald Leaf
       ctx.fillStyle = '#22c55e';
       ctx.beginPath();
-      ctx.arc(fx + 2, fy - r + 1, r * 0.35, 0, Math.PI * 2);
+      ctx.arc(fx + r * 0.4, fy - r * 0.55, r * 0.3, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -513,21 +527,39 @@ export function mount(container, options = {}) {
   }
 
   // Attach D-pad listeners
+  const dpadCleanups = [];
+
   const bindDpad = (btn, dx, dy) => {
     if (!btn) return;
     const handler = (e) => {
-      e.preventDefault();
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
       changeDirection(dx, dy);
       triggerHaptic('light');
     };
-    btn.addEventListener('touchstart', handler, { passive: false });
-    btn.addEventListener('click', handler);
+    btn.addEventListener('pointerdown', handler);
+    dpadCleanups.push(() => btn.removeEventListener('pointerdown', handler));
   };
 
   bindDpad(btnUp, 0, -1);
   bindDpad(btnDown, 0, 1);
   bindDpad(btnLeft, -1, 0);
   bindDpad(btnRight, 1, 0);
+
+  if (btnCenter) {
+    const centerHandler = (e) => {
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+      if (!isStarted) {
+        isStarted = true;
+      } else {
+        togglePause();
+      }
+      triggerHaptic('medium');
+    };
+    btnCenter.addEventListener('pointerdown', centerHandler);
+    dpadCleanups.push(() => btnCenter.removeEventListener('pointerdown', centerHandler));
+  }
 
   const onCanvasClick = () => {
     if (!isStarted && !gameOver) {
@@ -560,6 +592,7 @@ export function mount(container, options = {}) {
         canvas.removeEventListener('touchend', onTouchEnd);
         canvas.removeEventListener('click', onCanvasClick);
       }
+      dpadCleanups.forEach(fn => { try { fn(); } catch (_) {} });
       container.innerHTML = '';
       activeInstance = null;
     }

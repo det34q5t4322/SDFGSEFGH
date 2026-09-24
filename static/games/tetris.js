@@ -189,6 +189,21 @@ export function mount(container, options = {}) {
   const pauseLabel = container.querySelector('#tetrisPauseLabel');
   const restartBtn = container.querySelector('#tetrisRestartBtn');
 
+  // Telegram Haptic Helper
+  const triggerHaptic = (type = 'light') => {
+    try {
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        if (type === 'error') {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+        } else if (type === 'medium') {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+        } else {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+        }
+      }
+    } catch (_) {}
+  };
+
   function createMatrix(w, h) {
     const m = [];
     while (h--) {
@@ -197,10 +212,31 @@ export function mount(container, options = {}) {
     return m;
   }
 
+  // 7-Bag Randomizer (официальный стандарт Тетриса):
+  // Детали никогда не повторяются по 3-6 раз подряд!
+  let bag = [];
+
+  function refillBag() {
+    const pieces = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
+    // Fisher-Yates тасование
+    for (let i = pieces.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pieces[i], pieces[j]] = [pieces[j], pieces[i]];
+    }
+    bag.push(...pieces);
+  }
+
+  function getNextPieceType() {
+    if (bag.length <= 3) {
+      refillBag();
+    }
+    return bag.shift();
+  }
+
   function randomPiece() {
-    const keys = Object.keys(PIECES);
-    const key = keys[Math.floor(Math.random() * keys.length)];
+    const key = getNextPieceType();
     const shape = PIECES[key];
+    const keys = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
     const typeIdx = keys.indexOf(key) + 1;
     return {
       matrix: shape.map(row => row.map(cell => cell ? typeIdx : 0)),
@@ -266,6 +302,7 @@ export function mount(container, options = {}) {
         return;
       }
     }
+    triggerHaptic('light');
   }
 
   function playerMove(dir) {
@@ -290,6 +327,7 @@ export function mount(container, options = {}) {
 
   function playerHardDrop() {
     if (!piece || gameOver || isPaused) return;
+    triggerHaptic('medium');
     while (!collide(grid, piece)) {
       piece.y++;
       score += 2;
@@ -324,6 +362,7 @@ export function mount(container, options = {}) {
     }
 
     if (rowCount > 0) {
+      triggerHaptic(rowCount >= 4 ? 'medium' : 'light');
       const lineScores = [0, 100, 300, 500, 800];
       score += (lineScores[rowCount] || 1000) * level;
       lines += rowCount;
@@ -352,6 +391,7 @@ export function mount(container, options = {}) {
 
     if (collide(grid, piece)) {
       gameOver = true;
+      triggerHaptic('error');
       if (overlayEl && messageEl) {
         messageEl.textContent = 'ИГРА ОКОНЧЕНА';
         overlayEl.style.display = 'flex';
@@ -477,6 +517,8 @@ export function mount(container, options = {}) {
   }
 
   function initGame() {
+    bag = [];
+    refillBag();
     grid = createMatrix(COLS, ROWS);
     score = 0;
     lines = 0;
