@@ -8962,6 +8962,18 @@ window.renderGamesLeaderboard = function(gameId = _activeGamesLbTab) {
       }
     } else if (gameId === 'dino') {
       scoreVal = `${Number(u.high_score || 0).toLocaleString('ru-RU')} м`;
+    } else if (gameId === 'durak') {
+      const wins = Number(u.high_score || 0);
+      const lastDigit = wins % 10;
+      const lastTwo = wins % 100;
+      let winWord = 'побед';
+      if (lastTwo < 11 || lastTwo > 19) {
+        if (lastDigit === 1) winWord = 'победа';
+        else if (lastDigit >= 2 && lastDigit <= 4) winWord = 'победы';
+      }
+      scoreVal = `${wins} ${winWord}`;
+    } else if (gameId === 'sudoku') {
+      scoreVal = `${Number(u.high_score || 0).toLocaleString('ru-RU')} очков`;
     } else {
       scoreVal = Number(u.high_score || 0).toLocaleString('ru-RU');
     }
@@ -9057,6 +9069,10 @@ window.updateGamesCatalogScores = async function() {
       if (my['dino'] && my['dino'].high_score > parseInt(bDino, 10)) {
         localStorage.setItem('game_dino_best', String(my['dino'].high_score));
         if (elDino) elDino.textContent = my['dino'].high_score;
+      }
+      if (my['durak'] && my['durak'].high_score > parseInt(bDurak, 10)) {
+        localStorage.setItem('game_durak_wins', String(my['durak'].high_score));
+        if (elDurak) elDurak.textContent = my['durak'].high_score;
       }
       window.renderGamesLeaderboard(_activeGamesLbTab);
     }

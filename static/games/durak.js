@@ -758,7 +758,7 @@ export function mount(container, options = {}) {
       showOverlay('ПОБЕДА! 🏆', 'Вы сбросили все карты! Соперник остался в дураках.');
       triggerHaptic('success');
       if (typeof onScoreUpdate === 'function') onScoreUpdate(winsCount, winsCount);
-      if (typeof onGameOver === 'function') onGameOver(winsCount * 150, true);
+      if (typeof onGameOver === 'function') onGameOver(winsCount, true);
       return true;
     }
 
