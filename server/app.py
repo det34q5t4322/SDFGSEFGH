@@ -1075,9 +1075,27 @@ class DuelJoinPayload(BaseModel):
 
 
 def get_duel_user_from_request(request: Request) -> Optional[dict]:
-    user = get_verified_user_from_request(request)
-    if user and not user.get("is_banned"):
-        return user
+    # Прямая аутентификация через Telegram initData или auth_token
+    auth_token = (
+        request.headers.get("x-telegram-auth-token")
+        or request.cookies.get("tg_auth_token")
+        or request.query_params.get("auth_token")
+    )
+    init_data = (
+        request.headers.get("x-telegram-init-data")
+        or request.query_params.get("init_data")
+    )
+    bot_token = os.getenv("BOT_TOKEN", "")
+    if auth_token:
+        verified = verify_telegram_auth_token(auth_token, bot_token=bot_token)
+        if verified and not verified.get("is_banned"):
+            return verified
+    if init_data and bot_token:
+        verified = verify_telegram_init_data(init_data, bot_token)
+        if verified and not verified.get("is_banned"):
+            return verified
+
+    # Для гостевых игроков (без аккаунта Telegram) извлекаем X-Guest-ID
     guest_id_hdr = request.headers.get("x-guest-id") or request.query_params.get("guest_id")
     if guest_id_hdr:
         try:
@@ -1086,9 +1104,17 @@ def get_duel_user_from_request(request: Request) -> Optional[dict]:
                 raw_name = request.headers.get("x-guest-name") or request.query_params.get("guest_name") or ""
                 gname = unquote(raw_name) if raw_name else f"Гость #{gid % 1000}"
                 return {"id": gid, "first_name": gname, "username": "", "is_admin": False, "is_banned": False}
-
         except ValueError:
             pass
+
+    # Только для локальной отладки (localhost)
+    client_ip = get_real_client_ip(request)
+    if client_ip in ("127.0.0.1", "localhost", "::1", "testclient"):
+        mock_uid = request.query_params.get("mock_user") or request.headers.get("x-mock-user")
+        if mock_uid and mock_uid.isdigit():
+            uid = int(mock_uid)
+            return {"id": uid, "username": f"user_{uid}", "first_name": f"Player {uid % 1000}", "is_admin": False, "is_banned": False}
+
     return None
 
 
@@ -1207,13 +1233,13 @@ async def duel_websocket_endpoint(websocket: WebSocket, room_id: str):
 
     if not user:
         client_ip = websocket.client.host if websocket.client else ""
-        admin_key = websocket.query_params.get("admin_key")
-        if admin_key and admin_key.strip() in ADMIN_MASTER_KEYS:
-            user = {"id": 7552844207, "username": "Dadrik1", "first_name": "Администратор"}
-        elif client_ip in ("127.0.0.1", "localhost", "::1", "testclient") or websocket.query_params.get("dev") == "1":
+        if client_ip in ("127.0.0.1", "localhost", "::1", "testclient"):
             mock_uid = websocket.query_params.get("mock_user")
-            uid = int(mock_uid) if mock_uid and mock_uid.isdigit() else 7552844207
-            user = {"id": uid, "username": f"user_{uid}", "first_name": f"Player {uid % 1000}"}
+            if mock_uid and mock_uid.isdigit():
+                uid = int(mock_uid)
+                user = {"id": uid, "username": f"user_{uid}", "first_name": f"Player {uid % 1000}", "is_admin": False, "is_banned": False}
+            elif websocket.query_params.get("dev") == "1":
+                user = {"id": 999001, "username": "TestBot", "first_name": "Тестовый Бот", "is_admin": False, "is_banned": False}
 
     if not user:
         await websocket.accept()

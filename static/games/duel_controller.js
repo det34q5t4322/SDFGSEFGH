@@ -22,7 +22,12 @@ const DUEL_GAME_NAMES = {
 
 function getDuelAuthHeaders() {
   const headers = typeof getAuthHeaders === 'function' ? getAuthHeaders() : {};
-  if (!headers['X-Telegram-Init-Data'] && !headers['X-Telegram-Auth-Token']) {
+  const authToken = localStorage.getItem('tg_auth_token') || localStorage.getItem('college_tg_auth_token');
+  if (authToken && !headers['X-Telegram-Auth-Token']) {
+    headers['X-Telegram-Auth-Token'] = authToken;
+  }
+  const hasTg = Boolean(headers['X-Telegram-Init-Data']) || Boolean(headers['X-Telegram-Auth-Token']);
+  if (!hasTg) {
     let guestId = localStorage.getItem('duel_guest_id');
     if (!guestId) {
       guestId = String(Math.floor(10000000 + Math.random() * 90000000));
@@ -31,6 +36,9 @@ function getDuelAuthHeaders() {
     let guestName = localStorage.getItem('duel_guest_name') || `Игрок #${parseInt(guestId, 10) % 1000}`;
     headers['X-Guest-ID'] = guestId;
     headers['X-Guest-Name'] = encodeURIComponent(guestName);
+    // Remove admin & secret keys from duel headers so guests never impersonate admin
+    delete headers['X-Admin-Key'];
+    delete headers['X-Secret-Key'];
   }
 
   return headers;
@@ -42,6 +50,19 @@ function getMyPlayerId() {
   if (tgUser && tgUser.id) {
     _myTelegramId = tgUser.id;
     return String(tgUser.id);
+  }
+  const authToken = localStorage.getItem('tg_auth_token') || localStorage.getItem('college_tg_auth_token');
+  if (authToken) {
+    try {
+      const parts = authToken.split('.');
+      if (parts.length >= 2) {
+        const payload = JSON.parse(atob(parts[0]));
+        if (payload && payload.id) {
+          _myTelegramId = payload.id;
+          return String(payload.id);
+        }
+      }
+    } catch (_) {}
   }
   const guestId = localStorage.getItem('duel_guest_id');
   if (guestId) {
@@ -732,23 +753,21 @@ function connectDuelWebSocket(roomId) {
   let authQuery = '';
 
   const initData = window.Telegram?.WebApp?.initData;
-  const authToken = localStorage.getItem('college_tg_auth_token');
+  const authToken = localStorage.getItem('tg_auth_token') || localStorage.getItem('college_tg_auth_token');
 
   if (initData) {
     authQuery = `&init_data=${encodeURIComponent(initData)}`;
   } else if (authToken) {
     authQuery = `&auth_token=${encodeURIComponent(authToken)}`;
   } else {
-    const adminKey = localStorage.getItem('college_admin_key') || 'dadrik_admin_2026';
-    authQuery = `&admin_key=${encodeURIComponent(adminKey)}&dev=1`;
+    // Unauthenticated guest user: strictly use guest identity
+    const headers = getDuelAuthHeaders();
+    const guestId = headers['X-Guest-ID'] || localStorage.getItem('duel_guest_id') || String(Math.floor(10000000 + Math.random() * 90000000));
+    const guestName = headers['X-Guest-Name'] ? decodeURIComponent(headers['X-Guest-Name']) : (localStorage.getItem('duel_guest_name') || `Игрок #${parseInt(guestId, 10) % 1000}`);
+    authQuery = `&guest_id=${encodeURIComponent(guestId)}&guest_name=${encodeURIComponent(guestName)}`;
   }
 
-  const headers = getDuelAuthHeaders();
-  if (headers['X-Guest-ID']) {
-    authQuery += `&guest_id=${encodeURIComponent(headers['X-Guest-ID'])}&guest_name=${encodeURIComponent(headers['X-Guest-Name'] || '')}`;
-  }
-
-  const wsUrl = `${wsProto}//${loc.host}/ws/duel/${roomId}?v=1${authQuery}`;
+  const wsUrl = `${wsProto}//${loc.host}/ws/duel/${roomId}?v=2${authQuery}`;
 
 
   _duelWs = new WebSocket(wsUrl);
