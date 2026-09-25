@@ -54,24 +54,46 @@ const BASE_PUZZLES = {
   ],
   "hard": [
     {
-      "puzzle": ".81..5.2..3.19..48.243.8..539..1........4.93.417.83.5.57...4.1...375.89414863957.",
+      "puzzle": "......6.4.5...1.3..1.2...582...4..91...73..4..........98....4..1.38....6.74.....9",
+      "solution": "732985614859461237416273958267548391591736842348129765985617423123894576674352189"
+    },
+    {
+      "puzzle": "....57.93...2.9.....13...........7168.49......7......4...618.3...8...46.1....3.2.",
+      "solution": "486157293753269148921384675539842716814976352672531984247618539398725461165493827"
+    },
+    {
+      "puzzle": "8.....5....34..92.1...258...84..2.....6.4...3...3.96...9.75....7..2...8....9.....",
+      "solution": "842193576653478921179625834384562197916847253527319648498756312765231489231984765"
+    },
+    {
+      "puzzle": "...5.927....1.....283.......48..........1..5...7.6.1...3..5.7..4.6....8.9..34.61.",
+      "solution": "614539278795182436283674591148295367369417852527863149831956724456721983972348615"
+    },
+    {
+      "puzzle": "7.1.....96..1.2..8.......65..2..64.....24..3..1..8..56.79.....3.6..5......8.3....",
       "solution": "781465329635192748924378165392516487856247931417983256579824613263751894148639572"
+    }
+  ],
+  "expert": [
+    {
+      "puzzle": "7......1485..........2..9.....5.......1.36.423...........6...2.1.38.4.76..4.5....",
+      "solution": "732985614859461237416273958267548391591736842348129765985617423123894576674352189"
     },
     {
-      "puzzle": ".8745.9.2..51..4.8...2..3571.6.29.8.532817.947.8564123.59..18......82.3..6....2..",
-      "solution": "387456912925173468614298357146329785532817694798564123259731846471682539863945271"
+      "puzzle": ".86.5..9....2.91......8..7.5....27....4...3..6.....98...........9.7...6...5493...",
+      "solution": "486157293753269148921384675539842716814976352672531984247618539398725461165493827"
     },
     {
-      "puzzle": "..32...988927.365.567984.2..1..45.674.68..5..3.9....8278..69...6.....8...2.538176",
-      "solution": "143256798892713654567984321218345967476892513359671482781469235635127849924538176"
+      "puzzle": "84.1...7.....7...11.9...8....456.......8..2.3........84..........5231..9.31....6.",
+      "solution": "842193576653478921179625834384562197916847253527319648498756312765231489231984765"
     },
     {
-      "puzzle": "83.9.41571..3...645....13.945617..9891.2.8.76.28..95..2758....1349..768.6........",
-      "solution": "832964157197325864564781329456173298913258476728649513275836941349517682681492735"
+      "puzzle": "6....9....9........8.67.....4...5.6.....178..52.8...4..319.6.2......1.8...2.....5",
+      "solution": "614539278795182436283674591148295367369417852527863149831956724456721983972348615"
     },
     {
-      "puzzle": "..21..8.779..48..38.1679452..64...2.1....57.4.473.298627.58164..5........1...4375",
-      "solution": "462153897795248163831679452386497521129865734547312986273581649954736218618924375"
+      "puzzle": ".8........3.19..4.....7.165.9.......8...47........325...9.2.61...3..18...4.......",
+      "solution": "781465329635192748924378165392516487856247931417983256579824613263751894148639572"
     }
   ]
 };
@@ -269,8 +291,11 @@ export function mount(container, options = {}) {
   let userGrid = [];
   let userNotes = []; // 9x9 Set of numbers
   let selectedCell = { r: 0, c: 0 };
+  let selectedNumber = null;
   let isNotesMode = false;
   let moveHistory = [];
+  let hintsRemaining = 3;
+  const MAX_HINTS = 3;
 
   let timer = 0;
   let timerInterval = null;
@@ -349,6 +374,7 @@ export function mount(container, options = {}) {
         <button class="sudoku-diff-btn active" data-diff="easy" type="button">Лёгкий</button>
         <button class="sudoku-diff-btn" data-diff="medium" type="button">Средний</button>
         <button class="sudoku-diff-btn" data-diff="hard" type="button">Сложный</button>
+        <button class="sudoku-diff-btn" data-diff="expert" type="button">Эксперт</button>
       </div>
 
       <!-- Sudoku 9x9 Board -->
@@ -384,11 +410,11 @@ export function mount(container, options = {}) {
           </svg>
           <span id="sudokuNotesLabel">Заметки</span>
         </button>
-        <button class="sudoku-tool-btn" id="sudokuHintBtn" type="button" title="Подсказка">
+        <button class="sudoku-tool-btn" id="sudokuHintBtn" type="button" title="Подсказка (штраф +20 сек)">
           <svg class="lucide-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
           </svg>
-          <span>Подсказка</span>
+          <span id="sudokuHintLabel">Подсказка (3)</span>
         </button>
       </div>
 
@@ -421,6 +447,7 @@ export function mount(container, options = {}) {
   const notesBtn = container.querySelector('#sudokuNotesBtn');
   const notesLabel = container.querySelector('#sudokuNotesLabel');
   const hintBtn = container.querySelector('#sudokuHintBtn');
+  const hintLabel = container.querySelector('#sudokuHintLabel');
   const diffBtns = container.querySelectorAll('.sudoku-diff-btn');
   const keypad = container.querySelector('#sudokuKeypad');
 
@@ -445,6 +472,24 @@ export function mount(container, options = {}) {
     }
   }
 
+  function updateHintButton() {
+    if (hintLabel) hintLabel.textContent = `Подсказка (${hintsRemaining})`;
+    if (hintBtn) {
+      hintBtn.classList.toggle('exhausted', hintsRemaining <= 0);
+      hintBtn.title = hintsRemaining > 0
+        ? `Подсказка (осталось: ${hintsRemaining}, штраф +20 сек)`
+        : 'Подсказки закончились';
+    }
+  }
+
+  function updateKeypadSelection() {
+    const keys = keypad ? keypad.querySelectorAll('.sudoku-key-btn') : [];
+    keys.forEach(btn => {
+      const val = parseInt(btn.dataset.val, 10);
+      btn.classList.toggle('active', selectedNumber === val);
+    });
+  }
+
   function initGame() {
     stopTimer();
     timer = 0;
@@ -452,7 +497,9 @@ export function mount(container, options = {}) {
     gameWon = false;
     mistakesCount = 0;
     moveHistory = [];
-    selectedCell = { r: 0, c: 0 };
+    selectedCell = null;
+    selectedNumber = null;
+    hintsRemaining = MAX_HINTS;
     isNotesMode = false;
 
     if (notesBtn) notesBtn.classList.remove('active');
@@ -468,6 +515,9 @@ export function mount(container, options = {}) {
       gridEl.style.filter = 'none';
       gridEl.style.pointerEvents = 'auto';
     }
+
+    updateHintButton();
+    updateKeypadSelection();
 
     // Pick random base puzzle from pool & permute
     const pool = BASE_PUZZLES[difficulty] || BASE_PUZZLES.easy;
@@ -567,9 +617,11 @@ export function mount(container, options = {}) {
     gridEl.innerHTML = '';
 
     const conflicts = getConflicts();
-    const activeVal = selectedCell
-      ? (initialGrid[selectedCell.r][selectedCell.c] || userGrid[selectedCell.r][selectedCell.c])
-      : 0;
+    const activeVal = selectedNumber !== null
+      ? selectedNumber
+      : (selectedCell
+        ? (initialGrid[selectedCell.r][selectedCell.c] || userGrid[selectedCell.r][selectedCell.c])
+        : 0);
 
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
@@ -616,7 +668,7 @@ export function mount(container, options = {}) {
           }
         }
 
-        // Same number highlight
+        // Same number highlight (whether from active keypad digit OR selected filled cell)
         if (val !== 0 && activeVal !== 0 && val === activeVal) {
           cellEl.classList.add('same-number');
         }
@@ -688,6 +740,10 @@ export function mount(container, options = {}) {
     userNotes[r][c].clear();
     clearNotesForPlacedNumber(r, c, num);
 
+    // Keep placed number active so user can immediately observe or place it elsewhere
+    selectedNumber = num;
+    updateKeypadSelection();
+
     // Mistake check: does this number contradict the true unique solution?
     if (num !== 0 && num !== solutionGrid[r][c]) {
       mistakesCount++;
@@ -735,27 +791,95 @@ export function mount(container, options = {}) {
   }
 
   function giveHint() {
-    if (isPaused || gameWon || !selectedCell) return;
-    const { r, c } = selectedCell;
-    if (initialGrid[r][c] !== 0) return;
+    if (isPaused || gameWon) return;
 
-    const sol = solutionGrid[r][c];
-    if (userGrid[r][c] === sol) return;
+    if (hintsRemaining <= 0) {
+      triggerHaptic('error');
+      if (hintBtn) {
+        hintBtn.classList.add('shake');
+        setTimeout(() => hintBtn.classList.remove('shake'), 400);
+      }
+      return;
+    }
+
+    let targetR = -1;
+    let targetC = -1;
+
+    // 1) Target currently selected cell if empty or wrong
+    if (selectedCell) {
+      const { r, c } = selectedCell;
+      if (initialGrid[r][c] === 0 && userGrid[r][c] !== solutionGrid[r][c]) {
+        targetR = r;
+        targetC = c;
+      }
+    }
+
+    // 2) Check if current active number can be placed in an empty cell
+    if (targetR === -1 && selectedNumber !== null) {
+      for (let r = 0; r < 9 && targetR === -1; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (initialGrid[r][c] === 0 && solutionGrid[r][c] === selectedNumber && userGrid[r][c] !== selectedNumber) {
+            targetR = r;
+            targetC = c;
+            break;
+          }
+        }
+      }
+    }
+
+    // 3) Otherwise, pick any empty or incorrect cell
+    if (targetR === -1) {
+      for (let r = 0; r < 9 && targetR === -1; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (initialGrid[r][c] === 0 && userGrid[r][c] !== solutionGrid[r][c]) {
+            targetR = r;
+            targetC = c;
+            break;
+          }
+        }
+      }
+    }
+
+    if (targetR === -1) return; // Grid fully solved
+
+    hintsRemaining--;
+    timer += 20; // +20s penalty for hint
+    if (timerEl) {
+      const m = Math.floor(timer / 60);
+      const s = timer % 60;
+      timerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    const sol = solutionGrid[targetR][targetC];
+    selectedCell = { r: targetR, c: targetC };
+    selectedNumber = sol;
+    updateKeypadSelection();
 
     moveHistory.push({
       type: 'hint',
-      r,
-      c,
-      prevVal: userGrid[r][c],
-      prevNotes: new Set(userNotes[r][c])
+      r: targetR,
+      c: targetC,
+      prevVal: userGrid[targetR][targetC],
+      prevNotes: new Set(userNotes[targetR][targetC])
     });
 
-    userGrid[r][c] = sol;
-    userNotes[r][c].clear();
-    clearNotesForPlacedNumber(r, c, sol);
+    userGrid[targetR][targetC] = sol;
+    userNotes[targetR][targetC].clear();
+    clearNotesForPlacedNumber(targetR, targetC, sol);
+    updateHintButton();
     triggerHaptic('medium');
     renderBoard();
     updateKeypadCounts();
+
+    // Trigger flash animation on the revealed cell
+    setTimeout(() => {
+      const cellEl = gridEl ? gridEl.querySelector(`.sudoku-cell[data-r="${targetR}"][data-c="${targetC}"]`) : null;
+      if (cellEl) {
+        cellEl.classList.add('hint-flash');
+        setTimeout(() => cellEl.classList.remove('hint-flash'), 1200);
+      }
+    }, 10);
+
     checkWinCondition();
   }
 
@@ -790,7 +914,7 @@ export function mount(container, options = {}) {
       overlay.style.display = 'flex';
     }
 
-    const mult = difficulty === 'hard' ? 3 : difficulty === 'medium' ? 2 : 1;
+    const mult = difficulty === 'expert' ? 4 : difficulty === 'hard' ? 3 : difficulty === 'medium' ? 2 : 1;
     const calcScore = Math.max(50, Math.floor(12000 / Math.max(1, timer)) * mult);
     if (typeof onScoreUpdate === 'function') {
       onScoreUpdate(calcScore, timer);
@@ -823,7 +947,14 @@ export function mount(container, options = {}) {
 
     if (e.key >= '1' && e.key <= '9') {
       e.preventDefault();
-      setNumber(parseInt(e.key, 10));
+      const num = parseInt(e.key, 10);
+      selectedNumber = num;
+      updateKeypadSelection();
+      if (selectedCell) {
+        setNumber(num);
+      } else {
+        renderBoard();
+      }
     } else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') {
       e.preventDefault();
       eraseNumber();
@@ -833,19 +964,19 @@ export function mount(container, options = {}) {
     } else if (e.key.toLowerCase() === 'h') {
       e.preventDefault();
       giveHint();
-    } else if (e.key === 'ArrowUp' && selectedCell.r > 0) {
+    } else if (e.key === 'ArrowUp' && selectedCell && selectedCell.r > 0) {
       e.preventDefault();
       selectedCell.r--;
       renderBoard();
-    } else if (e.key === 'ArrowDown' && selectedCell.r < 8) {
+    } else if (e.key === 'ArrowDown' && selectedCell && selectedCell.r < 8) {
       e.preventDefault();
       selectedCell.r++;
       renderBoard();
-    } else if (e.key === 'ArrowLeft' && selectedCell.c > 0) {
+    } else if (e.key === 'ArrowLeft' && selectedCell && selectedCell.c > 0) {
       e.preventDefault();
       selectedCell.c--;
       renderBoard();
-    } else if (e.key === 'ArrowRight' && selectedCell.c < 8) {
+    } else if (e.key === 'ArrowRight' && selectedCell && selectedCell.c < 8) {
       e.preventDefault();
       selectedCell.c++;
       renderBoard();
@@ -856,20 +987,69 @@ export function mount(container, options = {}) {
   };
 
   const onGridPointerDown = (e) => {
+    if (isPaused || gameWon) return;
     const cellEl = e.target.closest('.sudoku-cell');
     if (!cellEl) return;
     const r = parseInt(cellEl.dataset.r, 10);
     const c = parseInt(cellEl.dataset.c, 10);
-    selectedCell = { r, c };
-    triggerHaptic('light');
-    renderBoard();
+    const isInitial = initialGrid[r][c] !== 0;
+    const cellVal = isInitial ? initialGrid[r][c] : userGrid[r][c];
+
+    // If cell has a number (either initial clue or user placed):
+    if (cellVal !== 0) {
+      selectedCell = { r, c };
+      // Switch active number to this cell's digit - highlighting all matching digits across the board!
+      selectedNumber = cellVal;
+      updateKeypadSelection();
+      triggerHaptic('light');
+      renderBoard();
+      return;
+    }
+
+    // Cell is empty:
+    if (selectedNumber !== null) {
+      // NUMBER-FIRST MODE:
+      // A number is already active! Tapping empty cell immediately places it (or notes it)!
+      selectedCell = { r, c };
+      setNumber(selectedNumber);
+    } else {
+      // CELL-FIRST MODE:
+      // Simply select the empty cell
+      selectedCell = { r, c };
+      triggerHaptic('light');
+      renderBoard();
+    }
   };
 
   const onKeypadPointerDown = (e) => {
+    if (isPaused || gameWon) return;
     const btn = e.target.closest('.sudoku-key-btn');
     if (!btn) return;
     const val = parseInt(btn.dataset.val, 10);
-    setNumber(val);
+    if (!val) return;
+
+    if (selectedNumber === val) {
+      // Tapping the same active number toggles it off
+      selectedNumber = null;
+    } else {
+      selectedNumber = val;
+    }
+
+    updateKeypadSelection();
+
+    // If an empty or editable cell was already selected:
+    if (selectedCell) {
+      const { r, c } = selectedCell;
+      const isInitial = initialGrid[r][c] !== 0;
+      if (!isInitial) {
+        if (userGrid[r][c] === 0 || isNotesMode) {
+          setNumber(val);
+        }
+      }
+    }
+
+    triggerHaptic('light');
+    renderBoard();
   };
 
   const toggleNotesMode = () => {

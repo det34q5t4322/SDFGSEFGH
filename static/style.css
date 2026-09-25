@@ -12850,17 +12850,19 @@ html.banned-lock #endlessBanLoader {
 
 .sudoku-diff-btn {
   flex: 1;
-  padding: 5px 0;
+  padding: 5px 2px;
   border-radius: 7px;
   background: transparent;
   border: none;
   color: var(--text-muted, #94a3b8);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
   -webkit-user-select: none;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .sudoku-diff-btn.active {
@@ -12946,14 +12948,26 @@ html.banned-lock #endlessBanLoader {
 }
 
 .sudoku-cell.same-number {
-  background: rgba(234, 179, 8, 0.28);
-  color: #facc15;
+  background: rgba(245, 158, 11, 0.35) !important;
+  color: #fbbf24 !important;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1.5px rgba(245, 158, 11, 0.75);
 }
 
 .sudoku-cell.conflict {
   background: rgba(239, 68, 68, 0.35) !important;
   color: #f87171 !important;
   animation: sudokuShake 0.25s ease-in-out;
+}
+
+@keyframes sudokuHintPulse {
+  0% { background: rgba(52, 211, 153, 0.85); transform: scale(1.08); z-index: 5; }
+  50% { background: rgba(52, 211, 153, 0.45); transform: scale(1.03); }
+  100% { background: rgba(52, 211, 153, 0.15); transform: scale(1); }
+}
+
+.sudoku-cell.hint-flash {
+  animation: sudokuHintPulse 1.2s ease-out;
 }
 
 @keyframes sudokuShake {
@@ -13018,6 +13032,15 @@ html.banned-lock #endlessBanLoader {
   border-color: rgba(255, 255, 255, 0.4) !important;
 }
 
+.sudoku-tool-btn.exhausted {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sudoku-tool-btn.shake {
+  animation: sudokuShake 0.35s ease-in-out;
+}
+
 .sudoku-tool-btn:active {
   background: rgba(255, 255, 255, 0.15);
   transform: scale(0.96);
@@ -13048,7 +13071,7 @@ html.banned-lock #endlessBanLoader {
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
+  transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   padding: 0;
   box-sizing: border-box;
 }
@@ -13057,6 +13080,18 @@ html.banned-lock #endlessBanLoader {
   font-size: 8px;
   font-weight: 600;
   color: var(--text-muted, #94a3b8);
+}
+
+.sudoku-key-btn.active {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  color: #ffffff !important;
+  border-color: #a5b4fc !important;
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.sudoku-key-btn.active .key-count {
+  color: rgba(255, 255, 255, 0.9) !important;
 }
 
 .sudoku-key-btn:active {
