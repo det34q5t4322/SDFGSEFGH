@@ -13338,6 +13338,20 @@ html.banned-lock #endlessBanLoader {
   font-size: 11px;
   font-weight: 800;
   font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+}
+
+.card-rank[data-rank="6"]::after,
+.card-rank[data-rank="9"]::after {
+  content: '';
+  display: inline-block;
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-left: 1.5px;
+  vertical-align: middle;
 }
 
 .card-suit-svg {
@@ -13439,16 +13453,24 @@ html.banned-lock #endlessBanLoader {
 
 .durak-deck-badge {
   position: absolute;
-  bottom: 3px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.75);
+  top: -5px;
+  right: -5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  background: var(--accent, #6366f1);
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  padding: 1px 5px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 99px;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  z-index: 10;
+  line-height: 1;
 }
 
 .durak-discard-box {
@@ -13482,6 +13504,7 @@ html.banned-lock #endlessBanLoader {
   gap: 6px 6px;
   flex: 1;
   align-content: center;
+  align-items: center;
   justify-items: center;
   min-height: 126px;
   background: rgba(0, 0, 0, 0.22);
@@ -13495,6 +13518,9 @@ html.banned-lock #endlessBanLoader {
   position: relative;
   width: 68px;
   height: 84px;
+  justify-self: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
   border-radius: 8px;
   transition: all 0.15s ease;
   cursor: pointer;
@@ -13587,6 +13613,7 @@ html.banned-lock #endlessBanLoader {
 
 .player-card-wrapper {
   margin-left: -15px;
+  transform-origin: bottom center;
   transition: transform 0.15s ease, margin 0.15s ease;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -13645,26 +13672,48 @@ html.banned-lock #endlessBanLoader {
   line-height: 1.4;
 }
 
-@media (max-width: 360px) {
+@media (max-width: 480px) {
   .durak-card {
-    width: 38px;
-    height: 54px;
-    min-width: 36px;
-    min-height: 50px;
-  }
-  .durak-combat-pair {
-    width: 58px;
-    height: 72px;
-  }
-  .defend-placeholder {
-    width: 38px;
-    height: 54px;
+    width: 42px;
+    height: 59px;
+    min-width: 40px;
+    min-height: 56px;
   }
   .player-card-wrapper {
-    margin-left: -18px;
+    margin-left: -13px;
+    transform-origin: bottom center;
+  }
+  .durak-combat-pair {
+    width: 62px;
+    height: 78px;
+  }
+  .defend-placeholder {
+    width: 42px;
+    height: 59px;
+  }
+}
+
+@media (max-width: 360px) {
+  .durak-card {
+    width: 36px;
+    height: 50px;
+    min-width: 34px;
+    min-height: 48px;
+  }
+  .durak-combat-pair {
+    width: 54px;
+    height: 68px;
+  }
+  .defend-placeholder {
+    width: 36px;
+    height: 50px;
+  }
+  .player-card-wrapper {
+    margin-left: -11px;
+    transform-origin: bottom center;
   }
   .durak-table-field {
-    height: clamp(320px, 52vh, 400px);
+    height: clamp(310px, 50vh, 380px);
   }
 }
 

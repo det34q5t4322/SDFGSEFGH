@@ -137,14 +137,14 @@ export function mount(container, options = {}) {
     return `
       <div class="durak-card ${card.isRed ? 'card-red' : 'card-black'} ${isTrump ? 'is-trump' : ''} ${isTrumpBottom ? 'trump-bottom-card' : ''}" data-id="${card.id}">
         <div class="card-corner corner-top">
-          <span class="card-rank">${card.rankLabel}</span>
+          <span class="card-rank" data-rank="${card.rankLabel}">${card.rankLabel}</span>
           ${getSuitSvg(card.suit)}
         </div>
         <div class="card-center">
           ${getSuitSvg(card.suit)}
         </div>
         <div class="card-corner corner-bottom">
-          <span class="card-rank">${card.rankLabel}</span>
+          <span class="card-rank" data-rank="${card.rankLabel}">${card.rankLabel}</span>
           ${getSuitSvg(card.suit)}
         </div>
         ${isTrump ? `<span class="trump-badge" title="Козырь">★</span>` : ''}
@@ -217,10 +217,9 @@ export function mount(container, options = {}) {
             <div class="durak-deck-stack" id="durakDeckStack">
               <div class="durak-trump-slot" id="durakTrumpSlot"></div>
               <div class="durak-deck-pile" id="durakDeckPile">
-                <div class="card-back durak-deck-cover">
-                  <span class="durak-deck-badge" id="durakDeckCountBadge">36</span>
-                </div>
+                <div class="card-back durak-deck-cover"></div>
               </div>
+              <span class="durak-deck-badge" id="durakDeckCountBadge" title="Карт в колоде">36</span>
             </div>
             <div class="durak-discard-slot" id="durakDiscardSlot">
               <div class="durak-discard-box">
@@ -951,6 +950,7 @@ export function mount(container, options = {}) {
     }
     if (deckCountBadge) {
       deckCountBadge.textContent = deck.length;
+      deckCountBadge.style.display = deck.length > 0 ? 'inline-flex' : 'none';
     }
     if (discardCountEl) {
       discardCountEl.textContent = discardPile.length;
