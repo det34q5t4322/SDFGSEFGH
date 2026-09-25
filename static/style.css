@@ -13478,23 +13478,23 @@ html.banned-lock #endlessBanLoader {
 .durak-combat-table {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: minmax(68px, auto);
-  gap: 6px 4px;
+  grid-auto-rows: minmax(78px, auto);
+  gap: 6px 6px;
   flex: 1;
   align-content: center;
   justify-items: center;
-  min-height: 120px;
+  min-height: 126px;
   background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 12px;
-  padding: 4px;
+  padding: 6px;
   box-sizing: border-box;
 }
 
 .durak-combat-pair {
   position: relative;
-  width: 54px;
-  height: 74px;
+  width: 68px;
+  height: 84px;
   border-radius: 8px;
   transition: all 0.15s ease;
   cursor: pointer;
@@ -13520,8 +13520,8 @@ html.banned-lock #endlessBanLoader {
 }
 
 .defend-placeholder {
-  width: 44px;
-  height: 62px;
+  width: 46px;
+  height: 64px;
   border-radius: 7px;
   border: 1.5px dashed rgba(255, 255, 255, 0.22);
   box-sizing: border-box;
@@ -13651,6 +13651,14 @@ html.banned-lock #endlessBanLoader {
     height: 54px;
     min-width: 36px;
     min-height: 50px;
+  }
+  .durak-combat-pair {
+    width: 58px;
+    height: 72px;
+  }
+  .defend-placeholder {
+    width: 38px;
+    height: 54px;
   }
   .player-card-wrapper {
     margin-left: -18px;
