@@ -683,6 +683,9 @@ html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 body {
   font-family: var(--font-body, var(--theme-font));
@@ -693,6 +696,9 @@ body {
   color: var(--text);
   min-height: 100dvh;
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  position: relative;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition: background-color .24s cubic-bezier(0.4, 0, 0.2, 1), color .24s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1409,10 +1415,16 @@ input {
   padding-top: calc(var(--topbar-h) + var(--tg-top-offset, 0px));
   position: relative;
   z-index: 1;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .topbar {
   position: fixed; top: 0; left: 0; right: 0;
+  width: 100%;
+  max-width: 100vw;
   height: calc(var(--topbar-h) + var(--tg-top-offset, 0px));
   padding-top: var(--tg-top-offset, 0px);
   box-sizing: border-box;
@@ -1420,10 +1432,11 @@ input {
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding-left: calc(16px + env(safe-area-inset-left, 0px));
-  padding-right: calc(16px + env(safe-area-inset-right, 0px));
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding-left: calc(12px + env(safe-area-inset-left, 0px));
+  padding-right: calc(12px + env(safe-area-inset-right, 0px));
   z-index: 100;
+  overflow: hidden;
   transition: background var(--transition), border-color var(--transition);
 }
 .topbar-title-btn {
@@ -1433,15 +1446,17 @@ input {
   background: var(--bg-card-glass, rgba(255, 255, 255, 0.07));
   border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
   border-radius: 12px;
-  padding: 8px 14px;
-  min-height: 42px;
+  padding: 8px 12px;
+  min-height: 40px;
   box-sizing: border-box;
   color: var(--text, #fff);
   cursor: pointer;
   user-select: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   transition: transform 0.15s ease, background 0.18s ease, border-color 0.18s ease;
-  max-width: 58%;
+  min-width: 0;
+  max-width: 48%;
+  flex-shrink: 1;
 }
 .topbar-title-btn:hover {
   background: rgba(255, 255, 255, 0.12);
@@ -1454,14 +1469,18 @@ input {
 .group-btn-icon {
   font-size: 14px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 .group-btn-name {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text, #fff);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .group-btn-chevron {
   width: 15px;
@@ -1481,6 +1500,41 @@ input {
   font-size: 17px; font-weight: 700; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.topbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.topbar-diary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.32);
+  border-radius: 10px;
+  color: #facc15;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  min-height: 40px;
+  box-sizing: border-box;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background 0.18s ease;
+}
+.topbar-diary-btn:hover {
+  background: rgba(234, 179, 8, 0.2);
+  transform: translateY(-1px);
+}
+.topbar-diary-btn:active {
+  transform: scale(0.96);
+}
+
 .topbar-parity {
   font-size: 11px; font-weight: 700;
   padding: 8px 12px; border-radius: 10px;
@@ -1494,6 +1548,10 @@ input {
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
   transition: transform var(--transition), background var(--transition);
 }
 .topbar-parity:hover {
@@ -1504,6 +1562,11 @@ input {
 }
 .topbar-parity.overridden {
   box-shadow: 0 0 0 1.5px var(--accent);
+}
+.topbar-parity-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar-games-btn {
@@ -1533,6 +1596,50 @@ input {
 .topbar-games-btn svg {
   width: 18px;
   height: 18px;
+}
+
+@media (max-width: 640px) {
+  .topbar-diary-btn {
+    display: none !important;
+  }
+  .topbar-download-btn {
+    display: none !important;
+  }
+  .topbar-parity {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+    min-height: 38px !important;
+    max-width: 120px !important;
+  }
+  .topbar-parity .topbar-parity-label {
+    display: none !important;
+  }
+  .topbar-games-btn {
+    width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+  .topbar-title-btn {
+    padding: 6px 10px !important;
+    min-height: 38px !important;
+    max-width: 48% !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .topbar-parity {
+    max-width: 100px !important;
+    padding: 5px 6px !important;
+    font-size: 10px !important;
+  }
+  .topbar-title-btn {
+    padding: 5px 8px !important;
+    gap: 4px !important;
+    max-width: 46% !important;
+  }
+  .group-btn-name {
+    font-size: 13px !important;
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -2164,6 +2271,14 @@ input {
 }
 .pair-room-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
 
+.pair-teacher-btn span,
+.pair-room-btn span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pair-badge {
   font-size: calc(10px * var(--font-scale, 1)); font-weight: 650;
   padding: 2px 7px;
@@ -2457,12 +2572,14 @@ input {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.7);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 300;
   display: flex; align-items: flex-end; justify-content: center;
   opacity: 0; pointer-events: none;
-  transition: opacity var(--transition);
+  visibility: hidden;
+  transition: opacity var(--transition), visibility var(--transition);
 }
-.modal-backdrop.open { opacity: 1; pointer-events: all; }
+.modal-backdrop.open { opacity: 1; pointer-events: all; visibility: visible; }
 
 /* ── Электронный дневник 1С:Колледж ── */
 .diary-modal-backdrop {
@@ -11464,15 +11581,28 @@ html.banned-lock #endlessBanLoader {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
+  min-width: 0;
 }
 .pair-detail-label {
   color: var(--text-tertiary);
   font-weight: 500;
-  min-width: 90px;
+  min-width: 75px;
+  flex-shrink: 0;
 }
 .pair-detail-val {
   color: var(--text-primary);
   font-weight: 600;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pair-detail-val .pair-teacher-btn,
+.pair-detail-val .pair-room-btn {
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* ─── КАРТОЧКА ПОЛЬЗОВАТЕЛЯ В АДМИНКЕ (COMPACT + EXPANDABLE) ─── */
@@ -13794,11 +13924,14 @@ html.banned-lock #endlessBanLoader {
   background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
   border: 1.5px solid rgba(99, 102, 241, 0.3);
   border-radius: 18px;
-  padding: 14px 18px;
+  padding: 12px 14px;
   margin-bottom: 16px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   position: relative;
   overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 8px;
 }
 
 .duel-profile-card::before {
@@ -13811,10 +13944,14 @@ html.banned-lock #endlessBanLoader {
   background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899);
 }
 
+.duel-profile-user-group,
 .duel-profile-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .duel-profile-avatar-wrap {
@@ -13833,6 +13970,7 @@ html.banned-lock #endlessBanLoader {
   justify-content: center;
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+  flex-shrink: 0;
 }
 
 .duel-profile-online-dot {
@@ -13847,18 +13985,32 @@ html.banned-lock #endlessBanLoader {
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.8);
 }
 
+.duel-profile-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
 .duel-profile-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   color: #f8fafc;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .duel-profile-meta {
   font-size: 11px;
   color: #94a3b8;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .duel-profile-rating-badge {
@@ -13867,13 +14019,16 @@ html.banned-lock #endlessBanLoader {
   align-items: flex-end;
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.25));
   border: 1.5px solid rgba(245, 158, 11, 0.45);
-  padding: 8px 14px;
+  padding: 6px 10px;
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(245, 158, 11, 0.2);
+  flex-shrink: 0;
+  min-width: 60px;
+  box-sizing: border-box;
 }
 
 .duel-elo-val {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 900;
   color: #facc15;
   font-family: monospace;
@@ -13891,19 +14046,20 @@ html.banned-lock #endlessBanLoader {
 /* Действия дуэлей */
 .duel-actions-row {
   display: flex;
-  gap: 12px;
-  margin-bottom: 18px;
-  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .duel-create-btn {
-  flex: 1;
-  min-width: 150px;
+  flex: 1 1 0;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 13px 18px;
+  padding: 12px 14px;
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.3px;
@@ -13915,6 +14071,7 @@ html.banned-lock #endlessBanLoader {
   box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
+  white-space: nowrap;
 }
 
 .duel-create-btn:hover {
@@ -13933,10 +14090,40 @@ html.banned-lock #endlessBanLoader {
   background: rgba(15, 23, 42, 0.8);
   border: 1.5px solid rgba(99, 102, 241, 0.35);
   border-radius: 14px;
-  padding: 4px 5px 4px 12px;
+  padding: 4px 5px 4px 10px;
   width: 170px;
+  min-width: 0;
+  box-sizing: border-box;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+@media (max-width: 440px) {
+  .duel-profile-card {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  .duel-profile-avatar-box {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+  .duel-profile-name {
+    font-size: 14px;
+  }
+  .duel-profile-meta {
+    font-size: 10px;
+  }
+  .duel-actions-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .duel-create-btn {
+    width: 100%;
+  }
+  .duel-code-join-wrap {
+    width: 100%;
+  }
 }
 
 .duel-code-join-wrap:focus-within {
@@ -14954,23 +15141,27 @@ html.banned-lock #endlessBanLoader {
 .duel-rank-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 6px;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .dota-rank-badge {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #facc15;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
 }
 
 .dota-rank-stars {
-  font-size: 11px;
+  font-size: 10px;
   color: #facc15;
   letter-spacing: 1px;
+  white-space: nowrap;
 }
 
 .duel-rank-progress-wrap {
@@ -14999,11 +15190,14 @@ html.banned-lock #endlessBanLoader {
   border: 1px solid rgba(255, 255, 255, 0.12);
   margin-bottom: 16px;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .duel-subnav-btn {
-  flex: 1;
-  padding: 10px 8px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 9px 6px;
   font-size: 13px;
   font-weight: 700;
   color: #94a3b8;
@@ -15017,8 +15211,26 @@ html.banned-lock #endlessBanLoader {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 420px) {
+  .duel-subnav-bar {
+    gap: 4px;
+    padding: 4px;
+    border-radius: 12px;
+  }
+  .duel-subnav-btn {
+    padding: 7px 4px;
+    font-size: 11.5px;
+    gap: 4px;
+    border-radius: 10px;
+  }
+  .duel-subnav-btn svg {
+    width: 14px;
+    height: 14px;
+  }
 }
 
 .duel-subnav-btn:hover {

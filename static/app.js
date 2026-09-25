@@ -2080,7 +2080,7 @@ function updateTopbarParity() {
     const isCurrent = (S.weekOffset === 0);
 
     els.topbarParity.innerHTML = `
-      <span class="topbar-parity-text">${isCurrent ? 'Текущая нед.' : 'Неделя'} (${dateRange})</span>
+      <span class="topbar-parity-text"><span class="topbar-parity-label">${isCurrent ? 'Текущая нед.' : 'Неделя'}</span> <span class="topbar-parity-dates">${dateRange}</span></span>
     `;
     els.topbarParity.classList.toggle('overridden', isOverridden);
     els.topbarParity.title = `${isCurrent ? 'Текущая неделя' : 'Выбранная неделя'} (${dateRange}, ${p === 'num' ? 'Числитель' : 'Знаменатель'}). Нажмите для смены недели`;
