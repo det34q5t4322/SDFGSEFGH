@@ -65,6 +65,10 @@ export function mount(container, options = {}) {
   let selectedTargetPairId = null;
   let aiDifficulty = localStorage.getItem('durak_ai_difficulty') || 'smart'; // 'smart' | 'easy'
   let winsCount = parseInt(localStorage.getItem('game_durak_wins') || '0', 10);
+  if (isNaN(winsCount) || winsCount > 500) {
+    winsCount = 1;
+    localStorage.setItem('game_durak_wins', '1');
+  }
   let statusMessage = 'Игра началась';
   let botThinkingTimer = null;
 
@@ -368,6 +372,13 @@ export function mount(container, options = {}) {
       clearTimeout(botThinkingTimer);
       botThinkingTimer = null;
     }
+
+    winsCount = parseInt(localStorage.getItem('game_durak_wins') || '0', 10);
+    if (isNaN(winsCount) || winsCount > 500) {
+      winsCount = 1;
+      localStorage.setItem('game_durak_wins', '1');
+    }
+    if (winsEl) winsEl.textContent = winsCount;
 
     if (!forceFresh && !isDuel && loadSavedGameState()) {
       return;
@@ -744,7 +755,7 @@ export function mount(container, options = {}) {
       gameOver = true;
       clearGameState();
       showOverlay('НИЧЬЯ!', 'Оба игрока избавились от карт одновременно! Никто не остался в дураках.');
-      if (typeof onGameOver === 'function') onGameOver(100, true);
+      if (typeof onGameOver === 'function') onGameOver(winsCount, false);
       return true;
     }
 
@@ -768,7 +779,7 @@ export function mount(container, options = {}) {
       clearGameState();
       showOverlay('ВЫ В ДУРАКАХ!', 'Соперник вышел из игры первым.');
       triggerHaptic('error');
-      if (typeof onGameOver === 'function') onGameOver(0, false);
+      if (typeof onGameOver === 'function') onGameOver(winsCount, false);
       return true;
     }
 
@@ -942,6 +953,9 @@ export function mount(container, options = {}) {
 
   // ── RENDER FUNCTION ───────────────────────────────────────
   function render() {
+    if (winsEl) {
+      winsEl.textContent = winsCount;
+    }
     if (trumpSuitEl && trumpCard) {
       trumpSuitEl.innerHTML = `${getSuitSvg(trumpSuit)} ${trumpCard.suitName}`;
     }

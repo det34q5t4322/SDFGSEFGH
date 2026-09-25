@@ -786,6 +786,8 @@ def record_game_stats(
     if score is not None:
         try:
             valid_score = max(0, min(int(score), 10_000_000))
+            if clean_game_id == "durak" and valid_score > 500:
+                valid_score = 1
         except (ValueError, TypeError):
             valid_score = None
 

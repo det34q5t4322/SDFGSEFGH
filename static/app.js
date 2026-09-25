@@ -9019,7 +9019,11 @@ window.updateGamesCatalogScores = async function() {
   const elDino = document.getElementById('catalogBestDino');
   const elSudoku = document.getElementById('catalogBestSudoku');
   const elDurak = document.getElementById('catalogBestDurak');
-  const bDurak = localStorage.getItem('game_durak_wins') || '0';
+  let bDurak = localStorage.getItem('game_durak_wins') || '0';
+  if (parseInt(bDurak, 10) > 500) {
+    bDurak = '1';
+    localStorage.setItem('game_durak_wins', '1');
+  }
 
   if (el2048) el2048.textContent = b2048;
   if (elTetris) elTetris.textContent = bTetris;
@@ -9070,9 +9074,13 @@ window.updateGamesCatalogScores = async function() {
         localStorage.setItem('game_dino_best', String(my['dino'].high_score));
         if (elDino) elDino.textContent = my['dino'].high_score;
       }
-      if (my['durak'] && my['durak'].high_score > parseInt(bDurak, 10)) {
-        localStorage.setItem('game_durak_wins', String(my['durak'].high_score));
-        if (elDurak) elDurak.textContent = my['durak'].high_score;
+      if (my['durak']) {
+        let srvWins = my['durak'].high_score;
+        if (srvWins > 500) srvWins = 1;
+        const localWins = parseInt(localStorage.getItem('game_durak_wins') || '0', 10);
+        const effectiveWins = Math.max(srvWins, (localWins > 500 ? 1 : localWins));
+        localStorage.setItem('game_durak_wins', String(effectiveWins));
+        if (elDurak) elDurak.textContent = effectiveWins;
       }
       window.renderGamesLeaderboard(_activeGamesLbTab);
     }
@@ -9102,7 +9110,7 @@ window.openGame = async function(gameId) {
   try {
     let module;
     try {
-      module = await import(`/static/games/${gameId}.js?v=20260925_v10`);
+      module = await import(`/static/games/${gameId}.js?v=20260925_v11`);
     } catch (_) {
       module = await import(`/static/games/${gameId}.js`);
     }
