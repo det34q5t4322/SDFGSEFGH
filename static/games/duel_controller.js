@@ -16,7 +16,8 @@ let _disconnectSecondsLeft = 15;
 const DUEL_GAME_NAMES = {
   'tetris': 'Тетрис',
   '2048': '2048',
-  'snake': 'Змейка'
+  'snake': 'Змейка',
+  'durak': 'Дурак'
 };
 
 function getDuelAuthHeaders() {
@@ -816,6 +817,12 @@ function handleDuelWsMessage(data) {
       triggerIncomingAttack(data.lines);
       break;
 
+    case 'game_action':
+      if (_activeDuelGame && typeof _activeDuelGame.handleOpponentAction === 'function') {
+        _activeDuelGame.handleOpponentAction(data.action, data.payload);
+      }
+      break;
+
     case 'round_end':
       handleDuelRoundEnd(data);
       break;
@@ -912,9 +919,16 @@ async function startDuelRound(data) {
       module = await import(`/static/games/${gameId}.js`);
     }
 
+    function sendDuelGameAction(action, payload) {
+      if (_duelWs && _duelWs.readyState === WebSocket.OPEN) {
+        _duelWs.send(JSON.stringify({ type: 'game_action', action, payload }));
+      }
+    }
+
     _activeDuelGame = module.mount(mainField, {
       isDuel: true,
       roundSeed: data.seed,
+      sendGameAction: sendDuelGameAction,
       onScoreUpdate: (score, best, gridSnapshot) => {
         sendDuelState(score, gridSnapshot);
         const myScoreEl = document.getElementById('duelHudMyScore');

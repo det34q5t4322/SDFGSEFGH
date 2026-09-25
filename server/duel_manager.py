@@ -307,6 +307,17 @@ class DuelManager:
                     "lines": lines
                 })
 
+        elif msg_type == "game_action":
+            # Пересылаем игровое действие (атака картой, защита, бито, взятие) сопернику
+            opp_id = room.get_opponent_id(telegram_id)
+            if opp_id and opp_id in room.connections:
+                await room.send_to(opp_id, {
+                    "type": "game_action",
+                    "from_player": telegram_id,
+                    "action": data.get("action"),
+                    "payload": data.get("payload")
+                })
+
         elif msg_type == "round_lost":
             # Игрок проиграл текущий раунд (врезался / заполнился стакан)
             opp_id = room.get_opponent_id(telegram_id)

@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260925_v3">
+  <link rel="stylesheet" href="/static/style.css?v=20260925_v5">
 
 
   <script>
@@ -1779,7 +1779,12 @@
             <!-- Игра 4: Змейка -->
             <div class="game-card" onclick="openGame('snake')" role="button" tabindex="0">
               <div class="game-card-icon-wrap" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.2)); color: #10b981;">
-                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22"><path d="M12 2c5.523 0 10 4.477 10 10a10 10 0 0 1-19.9 1.5"/><path d="M7 13.5A3.5 3.5 0 0 0 10.5 17h3a3.5 3.5 0 0 0 3.5-3.5v-3A3.5 3.5 0 0 0 13.5 7h-3A3.5 3.5 0 0 0 7 10.5v3z"/><circle cx="10" cy="10" r="1" fill="currentColor"/></svg>
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19c2.5-3 5.5-3 8 0s5.5 3 8 0"/>
+                  <path d="M4 13c2.5-3 5.5-3 8 0s5.5 3 8 0"/>
+                  <path d="M7 8a4 4 0 0 1 4-4h5a3 3 0 0 1 3 3v1a3 3 0 0 1-3 3h-5"/>
+                  <circle cx="16" cy="7" r="1.2" fill="currentColor"/>
+                </svg>
               </div>
               <div class="game-card-title">Змейка</div>
               <div class="game-card-meta">
@@ -1790,7 +1795,9 @@
             <!-- Игра 5: Дино-раннер -->
             <div class="game-card" onclick="openGame('dino')" role="button" tabindex="0">
               <div class="game-card-icon-wrap" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(14, 165, 233, 0.2)); color: #10b981;">
-                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 8v4h-2V6h-4V4H7v6h2v2H5v2h2v6h4v-2h2v2h4v-6h2v-4z"/><circle cx="10" cy="6" r="1" fill="currentColor"/></svg>
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                  <path d="M12 2h8v6h-2v2h-2v2h-2v2h-1v-2H9v-2H7V8h4V4h-1V2h2zm6 2h-1v2h1V4zM7 8H5v2H3v2H1v4h2v2h2v-2h2v4h2v-2h1v2h2v-4h-1v-2H7v-2h4v-2H7V8zm2 10v4h2v-2h-1v-2H9zm4 0v4h2v-2h-1v-2h-1z"/>
+                </svg>
               </div>
               <div class="game-card-title">Дино</div>
               <div class="game-card-meta">
@@ -1806,6 +1813,21 @@
               <div class="game-card-title">Судоку</div>
               <div class="game-card-meta">
                 <span class="game-badge">Рекорд: <b id="catalogBestSudoku">—</b></span>
+              </div>
+            </div>
+
+            <!-- Игра 7: Дурак (Подкидной) -->
+            <div class="game-card" onclick="openGame('durak')" role="button" tabindex="0">
+              <div class="game-card-icon-wrap" style="background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(249, 115, 22, 0.2)); color: #f43f5e;">
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="5" width="13" height="17" rx="2"/>
+                  <path d="M7 5V3a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2"/>
+                  <path d="m9.5 12-2 2.5 2 2.5 2-2.5z" fill="currentColor"/>
+                </svg>
+              </div>
+              <div class="game-card-title">Дурак</div>
+              <div class="game-card-meta">
+                <span class="game-badge">Побед: <b id="catalogBestDurak">0</b></span>
               </div>
             </div>
           </div>
@@ -1824,6 +1846,7 @@
                 <button class="games-lb-tab" data-game="snake" onclick="switchGamesLeaderboard('snake')" type="button">Змейка</button>
                 <button class="games-lb-tab" data-game="dino" onclick="switchGamesLeaderboard('dino')" type="button">Дино</button>
                 <button class="games-lb-tab" data-game="sudoku" onclick="switchGamesLeaderboard('sudoku')" type="button">Судоку</button>
+                <button class="games-lb-tab" data-game="durak" onclick="switchGamesLeaderboard('durak')" type="button">Дурак</button>
               </div>
             </div>
 
@@ -2127,6 +2150,19 @@
             <div class="create-duel-opt-info">
               <div class="create-duel-opt-title">Змейка</div>
               <div class="create-duel-opt-desc">Битва на выживание. Не врежься первым!</div>
+            </div>
+          </label>
+          <label class="create-duel-game-opt" onclick="selectCreateDuelGame('durak', this)">
+            <input type="radio" name="duelGameSelect" value="durak" style="display:none;" />
+            <div class="create-duel-opt-icon durak" style="background: linear-gradient(135deg, rgba(244,63,94,0.25), rgba(249,115,22,0.25)); color:#f43f5e;">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="5" width="13" height="17" rx="2"/>
+                <path d="M7 5V3a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2"/>
+              </svg>
+            </div>
+            <div class="create-duel-opt-info">
+              <div class="create-duel-opt-title">Дурак</div>
+              <div class="create-duel-opt-desc">Карточный поединок 1 на 1. Оставь соперника в дураках!</div>
             </div>
           </label>
         </div>
@@ -2553,8 +2589,8 @@
 
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260925_v1"></script>
-  <script src="/static/games/duel_controller.js?v=20260925_v1"></script>
-  <script src="/static/app.js?v=20260925_v3"></script>
+  <script src="/static/games/duel_controller.js?v=20260925_v2"></script>
+  <script src="/static/app.js?v=20260925_v4"></script>
 
 </body>
 </html>

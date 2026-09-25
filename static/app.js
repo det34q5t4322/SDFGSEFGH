@@ -8752,7 +8752,8 @@ const GAME_NAMES = {
   'minesweeper': 'Сапёр',
   'snake': 'Змейка',
   'dino': 'Динозаврик',
-  'sudoku': 'Судоку'
+  'sudoku': 'Судоку',
+  'durak': 'Дурак'
 };
 
 window._getGameDebugState = function() {
@@ -9005,12 +9006,15 @@ window.updateGamesCatalogScores = async function() {
   const elSnake = document.getElementById('catalogBestSnake');
   const elDino = document.getElementById('catalogBestDino');
   const elSudoku = document.getElementById('catalogBestSudoku');
+  const elDurak = document.getElementById('catalogBestDurak');
+  const bDurak = localStorage.getItem('game_durak_wins') || '0';
 
   if (el2048) el2048.textContent = b2048;
   if (elTetris) elTetris.textContent = bTetris;
   if (elMine) elMine.textContent = bMine ? `${bMine}с` : '—';
   if (elSnake) elSnake.textContent = bSnake;
   if (elDino) elDino.textContent = bDino;
+  if (elDurak) elDurak.textContent = bDurak;
   if (elSudoku) {
     if (bSudoku) {
       const s = parseInt(bSudoku, 10);
@@ -9112,6 +9116,9 @@ window.openGame = async function(gameId) {
             const s = best % 60;
             el.textContent = `${m}:${s < 10 ? '0' + s : s}`;
           }
+        } else if (gameId === 'durak') {
+          const el = document.getElementById('catalogBestDurak');
+          if (el) el.textContent = best;
         }
       },
       onGameOver: (score, won) => {
