@@ -8803,11 +8803,12 @@ window.realOpenGamesModal = function() {
 };
 
 window.openGamesModal = function() {
+  const isDuelLink = window.location.search.includes('duel=') || Boolean(window.Telegram?.WebApp?.initDataUnsafe?.start_param?.startsWith('duel_'));
   const hasTgAuth = Boolean(localStorage.getItem('tg_auth_token')) ||
                     Boolean(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 5);
   const promptShown = localStorage.getItem('tg_sync_prompt_shown') === '1';
 
-  if (!hasTgAuth && !promptShown) {
+  if (!isDuelLink && !hasTgAuth && !promptShown) {
     window._pendingModalAfterTg = 'games';
     if (typeof window.openTelegramAppSyncGate === 'function') {
       window.openTelegramAppSyncGate();

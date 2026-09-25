@@ -196,6 +196,11 @@ class DuelManager:
             room.touch()
 
             logger.info(f"User {gid} joined duel room {code}")
+            await room.broadcast({
+                "type": "player_connected",
+                "telegram_id": gid,
+                "room": room.to_dict()
+            })
             return True, "Успешное подключение", room
 
     async def handle_connect(self, room: DuelRoom, telegram_id: int, websocket: WebSocket):

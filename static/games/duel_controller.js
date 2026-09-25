@@ -69,6 +69,12 @@ function getMyPlayerId() {
     _myTelegramId = parseInt(guestId, 10);
     return String(guestId);
   }
+  if (_currentRoom) {
+    if (!_currentRoom.guest && _currentRoom.host?.telegram_id) {
+      _myTelegramId = _currentRoom.host.telegram_id;
+      return String(_myTelegramId);
+    }
+  }
   return '';
 }
 
@@ -599,6 +605,9 @@ window.submitCreateDuel = async function() {
     }
 
     closeCreateDuelModal();
+    if (data.room?.host?.telegram_id) {
+      _myTelegramId = data.room.host.telegram_id;
+    }
     enterDuelRoom(data.room);
   } catch (err) {
     alert(err.message || 'Ошибка создания дуэли');
@@ -628,12 +637,14 @@ window.joinDuelRoom = async function(roomId) {
       body: JSON.stringify({ room_id: roomId })
     }, 5000);
 
-
     const data = await res.json();
     if (!res.ok || !data.ok) {
       throw new Error(data.detail || 'Не удалось войти в комнату');
     }
 
+    if (data.room?.guest?.telegram_id) {
+      _myTelegramId = data.room.guest.telegram_id;
+    }
     enterDuelRoom(data.room);
   } catch (err) {
     alert(err.message || 'Комната недоступна или заполнена');
@@ -645,6 +656,11 @@ window.joinDuelRoom = async function(roomId) {
 function enterDuelRoom(room) {
   _currentRoom = room;
   _isReady = false;
+
+  const myId = getMyPlayerId();
+  if (myId && room.ready && room.ready[myId]) {
+    _isReady = true;
+  }
 
   const sheetBody = document.querySelector('.games-sheet-body');
   if (sheetBody) sheetBody.classList.add('is-duel');
@@ -685,7 +701,7 @@ function renderRoomLobby(room) {
   }
   if (hostElo) hostElo.textContent = `${hRating} ELO`;
   if (hostStatus) {
-    const isReady = room.ready && room.ready[String(room.host.telegram_id)];
+    const isReady = Boolean(room.ready && room.ready[String(room.host.telegram_id)]);
     hostStatus.innerHTML = isReady
       ? '<span class="duel-status-ready-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> ГОТОВ</span>'
       : '<span class="duel-status-waiting-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 15"/></svg> Ожидание</span>';
@@ -698,6 +714,7 @@ function renderRoomLobby(room) {
   const guestStatus = document.getElementById('duelGuestStatus');
   const guestAvatar = document.getElementById('duelGuestAvatar');
   const readyBtn = document.getElementById('duelReadyBtn');
+  const shareBtn = document.getElementById('duelShareInviteBtn');
 
   if (room.guest) {
     if (guestName) guestName.textContent = room.guest.name;
@@ -713,22 +730,13 @@ function renderRoomLobby(room) {
     if (guestElo) guestElo.textContent = `${gRating} ELO`;
     if (guestAvatar) guestAvatar.innerHTML = getAvatarSilhouetteSvg(false);
     if (guestStatus) {
-      const isReady = room.ready && room.ready[String(room.guest.telegram_id)];
+      const isReady = Boolean(room.ready && room.ready[String(room.guest.telegram_id)]);
       guestStatus.innerHTML = isReady
         ? '<span class="duel-status-ready-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> ГОТОВ</span>'
         : '<span class="duel-status-waiting-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 15"/></svg> Ожидание</span>';
       guestStatus.className = `duel-player-status ${isReady ? 'ready' : 'waiting'}`;
     }
-    if (readyBtn) {
-      readyBtn.style.display = 'inline-flex';
-      const myId = getMyPlayerId();
-      const amReady = room.ready && room.ready[myId];
-      _isReady = !!amReady;
-      readyBtn.innerHTML = _isReady
-        ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> <span>Готов! Отменить</span>'
-        : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> <span>Я готов к бою!</span>';
-      readyBtn.style.background = _isReady ? 'linear-gradient(135deg, #64748b, #475569)' : 'linear-gradient(135deg, #10b981, #059669)';
-    }
+    if (shareBtn) shareBtn.style.display = 'none';
   } else {
     if (guestName) guestName.textContent = 'Ожидание игрока...';
     if (guestRank) guestRank.style.display = 'none';
@@ -738,7 +746,20 @@ function renderRoomLobby(room) {
       guestStatus.innerHTML = '<span class="duel-status-waiting-tag"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 15"/></svg> Не в сети</span>';
       guestStatus.className = 'duel-player-status waiting';
     }
-    if (readyBtn) readyBtn.style.display = 'none';
+    if (shareBtn) shareBtn.style.display = 'inline-flex';
+  }
+
+  // Кнопка готовности доступна ВСЕГДА в лобби
+  if (readyBtn) {
+    readyBtn.style.display = 'inline-flex';
+    const myId = getMyPlayerId();
+    if (room.ready && myId in room.ready) {
+      _isReady = Boolean(room.ready[myId]);
+    }
+    readyBtn.innerHTML = _isReady
+      ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> <span>Готов! Отменить</span>'
+      : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> <span>Я готов к бою!</span>';
+    readyBtn.style.background = _isReady ? 'linear-gradient(135deg, #64748b, #475569)' : 'linear-gradient(135deg, #10b981, #059669)';
   }
 }
 
@@ -862,6 +883,12 @@ function handleDuelWsMessage(data) {
 
 window.toggleDuelReady = function() {
   _isReady = !_isReady;
+  const myId = getMyPlayerId();
+  if (_currentRoom) {
+    if (!_currentRoom.ready) _currentRoom.ready = {};
+    if (myId) _currentRoom.ready[myId] = _isReady;
+    renderRoomLobby(_currentRoom);
+  }
   const btn = document.getElementById('duelReadyBtn');
   if (btn) {
     btn.innerHTML = _isReady
@@ -889,17 +916,30 @@ window.shareDuelInvite = function() {
   if (!_currentRoom) return;
   const code = _currentRoom.room_id;
   const gameName = DUEL_GAME_NAMES[_currentRoom.game_id] || 'игру';
-  const url = `https://schedule.dadrik.ru/?duel=${code}`;
-  const text = `Сыграем в ${gameName} 1 на 1? Подключайся к комнате: ${code}!`;
+  const webUrl = `https://schedule.dadrik.ru/?duel=${code}`;
+  const tgMiniAppUrl = `https://t.me/Raddart_bot/app?startapp=duel_${code}`;
+  const text = `Сыграем в ${gameName} 1 на 1? Заходи в дуэль по ссылке или введи код ${code}!`;
 
   if (window.Telegram?.WebApp?.openTelegramLink) {
-    window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
-  } else {
-    navigator.clipboard.writeText(`${text}\n${url}`).then(() => {
-      alert('Ссылка и код скопированы! Отправьте их другу.');
+    window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(tgMiniAppUrl)}&text=${encodeURIComponent(text)}`);
+  } else if (navigator.share) {
+    navigator.share({
+      title: `Дуэль: ${gameName}`,
+      text: `${text}\n${webUrl}`,
+      url: webUrl
+    }).catch(() => {
+      copyDuelInviteFallback(text, webUrl);
     });
+  } else {
+    copyDuelInviteFallback(text, webUrl);
   }
 };
+
+function copyDuelInviteFallback(text, url) {
+  navigator.clipboard.writeText(`${text}\n${url}`).then(() => {
+    alert('Ссылка и код скопированы! Отправьте их другу.');
+  });
+}
 
 // ── ROUND EXECUTION & GAME INTEGRATION ──────────────────────
 
