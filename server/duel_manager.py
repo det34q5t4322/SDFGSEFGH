@@ -23,6 +23,29 @@ def generate_room_code(length: int = 6) -> str:
     return "".join(random.choices(alphabet, k=length))
 
 
+# BUG-008: Token Bucket rate limiter для WebSocket сообщений
+WS_BUCKET_CAPACITY = 15.0  # запас на всплески (быстрый обмен атаками)
+WS_REFILL_RATE = 10.0      # токенов в секунду (с запасом от нормальных 3-5/сек)
+
+
+class TokenBucket:
+    def __init__(self, capacity: float = WS_BUCKET_CAPACITY, refill_rate: float = WS_REFILL_RATE):
+        self.capacity = capacity
+        self.tokens = capacity
+        self.refill_rate = refill_rate
+        self.last_refill = time.monotonic()
+
+    def try_consume(self) -> bool:
+        now = time.monotonic()
+        elapsed = now - self.last_refill
+        self.tokens = min(self.capacity, self.tokens + elapsed * self.refill_rate)
+        self.last_refill = now
+        if self.tokens >= 1.0:
+            self.tokens -= 1.0
+            return True
+        return False
+
+
 class DuelRoom:
     def __init__(self, room_id: str, game_id: str, host_info: Dict[str, Any]):
         self.room_id = room_id
@@ -61,6 +84,15 @@ class DuelRoom:
         self.last_state_score: Dict[int, int] = {}
         self.last_state_time: Dict[int, float] = {}
         self.attack_suspicious_count: Dict[int, int] = {}
+
+        # BUG-008: WS rate-limiting (Token Bucket на каждое соединение в комнате)
+        self.rate_buckets: Dict[int, TokenBucket] = {}
+        self.dropped_messages: Dict[int, int] = {}
+
+    def get_bucket(self, telegram_id: int) -> TokenBucket:
+        if telegram_id not in self.rate_buckets:
+            self.rate_buckets[telegram_id] = TokenBucket()
+        return self.rate_buckets[telegram_id]
 
     def touch(self):
         self.last_activity = time.time()
@@ -303,6 +335,18 @@ class DuelManager:
         """Маршрутизация сообщений матча."""
         msg_type = data.get("type")
         room.touch()
+
+        # BUG-008: Проверка WebSocket rate limit через Token Bucket
+        bucket = room.get_bucket(telegram_id)
+        if not bucket.try_consume():
+            drops = room.dropped_messages.get(telegram_id, 0) + 1
+            room.dropped_messages[telegram_id] = drops
+            if drops % 25 == 1:
+                logger.warning(
+                    f"Duel WS rate limit exceeded for user {telegram_id} in room {room.room_id} "
+                    f"(dropped {drops} messages so far)"
+                )
+            return
 
         if msg_type == "ready":
             is_ready = bool(data.get("ready", True))
