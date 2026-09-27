@@ -126,6 +126,20 @@ class DuelManager:
     def __init__(self):
         self._rooms: Dict[str, DuelRoom] = {}
         self._lock = asyncio.Lock()
+        asyncio.get_event_loop().create_task(self._cleanup_loop())
+
+    async def _cleanup_loop(self):
+        """Фоновая периодическая очистка протухших комнат каждые 5 минут."""
+        while True:
+            await asyncio.sleep(300)
+            now = time.time()
+            async with self._lock:
+                expired = [rid for rid, r in self._rooms.items()
+                          if now - r.last_activity > ROOM_TTL_SECONDS]
+                for rid in expired:
+                    self._rooms.pop(rid, None)
+                if expired:
+                    logger.info(f"Cleanup: removed {len(expired)} expired duel rooms")
 
     async def create_room(self, game_id: str, host_info: Dict[str, Any]) -> DuelRoom:
         async with self._lock:
