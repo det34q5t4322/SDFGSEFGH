@@ -51,10 +51,16 @@ class DuelRoom:
         self.disconnect_tasks: Dict[int, asyncio.Task] = {}
 
         # Общий seed для раунда (для синхронных блоков тетриса или спавна 2048)
-        self.round_seed = random.randint(100000, 999999)
+        self.round_seed = secrets.randbelow(900000) + 100000
 
         # Результат матча
         self.match_result: Optional[Dict[str, Any]] = None
+
+        # BUG-EX1b: метрики для эвристической валидации атак
+        self.last_attack_time: Dict[int, float] = {}
+        self.last_state_score: Dict[int, int] = {}
+        self.last_state_time: Dict[int, float] = {}
+        self.attack_suspicious_count: Dict[int, int] = {}
 
     def touch(self):
         self.last_activity = time.time()
@@ -319,6 +325,11 @@ class DuelManager:
             score = data.get("score", 0)
             if not isinstance(score, (int, float)) or score < 0 or score > 10_000_000:
                 return
+
+            # BUG-EX1b: фиксируем последний валидный счёт и время обновления
+            room.last_state_score[telegram_id] = int(score)
+            room.last_state_time[telegram_id] = time.monotonic()
+
             opp_id = room.get_opponent_id(telegram_id)
             if opp_id and opp_id in room.connections:
                 await room.send_to(opp_id, {
@@ -337,6 +348,25 @@ class DuelManager:
             if lines <= 0:
                 return
             lines = min(lines, 8)
+
+            # BUG-EX1b: серверная эвристическая валидация частоты атак
+            # TODO: full server-side field validation — see BUG-EX1b follow-up
+            now_m = time.monotonic()
+            last_atk = room.last_attack_time.get(telegram_id, 0.0)
+            time_since_last_atk = now_m - last_atk
+
+            # В Тетрисе физически нельзя собирать и сжигать линии чаще чем раз в 300мс
+            if time_since_last_atk < 0.3:
+                suspicious = room.attack_suspicious_count.get(telegram_id, 0) + 1
+                room.attack_suspicious_count[telegram_id] = suspicious
+                logger.warning(
+                    f"suspicious_activity: attack throttled in room={room.room_id}, user={telegram_id}, "
+                    f"interval={time_since_last_atk:.3f}s < 0.3s (count={suspicious})"
+                )
+                return
+
+            room.last_attack_time[telegram_id] = now_m
+
             opp_id = room.get_opponent_id(telegram_id)
             if opp_id and opp_id in room.connections:
                 await room.send_to(opp_id, {
