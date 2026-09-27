@@ -731,6 +731,9 @@ def get_leaderboard(limit: int = 20, requesting_user_id: Optional[int] = None) -
             LIMIT ?
         ''', (now_iso, limit))
         top_users = [dict(row) for row in cursor.fetchall()]
+        for u in top_users:
+            if u.get("telegram_id"):
+                u["photo_url"] = f"/api/avatar/{u['telegram_id']}"
 
         user_stats = None
         if requesting_user_id and requesting_user_id > 10000 and requesting_user_id not in (1000000001, 1000000002):
@@ -742,6 +745,8 @@ def get_leaderboard(limit: int = 20, requesting_user_id: Optional[int] = None) -
             u_row = cursor.fetchone()
             if u_row:
                 user_dict = dict(u_row)
+                if user_dict.get("telegram_id"):
+                    user_dict["photo_url"] = f"/api/avatar/{user_dict['telegram_id']}"
                 is_opted = user_dict.get('leaderboard_opt_in') is None or (user_dict.get('leaderboard_opt_in') != 0 and user_dict.get('leaderboard_opt_in') is not False)
                 if is_opted:
                     cursor.execute('''
@@ -865,8 +870,10 @@ def get_user_game_stats(telegram_id: Optional[int] = None) -> Dict[str, Any]:
                 LIMIT 10
             ''', (gid, now_iso))
             rows = [dict(r) for r in cursor.fetchall()]
-            if gid == "minesweeper":
-                for r in rows:
+            for r in rows:
+                if r.get("telegram_id"):
+                    r["photo_url"] = f"/api/avatar/{r['telegram_id']}"
+                if gid == "minesweeper":
                     hs = r.get("high_score", 0)
                     r["best_time_seconds"] = max(1, round(10000 / hs)) if hs > 0 else None
             leaderboards[gid] = rows
@@ -1148,6 +1155,8 @@ def get_duel_leaderboard(game_id: str = "overall", limit: int = 15) -> List[Dict
             tot = r["wins"] + r["losses"] + r["draws"]
             r["win_rate"] = round((r["wins"] / tot) * 100) if tot > 0 else 0
             r["rank"] = get_dota_rank(r["rating"])
+            if r.get("telegram_id"):
+                r["photo_url"] = f"/api/avatar/{r['telegram_id']}"
         return rows
 
 
@@ -1180,7 +1189,7 @@ def get_user_duel_history(telegram_id: Optional[int], limit: int = 20) -> List[D
         is_p1 = (telegram_id == r["player1_id"])
         opp_id = r["player2_id"] if is_p1 else r["player1_id"]
         opp_name = r["p2_name"] if is_p1 else r["p1_name"]
-        opp_photo = r["p2_photo"] if is_p1 else r["p1_photo"]
+        opp_photo = f"/api/avatar/{opp_id}" if opp_id else ""
         my_score = r["player1_score"] if is_p1 else r["player2_score"]
         opp_score = r["player2_score"] if is_p1 else r["player1_score"]
         is_winner = (r["winner_id"] == telegram_id)

@@ -39,6 +39,7 @@ import db
 import crypto_utils
 from grades_1c import OneCGradessClient
 from duel_manager import duel_manager
+import avatar_manager
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -381,8 +382,8 @@ def get_verified_user_from_request(request: Request) -> Optional[dict]:
 @app.middleware("http")
 async def rate_limiting_middleware(request: Request, call_next):
     path = request.url.path
-    # Полностью исключаем статику, служебные файлы и health-check из-под лимитера
-    if path.startswith("/api/") and path not in ("/api/ping", "/api/health"):
+    # Полностью исключаем статику, служебные файлы, аватарки и health-check из-под лимитера
+    if path.startswith("/api/") and path not in ("/api/ping", "/api/health") and not path.startswith("/api/avatar"):
         client_ip = get_real_client_ip(request)
         user = get_verified_user_from_request(request)
 
@@ -1215,6 +1216,12 @@ async def reset_duel_ratings_endpoint(request: Request):
 async def get_duel_leaders(game_id: str = "overall", limit: int = 15):
     leaders = db.get_duel_leaderboard(game_id, limit)
     return {"leaderboard": leaders}
+
+
+@app.get("/api/avatar/{telegram_id}")
+async def get_user_avatar_endpoint(telegram_id: int):
+    """Публичный эндпоинт проксирования и кэширования аватарок пользователей из Telegram."""
+    return await avatar_manager.get_avatar_response(telegram_id)
 
 
 @app.websocket("/ws/duel/{room_id}")

@@ -7494,8 +7494,9 @@ window.renderAdminOnlineUsersList = function(onlineUsers) {
     const name = u.first_name || u.username || 'Студент';
     const uname = u.username ? `@${esc(u.username)}` : '';
     const initials = (u.first_name ? u.first_name[0] : (u.username ? u.username[0] : 'U')).toUpperCase();
-    const avatarHtml = u.photo_url 
-      ? `<img src="${esc(u.photo_url)}" class="admin-user-avatar" alt="Avatar" onerror="this.outerHTML='<div class=\\'admin-user-avatar-placeholder\\'>${initials}</div>'"/>`
+    const avatarSrc = u.telegram_id ? `/api/avatar/${u.telegram_id}` : (u.photo_url || '');
+    const avatarHtml = avatarSrc 
+      ? `<img src="${esc(avatarSrc)}" class="admin-user-avatar" loading="lazy" alt="Avatar" onerror="this.outerHTML='<div class=\\'admin-user-avatar-placeholder\\'>${initials}</div>'"/>`
       : `<div class="admin-user-avatar-placeholder">${initials}</div>`;
 
     h += `
@@ -8259,14 +8260,18 @@ window.loadLeaderboardData = async function() {
   if (myGroupEl) {
     myGroupEl.textContent = (typeof S !== 'undefined' && S.group) ? S.group : 'ИСС9-25';
   }
-  if (tgUser?.photo_url && myAvatarEl && myAvatarFallback) {
-    myAvatarEl.src = tgUser.photo_url;
-    myAvatarEl.style.display = 'block';
-    myAvatarFallback.style.display = 'none';
-    myAvatarEl.onerror = () => {
-      myAvatarEl.style.display = 'none';
-      myAvatarFallback.style.display = 'flex';
-    };
+  if (myAvatarEl && myAvatarFallback) {
+    const avatarSrc = (tgUser?.id || tgUser?.telegram_id) ? `/api/avatar/${tgUser.id || tgUser.telegram_id}` : (tgUser?.photo_url || '');
+    if (avatarSrc) {
+      myAvatarEl.src = avatarSrc;
+      myAvatarEl.loading = 'lazy';
+      myAvatarEl.style.display = 'block';
+      myAvatarFallback.style.display = 'none';
+      myAvatarEl.onerror = () => {
+        myAvatarEl.style.display = 'none';
+        myAvatarFallback.style.display = 'flex';
+      };
+    }
   }
 
   if (listEl) {
@@ -8358,9 +8363,8 @@ window.loadLeaderboardData = async function() {
       const displayGroup = esc(u.selected_group || 'Колледж');
       const timeStr = formatLeaderboardDuration(u.total_time_seconds);
 
-      const avatarHtml = u.photo_url
-        ? `<img src="${esc(u.photo_url)}" alt="${displayName}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><div style="display:none;" class="leaderboard-avatar-fallback"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>`
-        : `<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>`;
+      const avatarSrc = u.photo_url || (u.telegram_id ? `/api/avatar/${u.telegram_id}` : '/static/default-avatar.svg');
+      const avatarHtml = `<img src="${esc(avatarSrc)}" alt="${displayName}" loading="lazy" onerror="this.onerror=null; this.src='/static/default-avatar.svg';" />`;
 
       html += `
         <div class="${rowClass}">
@@ -8979,9 +8983,8 @@ window.renderGamesLeaderboard = function(gameId = _activeGamesLbTab) {
       scoreVal = Number(u.high_score || 0).toLocaleString('ru-RU');
     }
 
-    const avatarHtml = u.photo_url
-      ? `<img src="${esc(u.photo_url)}" alt="${displayName}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><div style="display:none;" class="leaderboard-avatar-fallback"><svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>`
-      : `<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>`;
+    const avatarSrc = u.photo_url || (u.telegram_id ? `/api/avatar/${u.telegram_id}` : '/static/default-avatar.svg');
+    const avatarHtml = `<img src="${esc(avatarSrc)}" alt="${displayName}" loading="lazy" onerror="this.onerror=null; this.src='/static/default-avatar.svg';" />`;
 
     html += `
       <div class="${rowClass}">

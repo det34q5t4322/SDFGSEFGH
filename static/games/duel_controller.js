@@ -452,11 +452,15 @@ window.loadDuelLeaderboard = async function() {
       const rName = rank.name || 'Специалист';
       const rStars = rank.stars_str || rank.starsStr || '';
       const rankTitle = `${rName} ${rStars}`.trim();
+      const avatarSrc = u.photo_url || (u.telegram_id ? `/api/avatar/${u.telegram_id}` : '/static/default-avatar.svg');
 
       html += `
         <div class="duel-lb-row ${i < 3 ? 'top-three' : ''}">
           <div class="duel-lb-left">
             <span class="duel-lb-rank-num">${medal}</span>
+            <div class="duel-lb-avatar-wrap">
+              <img src="${esc(avatarSrc)}" class="duel-lb-avatar" loading="lazy" onerror="this.onerror=null; this.src='/static/default-avatar.svg';" alt="" />
+            </div>
             <div class="duel-lb-user-details">
               <span class="duel-lb-user-name">${esc(u.display_name)}</span>
               <span class="duel-lb-dota-badge is-clickable" onclick="openDuelRanksModal()" title="Посмотреть таблицу всех рангов" style="border-color:${rank.color}44; color:${rank.color}; background:${rank.color}15; cursor:pointer;">
@@ -691,6 +695,15 @@ function renderRoomLobby(room) {
   const hostStatus = document.getElementById('duelHostStatus');
 
   if (hostName) hostName.textContent = room.host.name;
+  const hostAvatar = document.getElementById('duelHostAvatar');
+  if (hostAvatar) {
+    if (room.host && room.host.telegram_id) {
+      const hAvatarSrc = room.host.photo_url || `/api/avatar/${room.host.telegram_id}`;
+      hostAvatar.innerHTML = `<img src="${esc(hAvatarSrc)}" class="duel-lobby-avatar-img" loading="lazy" onerror="this.onerror=null; this.src='/static/default-avatar.svg';" alt="" />`;
+    } else {
+      hostAvatar.innerHTML = getAvatarSilhouetteSvg(false);
+    }
+  }
   const hRating = room.host.rating || 1000;
   const hRank = getDuelRank(hRating);
   if (hostRank) {
@@ -728,7 +741,14 @@ function renderRoomLobby(room) {
       guestRank.onclick = openDuelRanksModal;
     }
     if (guestElo) guestElo.textContent = `${gRating} ELO`;
-    if (guestAvatar) guestAvatar.innerHTML = getAvatarSilhouetteSvg(false);
+    if (guestAvatar) {
+      if (room.guest.telegram_id) {
+        const gAvatarSrc = room.guest.photo_url || `/api/avatar/${room.guest.telegram_id}`;
+        guestAvatar.innerHTML = `<img src="${esc(gAvatarSrc)}" class="duel-lobby-avatar-img" loading="lazy" onerror="this.onerror=null; this.src='/static/default-avatar.svg';" alt="" />`;
+      } else {
+        guestAvatar.innerHTML = getAvatarSilhouetteSvg(false);
+      }
+    }
     if (guestStatus) {
       const isReady = Boolean(room.ready && room.ready[String(room.guest.telegram_id)]);
       guestStatus.innerHTML = isReady
