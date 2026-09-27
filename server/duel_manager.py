@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import secrets
 import string
 import time
 from typing import Dict, List, Optional, Any, Tuple
@@ -287,7 +288,9 @@ class DuelManager:
 
             # Если оба игрока готовы — запускаем раунд
             if room.guest and all(room.ready_states.get(tid, False) for tid in (room.host["telegram_id"], room.guest["telegram_id"])):
-                await self.start_round_sequence(room)
+                if room.status in ("lobby", "waiting"):
+                    room.status = "countdown"  # атомарно до любого await
+                    await self.start_round_sequence(room)
 
         elif msg_type == "state_update":
             # Пересылаем обновление сетки и очков сопернику
@@ -334,8 +337,8 @@ class DuelManager:
 
     async def start_round_sequence(self, room: DuelRoom):
         """Быстрый динамичный отсчёт перед раундом 2..1 и старт."""
-        room.status = "countdown"
-        room.round_seed = random.randint(100000, 999999)
+        # room.status уже = "countdown" (выставлен атомарно в handle_message)
+        room.round_seed = secrets.randbelow(900000) + 100000
 
         for sec in (2, 1):
             await room.broadcast({
