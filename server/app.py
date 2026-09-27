@@ -243,6 +243,11 @@ MAX_REQUESTS_IP = 300    # запросов в минуту для неавто�
 
 _rate_limit_timestamps = defaultdict(list)
 
+# Специальный rate limit для подбора кодов комнаты
+JOIN_RATE_LIMIT_WINDOW = 60  # секунд
+JOIN_MAX_ATTEMPTS = 10       # попыток в минуту на (IP, user_id)
+_join_rate_limit_timestamps = defaultdict(list)
+
 RATE_LIMIT_LOG_DIR = os.path.join(BASE_DIR, "logs")
 os.makedirs(RATE_LIMIT_LOG_DIR, exist_ok=True)
 RATE_LIMIT_LOG_PATH = os.path.join(RATE_LIMIT_LOG_DIR, "rate_limit.log")
@@ -1143,6 +1148,17 @@ async def join_duel_room(payload: DuelJoinPayload, request: Request):
     if not user or user.get("is_banned"):
         raise HTTPException(status_code=401, detail="Требуется авторизация Telegram")
     uid = int(user.get("id") or user.get("telegram_id") or 0)
+
+    # Специальный rate limit на join: 10 попыток/мин на (IP, telegram_id)
+    client_ip = get_real_client_ip(request)
+    join_key = f"join:{client_ip}:{uid}"
+    now_ts = time.time()
+    recent = [t for t in _join_rate_limit_timestamps[join_key] if now_ts - t < JOIN_RATE_LIMIT_WINDOW]
+    if len(recent) >= JOIN_MAX_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Слишком много попыток входа. Подождите минуту.")
+    recent.append(now_ts)
+    _join_rate_limit_timestamps[join_key] = recent
+
     rating_data = db.get_user_duel_stats(uid)
     name = user.get("first_name") or user.get("username") or f"Игрок {uid % 1000}"
     photo = user.get("photo_url", "")
