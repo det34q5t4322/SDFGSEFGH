@@ -312,8 +312,13 @@ class DuelManager:
 
         elif msg_type == "attack":
             # Тетрис: отправка штрафных линий сопернику
+            if room.status != "playing":
+                return
+            lines = int(data.get("lines", 0))
+            if lines <= 0:
+                return
+            lines = min(lines, 8)
             opp_id = room.get_opponent_id(telegram_id)
-            lines = max(1, min(int(data.get("lines", 1)), 8))
             if opp_id and opp_id in room.connections:
                 await room.send_to(opp_id, {
                     "type": "incoming_attack",
