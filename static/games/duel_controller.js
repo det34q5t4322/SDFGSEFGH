@@ -813,9 +813,18 @@ function connectDuelWebSocket(roomId) {
     }
   };
 
-  _duelWs.onclose = () => {
-    console.log('[DuelWS] Closed');
+  _duelWs.onclose = (event) => {
+    console.log('[DuelWS] Closed', event);
     if (_duelWs?._pingTimer) clearInterval(_duelWs._pingTimer);
+    // BUG-DC2: Автоматический быстрый реконнект при неожиданном обрыве связи в активной комнате
+    if (_currentRoom && _currentRoom.status !== 'match_over' && !event?.wasClean) {
+      console.log('[DuelWS] Unexpected disconnect, attempting auto-reconnect in 500ms...');
+      setTimeout(() => {
+        if (_currentRoom && _currentRoom.status !== 'match_over' && (!_duelWs || _duelWs.readyState === WebSocket.CLOSED)) {
+          connectDuelWebSocket(_currentRoom.room_id);
+        }
+      }, 500);
+    }
   };
 
   _duelWs.onerror = (e) => {
@@ -1334,7 +1343,9 @@ window.exitDuelRoom = function() {
 // ── DISCONNECT HANDLING ────────────────────────────────────
 
 function showDuelDisconnectWarning(seconds) {
-  _disconnectSecondsLeft = seconds;
+  // BUG-DC2: Показываем таймер с запасом 1 секунда (от 14с при 15с grace-периоде сервера),
+  // чтобы оставить буфер на сетевую задержку и TCP/WS handshake.
+  _disconnectSecondsLeft = Math.max(1, (seconds || 15) - 1);
   const banner = document.getElementById('duelDisconnectBanner');
   const timer = document.getElementById('duelDisconnectTimer');
   if (banner) banner.style.display = 'block';
