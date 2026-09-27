@@ -17,7 +17,7 @@ DEFAULT_AVATAR_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "static", "de
 os.makedirs(AVATAR_CACHE_DIR, exist_ok=True)
 
 AVATAR_TTL_SECONDS = 86400  # 24 часа
-NEGATIVE_CACHE_TTL_SECONDS = 86400  # 24 часа для пользователей без фото
+NEGATIVE_CACHE_TTL_SECONDS = 7 * 86400  # 7 дней для пользователей без фото
 MAX_CONCURRENT_DOWNLOADS = 5
 
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)

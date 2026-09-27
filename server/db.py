@@ -376,6 +376,33 @@ def init_db() -> None:
         logger.error(f'SQLite init error: {e}')
 
 
+_known_users_cache: Set[int] = set()
+
+
+def is_known_user(telegram_id: int) -> bool:
+    """Проверяет, зарегистрирован ли пользователь в системе (user_activity, duel_ratings, user_game_stats)."""
+    if not telegram_id or telegram_id <= 0:
+        return False
+    if telegram_id in _known_users_cache:
+        return True
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM user_activity WHERE telegram_id = ? "
+                "UNION SELECT 1 FROM duel_ratings WHERE telegram_id = ? "
+                "UNION SELECT 1 FROM user_game_stats WHERE telegram_id = ? LIMIT 1",
+                (telegram_id, telegram_id, telegram_id)
+            )
+            found = cursor.fetchone() is not None
+            if found:
+                _known_users_cache.add(telegram_id)
+            return found
+    except Exception as e:
+        logger.error(f"Error checking is_known_user for {telegram_id}: {e}")
+        return False
+
+
 def is_user_banned(telegram_id: int) -> bool:
     """Проверка бана из памяти (O(1)). Если срок бана истёк — снимает бан автоматически."""
     if not telegram_id or telegram_id <= 0:

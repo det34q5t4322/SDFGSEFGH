@@ -1221,6 +1221,8 @@ async def get_duel_leaders(game_id: str = "overall", limit: int = 15):
 @app.get("/api/avatar/{telegram_id}")
 async def get_user_avatar_endpoint(telegram_id: int):
     """Публичный эндпоинт проксирования и кэширования аватарок пользователей из Telegram."""
+    if telegram_id <= 0 or not db.is_known_user(telegram_id):
+        raise HTTPException(status_code=404, detail="User not found")
     return await avatar_manager.get_avatar_response(telegram_id)
 
 
