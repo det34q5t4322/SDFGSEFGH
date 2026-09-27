@@ -300,12 +300,17 @@ class DuelManager:
 
         elif msg_type == "state_update":
             # Пересылаем обновление сетки и очков сопернику
+            if room.status != "playing":
+                return
+            score = data.get("score", 0)
+            if not isinstance(score, (int, float)) or score < 0 or score > 10_000_000:
+                return
             opp_id = room.get_opponent_id(telegram_id)
             if opp_id and opp_id in room.connections:
                 await room.send_to(opp_id, {
                     "type": "opponent_state",
                     "telegram_id": telegram_id,
-                    "score": data.get("score", 0),
+                    "score": score,
                     "grid": data.get("grid"),
                     "aux": data.get("aux")
                 })
