@@ -118,6 +118,22 @@ def _sync_download_avatar(telegram_id: int) -> bool:
         logger.info(f"Cached avatar for user {telegram_id} ({len(img_bytes)} bytes)")
         return True
 
+    except urllib.error.HTTPError as e:
+        err_msg = ""
+        try:
+            err_body = e.read().decode("utf-8")
+            err_data = json.loads(err_body)
+            err_msg = err_data.get("description", "")
+        except Exception:
+            pass
+        if e.code == 400 and ("user not found" in err_msg.lower() or "chat not found" in err_msg.lower()):
+            try:
+                with open(no_avatar_marker, "w") as f:
+                    f.write(str(int(time.time())))
+            except OSError:
+                pass
+        logger.warning(f"Telegram Bot API HTTP {e.code} for user {telegram_id}: {err_msg or e.reason}")
+        return False
     except Exception as e:
         logger.warning(f"Failed to fetch avatar for {telegram_id}: {e}")
         if os.path.exists(tmp_file):
@@ -202,6 +218,8 @@ async def get_avatar_response(telegram_id: int) -> Response:
                     "X-Avatar-Cache": "MISS-STORED"
                 }
             )
+        if os.path.exists(no_avatar_marker):
+            return _default_avatar_response(cache_tag="NEGATIVE-STORED")
     except (asyncio.TimeoutError, Exception) as e:
         logger.warning(f"Initial avatar fetch timeout/error for {telegram_id}: {e}")
         # Если синхронный вызов превысил таймаут — продолжаем скачивать в фоне
