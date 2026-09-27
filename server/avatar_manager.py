@@ -76,10 +76,9 @@ def _sync_download_avatar(telegram_id: int) -> bool:
                 pass
             return False
 
-        # Выбираем подходящий размер: photos[0] отсортирован по возрастанию
-        # [0] = 160x160 (~6KB), [1] = 320x320 (~15KB)
+        # Выбираем наименьший компактный размер 160x160 (~5-8KB) для максимальной скорости и экономии трафика
         sizes = photos[0]
-        selected_size = sizes[1] if len(sizes) > 1 else sizes[0]
+        selected_size = sizes[0]
         file_id = selected_size.get("file_id")
 
         # 2. Получаем file_path
@@ -188,11 +187,11 @@ async def get_avatar_response(telegram_id: int) -> Response:
 
     # 3. Ни файла, ни маркера нет — первоначальная попытка скачивания
     try:
-        # Ограничиваем ожидание первого скачивания 2.5 секундами, чтобы клиент не зависал
+        # Ограничиваем ожидание первого скачивания 3.5 секундами, чтобы клиент не зависал
         loop = asyncio.get_event_loop()
         success = await asyncio.wait_for(
             loop.run_in_executor(None, _sync_download_avatar, telegram_id),
-            timeout=2.5
+            timeout=3.5
         )
         if success and os.path.exists(cache_file):
             return FileResponse(
@@ -205,6 +204,8 @@ async def get_avatar_response(telegram_id: int) -> Response:
             )
     except (asyncio.TimeoutError, Exception) as e:
         logger.warning(f"Initial avatar fetch timeout/error for {telegram_id}: {e}")
+        # Если синхронный вызов превысил таймаут — продолжаем скачивать в фоне
+        asyncio.create_task(refresh_user_avatar(telegram_id))
 
     # Fallback на дефолтный аватар
     return _default_avatar_response(cache_tag="DEFAULT")
