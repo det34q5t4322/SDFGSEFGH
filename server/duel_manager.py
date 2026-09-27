@@ -206,34 +206,40 @@ class DuelManager:
 
     async def handle_connect(self, room: DuelRoom, telegram_id: int, websocket: WebSocket):
         """Подключение сокета игрока и отмена таймера дисконнекта при возврате."""
-        room.connections[telegram_id] = websocket
         room.touch()
 
-        # Отменяем таймер grace-периода, если был дисконнект
+        # Отменяем таймер grace-периода ДО добавления сокета в connections
         task = room.disconnect_tasks.pop(telegram_id, None)
         if task and not task.done():
             task.cancel()
             logger.info(f"User {telegram_id} reconnected to room {room.room_id} in time")
-            await room.broadcast({
-                "type": "opponent_reconnected",
-                "telegram_id": telegram_id
-            })
+            # Уведомляем только оппонента (send_to, не broadcast — иначе игрок получит своё own id)
+            opp_id = room.get_opponent_id(telegram_id)
+            if opp_id and opp_id in room.connections:
+                await room.send_to(opp_id, {
+                    "type": "opponent_reconnected",
+                    "telegram_id": telegram_id
+                })
 
-        # Отправляем текущее состояние комнаты
+        # Регистрируем сокет ПОСЛЕ уведомления
+        room.connections[telegram_id] = websocket
+
+        # Отправляем текущее состояние только переподключившемуся
         await room.send_to(telegram_id, {
             "type": "room_state",
             "room": room.to_dict(),
             "my_id": telegram_id
         })
 
-        # Уведомляем оппонента о подключении
-        opp_id = room.get_opponent_id(telegram_id)
-        if opp_id and opp_id in room.connections:
-            await room.send_to(opp_id, {
-                "type": "player_connected",
-                "telegram_id": telegram_id,
-                "room": room.to_dict()
-            })
+        # Уведомляем оппонента о новом подключении (только если не было reconnect-таймера)
+        if not task:
+            opp_id = room.get_opponent_id(telegram_id)
+            if opp_id and opp_id in room.connections:
+                await room.send_to(opp_id, {
+                    "type": "player_connected",
+                    "telegram_id": telegram_id,
+                    "room": room.to_dict()
+                })
 
     async def handle_disconnect(self, room: DuelRoom, telegram_id: int):
         """Обработка обрыва связи: даётся 15 секунд на переподключение."""
