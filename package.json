@@ -1,0 +1,22 @@
+{
+  "name": "college-schedule-app",
+  "version": "1.0.0",
+  "description": "Мобильное приложение расписания занятий Колледжа телекоммуникаций",
+  "private": true,
+  "scripts": {
+    "sync": "node scripts/sync-www.js && cap sync android",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
+    "cap:build": "cap build android",
+    "build:apk": "cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.1",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/cli": "^7.0.1",
+    "@capacitor/core": "^7.0.1",
+    "@capacitor/haptics": "^7.0.0",
+    "@capacitor/keyboard": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.0"
+  }
+}

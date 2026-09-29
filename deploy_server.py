@@ -1,15 +1,8 @@
-import socket, paramiko, os
+import os
+from vps_cmd import get_ssh_connection
 
 def deploy():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(('192.168.1.229', 0))
-    sock.settimeout(20)
-    sock.connect(('194.87.92.31', 22))
-
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect('194.87.92.31', username='root', password='MRjE3nZtDl', sock=sock)
-
+    client, sock = get_ssh_connection(timeout=20)
     sftp = client.open_sftp()
 
     files = [
@@ -54,7 +47,9 @@ def deploy():
     if err: print("ERR:", err)
 
     client.close()
-    sock.close()
+    if sock:
+        try: sock.close()
+        except: pass
     print("Deploy completed!")
 
 if __name__ == '__main__':

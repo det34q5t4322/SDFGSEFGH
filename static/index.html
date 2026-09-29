@@ -336,11 +336,6 @@
             localStorage.setItem('onboarding_completed', 'true');
           }
         }
-        var ak = p.get('admin_key') || localStorage.getItem('schedule_admin_master_key');
-        if (ak) {
-          localStorage.setItem('schedule_admin_master_key', ak);
-          document.cookie = "admin_key=" + ak + "; path=/; max-age=31536000; SameSite=Lax";
-        }
         if (p.get('unban') === '1' || p.get('reset') === '1') {
           try { localStorage.removeItem('is_banned_state'); } catch (_) {}
         }

@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import hmac
 import asyncio
 import threading
 import logging
@@ -316,6 +317,38 @@ def _parse_keys_from_env(env_var_name: str, fallback_var_name: Optional[str] = N
 ADMIN_MASTER_KEYS = _parse_keys_from_env("ADMIN_MASTER_KEYS", "ADMIN_MASTER_KEY")
 VALID_WEB_SECRETS = _parse_keys_from_env("VALID_WEB_SECRETS", "WEB_SECRET")
 
+
+def _safe_key_matches(input_key: str, valid_keys: set) -> bool:
+    """Безопасное сравнение ключей через hmac.compare_digest для предотвращения timing-атак."""
+    if not input_key:
+        return False
+    matched = False
+    for vk in valid_keys:
+        if hmac.compare_digest(input_key, vk):
+            matched = True
+    return matched
+
+
+AUTH_RATE_LIMIT_WINDOW = 60  # секунд
+AUTH_MAX_ATTEMPTS = 5        # максимум 5 попыток в минуту на один IP
+_auth_rate_limit_timestamps = defaultdict(list)
+
+
+def _check_auth_rate_limit(request: Request, tag: str):
+    """Ограничение частоты попыток аутентификации (5 попыток/мин на IP)."""
+    client_ip = get_real_client_ip(request)
+    now_ts = time.time()
+    key = f"{tag}:{client_ip}"
+    recent = [t for t in _auth_rate_limit_timestamps[key] if now_ts - t < AUTH_RATE_LIMIT_WINDOW]
+    if len(recent) >= AUTH_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Слишком много попыток входа. Пожалуйста, подождите одну минуту."
+        )
+    recent.append(now_ts)
+    _auth_rate_limit_timestamps[key] = recent
+
+
 def get_verified_user_from_request(request: Request) -> Optional[dict]:
     """Извлекает и валидирует Telegram WebApp initData, Auth Token или Admin Master Key с кэшированием сессии в request.state."""
     if hasattr(request.state, "verified_user"):
@@ -334,13 +367,9 @@ def get_verified_user_from_request(request: Request) -> Optional[dict]:
             request.state.verified_user = verified_tg_user
             return verified_tg_user
 
-    # 1. Проверка мастер-пароля администратора (для нативного Android приложения и браузера)
-    client_admin_key = (
-        request.headers.get("x-admin-key")
-        or request.cookies.get("admin_key")
-        or request.query_params.get("admin_key")
-    )
-    if client_admin_key and client_admin_key.strip() in ADMIN_MASTER_KEYS:
+    # 1. Проверка мастер-пароля администратора (только через заголовок x-admin-key)
+    client_admin_key = request.headers.get("x-admin-key")
+    if client_admin_key and _safe_key_matches(client_admin_key.strip(), ADMIN_MASTER_KEYS):
         user = {
             "id": 7552844207,
             "username": "Dadrik1",
@@ -1226,8 +1255,8 @@ async def get_duel_history_endpoint(request: Request, limit: int = 20):
 async def reset_duel_ratings_endpoint(request: Request):
     user = get_verified_user_from_request(request)
     is_admin = bool(user and user.get("is_admin", False))
-    admin_key = request.headers.get("x-admin-master-key") or request.query_params.get("admin_key")
-    if not is_admin and (not admin_key or admin_key.strip() not in ADMIN_MASTER_KEYS):
+    admin_key = request.headers.get("x-admin-key")
+    if not is_admin and (not admin_key or not _safe_key_matches(admin_key.strip(), ADMIN_MASTER_KEYS)):
         raise HTTPException(status_code=403, detail="Доступ запрещён")
     db.reset_all_duel_data()
     return {"ok": True, "message": "Рейтинги и матчи успешно сброшены, боты удалены"}
@@ -1428,10 +1457,11 @@ class WebSecretVerifyPayload(BaseModel):
 
 
 @app.post("/api/auth/web-secret")
-async def verify_web_secret_endpoint(payload: WebSecretVerifyPayload, response: Response):
+async def verify_web_secret_endpoint(payload: WebSecretVerifyPayload, request: Request, response: Response):
     """Проверка секретного ключа для автономного доступа в браузере без Telegram."""
+    _check_auth_rate_limit(request, "web-secret")
     val = (payload.secret or "").strip()
-    if val and val in VALID_WEB_SECRETS:
+    if val and _safe_key_matches(val, VALID_WEB_SECRETS):
         response.set_cookie(
             key="secret_key",
             value=val,
@@ -1448,10 +1478,11 @@ class AdminLoginPayload(BaseModel):
     admin_key: str
 
 @app.post("/api/admin/login")
-async def admin_login(payload: AdminLoginPayload, response: Response):
+async def admin_login(payload: AdminLoginPayload, request: Request):
+    """Авторизация администратора по мастер-ключу (без установки куки)."""
+    _check_auth_rate_limit(request, "admin-login")
     key = (payload.admin_key or "").strip()
-    if key in ADMIN_MASTER_KEYS:
-        response.set_cookie(key="admin_key", value=key, max_age=31536000, httponly=False, samesite="lax")
+    if key and _safe_key_matches(key, ADMIN_MASTER_KEYS):
         return {
             "status": "ok",
             "authenticated": True,

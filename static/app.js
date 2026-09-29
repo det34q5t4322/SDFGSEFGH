@@ -7227,7 +7227,6 @@ window.submitAdminLogin = async function(e) {
     if (res.ok) {
       const data = await res.json();
       localStorage.setItem('schedule_admin_master_key', key);
-      document.cookie = 'admin_key=' + encodeURIComponent(key) + '; path=/; max-age=31536000; SameSite=Lax';
       S.isAdmin = true;
       if (err) err.style.display = 'none';
       closeAdminLoginModal();
@@ -7256,7 +7255,6 @@ window.submitAdminLogin = async function(e) {
 
 window.logoutAdmin = function() {
   localStorage.removeItem('schedule_admin_master_key');
-  document.cookie = 'admin_key=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   S.isAdmin = false;
   checkAuthStatus();
   if (typeof closeAdminModal === 'function') closeAdminModal();
