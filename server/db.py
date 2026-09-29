@@ -1426,6 +1426,26 @@ def resolve_bug_report(report_id: int, admin_id: int = 0) -> bool:
         return success
 
 
+def resolve_all_bug_reports(admin_id: int = 0) -> int:
+    """Помечает все открытые ошибки как решенные."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE client_bug_reports
+            SET status = "resolved"
+            WHERE status = "open"
+        ''')
+        count = cursor.rowcount
+        if count > 0:
+            now_iso = datetime.now().isoformat()
+            cursor.execute('''
+                INSERT INTO admin_audit_logs (admin_id, target_id, action, reason, duration, created_at)
+                VALUES (?, 0, "resolve_all_reports", ?, "", ?)
+            ''', (admin_id, f"Помечено решенными всех ошибок: {count}", now_iso))
+        conn.commit()
+        return count
+
+
 def create_telegram_link_session() -> Dict[str, Any]:
     """Создает временную сессию привязки с 6-значным кодом и токеном (TTL 10 минут)."""
     token = secrets.token_hex(16)

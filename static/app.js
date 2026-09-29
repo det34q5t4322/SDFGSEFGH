@@ -7464,6 +7464,7 @@ window.openAdminModal = function() {
     document.body.style.overflow = 'hidden';
   }
   switchAdminTab(currentAdminTab || 'users');
+  checkReportsBadgeCount();
   updateTelegramBackButton();
   sendClientActivity('Открыл панель управления');
 };
@@ -7497,7 +7498,13 @@ window.switchAdminTab = function(tabName) {
   currentAdminTab = tabName;
   const tabs = document.querySelectorAll('.admin-tab-btn');
   tabs.forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tabName);
+    const isActive = btn.dataset.tab === tabName;
+    btn.classList.toggle('active', isActive);
+    if (isActive) {
+      try {
+        btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      } catch (_) {}
+    }
   });
 
   const panes = {
@@ -7628,9 +7635,18 @@ window.renderAdminOnlineUsersList = function(onlineUsers) {
               <span class="admin-user-expanded-label">IP адрес:</span>
               <span class="admin-user-expanded-val">${esc(u.ip)}</span>
             </div>
-            <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
-              <button class="admin-btn-neutral" onclick="event.stopPropagation(); quickBanUser(${u.telegram_id}, '${esc(u.username || '')}')" type="button" title="Заблокировать пользователя">
-                <svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+            <div class="admin-user-expanded-actions" style="margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <button class="admin-btn-action" onclick="event.stopPropagation(); copyAdminText('${u.telegram_id}', 'Telegram ID скопирован!')" type="button" title="Скопировать ID">
+                <svg class="lucide-icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                <span>Копировать ID</span>
+              </button>
+              ${u.username ? `
+              <a class="admin-btn-action" href="https://t.me/${esc(u.username)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Открыть в Telegram">
+                <svg class="lucide-icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                <span>В Telegram</span>
+              </a>` : ''}
+              <button class="admin-btn-neutral" onclick="event.stopPropagation(); quickBanUser(${u.telegram_id}, '${esc(u.username || '')}')" type="button" title="Заблокировать пользователя" style="margin-left: auto;">
+                <svg class="lucide-icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
                 <span>Заблокировать</span>
               </button>
             </div>
@@ -7651,14 +7667,28 @@ window.renderAdminHistoryList = function(history) {
   }
   let h = '';
   history.forEach(row => {
-    const name = row.username ? `@${esc(row.username)}` : `ID: ${row.telegram_id}`;
+    const displayName = row.first_name || (row.username ? `@${row.username}` : `ID: ${row.telegram_id}`);
+    const uname = row.username ? `@${esc(row.username)}` : '';
+    const initials = (row.first_name ? row.first_name[0] : (row.username ? row.username[0] : 'U')).toUpperCase();
+    const avatarSrc = row.telegram_id ? `/api/avatar/${row.telegram_id}` : (row.photo_url || '');
+    const avatarHtml = avatarSrc
+      ? `<img src="${esc(avatarSrc)}" class="admin-user-avatar" width="34" height="34" loading="lazy" alt="Avatar" onerror="this.outerHTML='<div class=\\'admin-user-avatar-placeholder\\' style=\\'width:34px;height:34px;font-size:13px;\\'>${initials}</div>'"/>`
+      : `<div class="admin-user-avatar-placeholder" style="width:34px;height:34px;font-size:13px;">${initials}</div>`;
+
     h += `
       <div class="admin-history-item expandable-card" onclick="toggleCardExpand(this, event)">
-        <div class="card-compact-view">
+        <div class="card-compact-view" style="width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;">
           <div class="admin-history-left">
-            <div class="admin-history-user">${name} <span class="admin-history-visits">(${row.visits_count} визитов)</span></div>
-            <div class="admin-history-meta">
-              Группа: <strong>${esc(row.selected_group || '—')}</strong>
+            ${avatarHtml}
+            <div class="admin-history-compact-meta">
+              <div class="admin-history-user">
+                <span>${esc(displayName)}</span>
+                ${uname && row.first_name ? `<span style="color:var(--text-tertiary); font-weight:normal; font-size:11px;">${uname}</span>` : ''}
+                <span class="admin-history-visits">(${row.visits_count} виз.)</span>
+              </div>
+              <div class="admin-history-meta">
+                Группа: <strong>${esc(row.selected_group || '—')}</strong>
+              </div>
             </div>
           </div>
           <div class="admin-history-right" style="display:flex; align-items:center; gap:6px;">
@@ -7685,6 +7715,21 @@ window.renderAdminHistoryList = function(history) {
             <div class="admin-user-expanded-row">
               <span class="admin-user-expanded-label">IP адрес:</span>
               <span class="admin-user-expanded-val">${esc(row.ip_address || 'unknown')}</span>
+            </div>
+            <div class="admin-user-expanded-actions" style="margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <button class="admin-btn-action" onclick="event.stopPropagation(); copyAdminText('${row.telegram_id}', 'Telegram ID скопирован!')" type="button" title="Скопировать ID">
+                <svg class="lucide-icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                <span>Копировать ID</span>
+              </button>
+              ${row.username ? `
+              <a class="admin-btn-action" href="https://t.me/${esc(row.username)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Открыть в Telegram">
+                <svg class="lucide-icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                <span>В Telegram</span>
+              </a>` : ''}
+              <button class="admin-btn-neutral" onclick="event.stopPropagation(); quickBanUser(${row.telegram_id}, '${esc(row.username || '')}')" type="button" title="Заблокировать пользователя" style="margin-left: auto;">
+                <svg class="lucide-icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+                <span>Заблокировать</span>
+              </button>
             </div>
           </div>
         </div>
@@ -8186,13 +8231,92 @@ window.loadAdminBugReports = async function() {
 
 window.resolveBugReport = async function(reportId) {
   try {
-    const res = await fetchWithTimeout(`${API}/admin/reports/${reportId}/resolve`, { method: 'POST' }, 8000);
+    const res = await fetchWithTimeout(`${API}/admin/reports/${reportId}/resolve`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    }, 8000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     await loadAdminBugReports();
+    checkReportsBadgeCount();
   } catch (err) {
-    alert(`Ошибка обновления отчета: ${err.message}`);
+    if (typeof showToast === 'function') {
+      showToast(`Ошибка обновления: ${err.message}`, 2500);
+    } else {
+      alert(`Ошибка обновления отчета: ${err.message}`);
+    }
   }
 };
+
+window.resolveAllAdminReports = async function() {
+  const btn = document.getElementById('adminResolveAllBtn');
+  if (!confirm('Вы уверены, что хотите пометить ВСЕ открытые ошибки как решенные?')) return;
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/reports/resolve-all`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    }, 8000);
+    if (handleAdminAuthError(res)) return;
+    if (res.ok) {
+      const data = await res.json();
+      if (typeof showToast === 'function') {
+        showToast(`✅ Решено ошибок: ${data.resolved_count || 0}`, 3000);
+      }
+      await loadAdminBugReports();
+      checkReportsBadgeCount();
+    } else {
+      if (typeof showToast === 'function') showToast('Ошибка при очистке ошибок', 2500);
+    }
+  } catch (e) {
+    if (typeof showToast === 'function') showToast('Сетевая ошибка при очистке', 2500);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+window.copyAdminText = async function(text, toastMsg) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(String(text));
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = String(text);
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    if (typeof showToast === 'function') {
+      showToast(toastMsg || 'Скопировано в буфер!', 2000);
+    }
+  } catch (_) {
+    if (typeof showToast === 'function') {
+      showToast('Ошибка копирования', 2000);
+    }
+  }
+};
+
+async function checkReportsBadgeCount() {
+  const badgeEl = document.getElementById('adminReportsBadge');
+  if (!badgeEl) return;
+  try {
+    const res = await fetchWithTimeout(`${API}/admin/reports?status=open`, {
+      headers: getAuthHeaders()
+    }, 4000);
+    if (res.ok) {
+      const data = await res.json();
+      const count = (data.reports || []).length;
+      if (count > 0) {
+        badgeEl.textContent = count > 99 ? '99+' : count;
+        badgeEl.style.display = 'inline-block';
+      } else {
+        badgeEl.style.display = 'none';
+      }
+    }
+  } catch (_) {}
+}
 
 window.resolveMultipleReports = async function(ids) {
   try {

@@ -1682,6 +1682,16 @@ async def resolve_admin_report(request: Request, report_id: int):
     return {"status": "ok"}
 
 
+@app.post("/api/admin/reports/resolve-all")
+async def resolve_all_admin_reports(request: Request):
+    """Отметка всех открытых ошибок как решенных."""
+    user = get_verified_user_from_request(request)
+    if not user or not user.get("is_admin") or user.get("is_banned"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    count = db.resolve_all_bug_reports(admin_id=user["id"])
+    return {"status": "ok", "resolved_count": count}
+
+
 @app.get("/api/english-alarm")
 async def get_english_alarm(
     request: Request,
