@@ -7581,7 +7581,7 @@ window.renderAdminOnlineUsersList = function(onlineUsers) {
     const initials = (u.first_name ? u.first_name[0] : (u.username ? u.username[0] : 'U')).toUpperCase();
     const avatarSrc = u.telegram_id ? `/api/avatar/${u.telegram_id}` : (u.photo_url || '');
     const avatarHtml = avatarSrc 
-      ? `<img src="${esc(avatarSrc)}" class="admin-user-avatar" loading="lazy" alt="Avatar" onerror="this.outerHTML='<div class=\\'admin-user-avatar-placeholder\\'>${initials}</div>'"/>`
+      ? `<img src="${esc(avatarSrc)}" class="admin-user-avatar" width="36" height="36" loading="lazy" alt="Avatar" onerror="this.outerHTML='<div class=\\'admin-user-avatar-placeholder\\'>${initials}</div>'"/>`
       : `<div class="admin-user-avatar-placeholder">${initials}</div>`;
 
     h += `

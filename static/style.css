@@ -11619,6 +11619,32 @@ html.banned-lock #endlessBanLoader {
   gap: 9px;
   min-width: 0;
 }
+.admin-user-avatar {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  display: block;
+}
+.admin-user-avatar-placeholder {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
 .admin-user-compact-meta {
   display: flex;
   flex-direction: column;
