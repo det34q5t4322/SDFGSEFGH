@@ -8018,10 +8018,13 @@ window.loadAdminAuditLogs = async function() {
 };
 
 
-// ── 4. Вкладка СТАТИСТИКА (KPI, ГРАФИК ПО ЧАСАМ, ТОП ГРУПП) ──
+// ── 4. Вкладка СТАТИСТИКА (MISSION CONTROL / АНАЛИТИКА) ──
 window.loadAdminStats = async function() {
-  const chartEl = document.getElementById('adminHourlyChart');
+  const rhythmGridEl = document.getElementById('adminRhythmGrid');
+  const platformsCardEl = document.getElementById('adminPlatformsCard');
+  const topStudentsEl = document.getElementById('adminTopStudentsList');
   const topGroupsEl = document.getElementById('adminTopGroupsList');
+  const peakBadgeEl = document.getElementById('statPeakHourBadge');
 
   try {
     const res = await fetchWithTimeout(`${API}/admin/stats`, {}, 6000);
@@ -8033,57 +8036,119 @@ window.loadAdminStats = async function() {
     // Заполнение KPI
     const totalUsersEl = document.getElementById('statTotalUsers');
     const totalViewsEl = document.getElementById('statTotalViews');
+    const totalHoursEl = document.getElementById('statTotalHours');
+    const totalDuelsEl = document.getElementById('statTotalDuels');
     const totalRequestsEl = document.getElementById('statTotalRequests');
     const bannedCountEl = document.getElementById('statBannedCount');
-    const openReportsEl = document.getElementById('statOpenReports');
 
     if (totalUsersEl) totalUsersEl.textContent = stats.total_users || 0;
     if (totalViewsEl) totalViewsEl.textContent = stats.total_sessions || stats.total_views || 0;
-    if (totalRequestsEl) totalRequestsEl.textContent = stats.total_api_requests_24h || 0;
-    if (bannedCountEl) bannedCountEl.textContent = stats.banned_count || 0;
-    if (openReportsEl) openReportsEl.textContent = stats.open_reports_count || 0;
+    if (totalHoursEl) totalHoursEl.textContent = `${stats.total_time_hours || 0} ч`;
+    if (totalDuelsEl) totalDuelsEl.textContent = stats.total_duels || 0;
+    if (totalRequestsEl) totalRequestsEl.textContent = (stats.total_api_requests_24h || 0).toLocaleString('ru-RU');
+    if (bannedCountEl) {
+      const bCount = stats.banned_count || 0;
+      bannedCountEl.textContent = bCount > 0 ? `${bCount} банов` : '0 банов · Норма 🟢';
+    }
 
-    // Рендер почасового графика
-    if (chartEl) {
-      const hourly = stats.hourly_activity || [];
-      if (hourly.length === 0) {
-        chartEl.innerHTML = '<div class="admin-empty-state">Нет данных о нагрузке за последние 24 часа</div>';
+    // Пик нагрузки
+    if (peakBadgeEl) {
+      peakBadgeEl.textContent = stats.peak_hour ? `🔥 Пик: ${stats.peak_hour} (${stats.peak_requests} req)` : '🔥 Пик нагрузки';
+    }
+
+    // 1. Суточный ритм колледжа (вместо старого раздражающего графика)
+    if (rhythmGridEl) {
+      const rhythm = stats.day_rhythm || [];
+      if (rhythm.length === 0) {
+        rhythmGridEl.innerHTML = '<div class="admin-empty-state">Нет данных об активности</div>';
       } else {
-        const maxReq = Math.max(...hourly.map(x => x.requests_count || 0), 1);
-        let barsHtml = '<div class="admin-chart-bars">';
-        hourly.forEach((item, idx) => {
-          const count = item.requests_count || 0;
-          const pct = Math.max(6, Math.round((count / maxReq) * 100));
-          const hourLabel = item.hour_key ? item.hour_key.slice(11, 16) : '';
-          const isPeak = count >= maxReq * 0.75;
-          // Показываем подписи через час или если мало колонок, чтобы текст не слипался
-          const showLabel = hourly.length <= 12 || idx % 2 === 0;
-
-          barsHtml += `
-            <div class="admin-chart-col" title="${item.hour_key}: ${count} запросов">
-              <div class="admin-bar-val">${count > 0 ? count : ''}</div>
-              <div class="admin-chart-bar ${isPeak ? 'peak-bar' : ''}" style="height: ${pct}%;"></div>
-              <div class="admin-bar-label">${showLabel ? hourLabel : ''}</div>
+        rhythmGridEl.innerHTML = rhythm.map(slot => `
+          <div class="admin-rhythm-slot">
+            <div class="admin-rhythm-header">
+              <span class="admin-rhythm-icon">${slot.icon}</span>
+              <div class="admin-rhythm-info">
+                <div class="admin-rhythm-label">${slot.label}</div>
+                <div class="admin-rhythm-desc">${slot.desc}</div>
+              </div>
+              <div class="admin-rhythm-pct">${slot.percent}%</div>
             </div>
-          `;
-        });
-        barsHtml += '</div>';
-        chartEl.innerHTML = barsHtml;
+            <div class="admin-rhythm-bar-wrap">
+              <div class="admin-rhythm-bar-fill" style="width: ${slot.percent}%;"></div>
+            </div>
+          </div>
+        `).join('');
       }
     }
 
-    // Рендер топ групп
+    // 2. Платформы и устройства
+    if (platformsCardEl) {
+      const platforms = stats.platforms || [];
+      const segBars = platforms.map(p => {
+        let color = '#3b82f6';
+        if (p.name.includes('Android')) color = '#10b981';
+        else if (p.name.includes('iOS')) color = '#6366f1';
+        return `<div class="admin-platform-seg" style="width:${p.percent}%; background:${color};" title="${p.name}: ${p.percent}%"></div>`;
+      }).join('');
+
+      const legends = platforms.map(p => `
+        <div class="admin-platform-legend-item">
+          <span class="admin-platform-icon">${p.icon}</span>
+          <span class="admin-platform-name">${p.name}</span>
+          <span class="admin-platform-val">${p.count} (${p.percent}%)</span>
+        </div>
+      `).join('');
+
+      platformsCardEl.innerHTML = `
+        <div class="admin-platform-multibar">${segBars}</div>
+        <div class="admin-platform-legends">${legends}</div>
+      `;
+    }
+
+    // 3. Топ активных студентов
+    if (topStudentsEl) {
+      const students = stats.top_students || [];
+      if (students.length === 0) {
+        topStudentsEl.innerHTML = '<div class="admin-empty-state">Пока нет данных активности</div>';
+      } else {
+        topStudentsEl.innerHTML = students.map((s, idx) => {
+          const name = s.first_name || (s.username ? `@${s.username}` : `ID: ${s.telegram_id}`);
+          const uname = s.username ? `@${esc(s.username)}` : '';
+          const initials = (s.first_name ? s.first_name[0] : (s.username ? s.username[0] : 'U')).toUpperCase();
+          const avatarSrc = s.telegram_id ? `/api/avatar/${s.telegram_id}` : (s.photo_url || '');
+          const avatarHtml = avatarSrc
+            ? `<img src="${esc(avatarSrc)}" class="admin-user-avatar" width="34" height="34" loading="lazy" alt="Avatar" onerror="this.outerHTML='<div class=\\'admin-user-avatar-placeholder\\' style=\\'width:34px;height:34px;font-size:13px;\\'>${initials}</div>'"/>`
+            : `<div class="admin-user-avatar-placeholder" style="width:34px;height:34px;font-size:13px;">${initials}</div>`;
+          const rankMedal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+          const timeSpent = formatDuration(s.total_time_seconds);
+
+          return `
+            <div class="admin-top-student-row">
+              <span class="admin-student-rank">${rankMedal}</span>
+              ${avatarHtml}
+              <div class="admin-student-info">
+                <div class="admin-student-name">
+                  <span>${esc(name)}</span>
+                  ${uname && s.first_name ? `<span class="admin-student-uname">${uname}</span>` : ''}
+                </div>
+                <div class="admin-student-sub">${esc(s.selected_group || 'Без группы')} · ${s.visits_count} визитов · ${timeSpent} в приложении</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // 4. Топ групп колледжа
     if (topGroupsEl) {
       const topGroups = stats.top_groups || [];
       if (topGroups.length === 0) {
         topGroupsEl.innerHTML = '<div class="admin-empty-state">Активность групп еще не зафиксирована</div>';
       } else {
         const maxVisits = Math.max(...topGroups.map(g => g.total_visits || 0), 1);
-        let gHtml = '';
-        topGroups.forEach((g, idx) => {
+        topGroupsEl.innerHTML = topGroups.map((g, idx) => {
           const visits = g.total_visits || 0;
           const pct = Math.round((visits / maxVisits) * 100);
-          gHtml += `
+          return `
             <div class="admin-ranking-row">
               <div class="admin-ranking-rank">#${idx + 1}</div>
               <div class="admin-ranking-info">
@@ -8097,12 +8162,11 @@ window.loadAdminStats = async function() {
               </div>
             </div>
           `;
-        });
-        topGroupsEl.innerHTML = gHtml;
+        }).join('');
       }
     }
   } catch (err) {
-    if (chartEl) chartEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
+    if (rhythmGridEl) rhythmGridEl.innerHTML = `<div class="admin-empty-state" style="color:#ef4444;">Ошибка: ${esc(err.message)}</div>`;
   }
 };
 

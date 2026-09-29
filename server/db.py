@@ -1321,6 +1321,48 @@ def get_analytics_summary() -> Dict:
         hourly_rows = [dict(row) for row in cursor.fetchall()]
         hourly_rows.reverse()
 
+        # Вычисляем распределение по времени суток и пиковый час
+        time_slots = {
+            "morning": {"label": "Утро (08:00 - 12:00)", "count": 0, "icon": "🌅", "desc": "Начало занятий и первые пары"},
+            "afternoon": {"label": "День (12:00 - 16:00)", "count": 0, "icon": "☀️", "desc": "Большая перемена и 3-4 пары"},
+            "evening": {"label": "Вечер (16:00 - 21:00)", "count": 0, "icon": "🌆", "desc": "Домашние дела и мини-игры"},
+            "night": {"label": "Ночь (21:00 - 08:00)", "count": 0, "icon": "🌙", "desc": "Период отдыха"},
+        }
+        peak_hour = ""
+        peak_reqs = 0
+
+        for r in hourly_rows:
+            cnt = r.get("requests_count", 0)
+            hk = r.get("hour_key", "")
+            if cnt > peak_reqs:
+                peak_reqs = cnt
+                peak_hour = hk[11:16] if len(hk) >= 16 else hk
+            try:
+                hour = int(hk.split(" ")[1].split(":")[0]) if " " in hk else 0
+                if 8 <= hour < 12:
+                    time_slots["morning"]["count"] += cnt
+                elif 12 <= hour < 16:
+                    time_slots["afternoon"]["count"] += cnt
+                elif 16 <= hour < 21:
+                    time_slots["evening"]["count"] += cnt
+                else:
+                    time_slots["night"]["count"] += cnt
+            except Exception:
+                pass
+
+        total_slot_reqs = sum(s["count"] for s in time_slots.values()) or 1
+        day_rhythm = []
+        for k, slot in time_slots.items():
+            pct = round((slot["count"] / total_slot_reqs) * 100)
+            day_rhythm.append({
+                "key": k,
+                "label": slot["label"],
+                "icon": slot["icon"],
+                "desc": slot["desc"],
+                "count": slot["count"],
+                "percent": pct
+            })
+
         # Топ групп по активности
         cursor.execute('''
             SELECT selected_group, COUNT(*) as user_count, SUM(visits_count) as total_visits
@@ -1329,19 +1371,66 @@ def get_analytics_summary() -> Dict:
               AND telegram_id > 10000 AND telegram_id NOT IN (1000000001, 1000000002)
             GROUP BY selected_group
             ORDER BY total_visits DESC
-            LIMIT 10
+            LIMIT 8
         ''')
         top_groups = [dict(row) for row in cursor.fetchall()]
 
-        # Общие счетчики
+        # Общие счетчики и суммарное время
         cursor.execute('''
-            SELECT COUNT(*) as total_users, COALESCE(SUM(visits_count), 0) as total_views
+            SELECT COUNT(*) as total_users,
+                   COALESCE(SUM(visits_count), 0) as total_views,
+                   COALESCE(SUM(total_time_seconds), 0) as total_seconds
             FROM user_activity
             WHERE telegram_id > 10000 AND telegram_id NOT IN (1000000001, 1000000002)
         ''')
         totals_row = cursor.fetchone()
         total_users = totals_row['total_users'] if totals_row else 0
         total_sessions = totals_row['total_views'] if totals_row else 0
+        total_time_seconds = totals_row['total_seconds'] if totals_row else 0
+        total_time_hours = round(total_time_seconds / 3600, 1)
+
+        # Распределение по платформам
+        cursor.execute('''
+            SELECT platform, COUNT(*) as cnt
+            FROM user_activity
+            WHERE telegram_id > 10000 AND telegram_id NOT IN (1000000001, 1000000002)
+            GROUP BY platform
+        ''')
+        platform_rows = cursor.fetchall()
+        platform_counts = {"Android": 0, "iOS": 0, "Web": 0}
+        for pr in platform_rows:
+            p_raw = str(pr['platform'] or '').lower()
+            cnt = pr['cnt']
+            if 'android' in p_raw:
+                platform_counts["Android"] += cnt
+            elif 'iphone' in p_raw or 'ipad' in p_raw or 'ios' in p_raw:
+                platform_counts["iOS"] += cnt
+            else:
+                platform_counts["Web"] += cnt
+        total_platforms = sum(platform_counts.values()) or 1
+        platforms = [
+            {"name": "Android", "count": platform_counts["Android"], "percent": round(platform_counts["Android"] / total_platforms * 100), "icon": "🤖"},
+            {"name": "iOS (iPhone)", "count": platform_counts["iOS"], "percent": round(platform_counts["iOS"] / total_platforms * 100), "icon": "🍏"},
+            {"name": "Web / ПК", "count": platform_counts["Web"], "percent": round(platform_counts["Web"] / total_platforms * 100), "icon": "💻"}
+        ]
+
+        # Топ 5 самых активных студентов
+        cursor.execute('''
+            SELECT telegram_id, username, first_name, photo_url, selected_group, visits_count, total_time_seconds
+            FROM user_activity
+            WHERE telegram_id > 10000 AND telegram_id NOT IN (1000000001, 1000000002)
+            ORDER BY visits_count DESC
+            LIMIT 5
+        ''')
+        top_students = [dict(row) for row in cursor.fetchall()]
+
+        # Игровая статистика
+        try:
+            cursor.execute('SELECT COUNT(*) as duels FROM duel_matches')
+            duel_row = cursor.fetchone()
+            total_duels = duel_row['duels'] if duel_row else 0
+        except Exception:
+            total_duels = 0
 
         # Сумма технических запросов к API за последние 24 часа
         cursor.execute('SELECT COALESCE(SUM(requests_count), 0) as total_reqs FROM hourly_stats')
@@ -1358,13 +1447,20 @@ def get_analytics_summary() -> Dict:
 
         return {
             "total_users": total_users,
-            "total_views": total_sessions,  # Совместимость с фронтендом
-            "total_sessions": total_sessions,  # Четкое разделение: сессии / визиты
-            "total_api_requests_24h": total_api_requests,  # Техническая метрика API-нагрузки
+            "total_views": total_sessions,
+            "total_sessions": total_sessions,
+            "total_time_hours": total_time_hours,
+            "total_duels": total_duels,
+            "total_api_requests_24h": total_api_requests,
             "banned_count": banned_count,
             "open_reports_count": open_reports_count,
-            "hourly_activity": hourly_rows,
-            "top_groups": top_groups
+            "peak_hour": peak_hour or "10:00",
+            "peak_requests": peak_reqs,
+            "day_rhythm": day_rhythm,
+            "platforms": platforms,
+            "top_students": top_students,
+            "top_groups": top_groups,
+            "hourly_activity": hourly_rows
         }
 
 

@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260929_v5">
+  <link rel="stylesheet" href="/static/style.css?v=20260929_v6">
   <style id="missedLessonsStyles">
     /* ═══ ТРЕКЕР ПРОГУЛОВ (RELIABLE INLINE STYLES) ═══ */
     .pair-card.is-missed {
@@ -2690,43 +2690,75 @@
           </div>
         </div>
 
-        <!-- ── TAB 4: STATS ── -->
+        <!-- ── TAB 4: STATS (MISSION CONTROL / АНАЛИТИКА) ── -->
         <div class="admin-tab-pane" id="adminPaneStats" style="display:none;">
+          <!-- Карточки ключевых показателей (KPI Grid) -->
           <div class="admin-kpi-grid">
-            <div class="admin-kpi-card" title="Уникальные пользователи Telegram, когда-либо открывавшие приложение">
+            <div class="admin-kpi-card" title="Уникальные студенты">
+              <div class="admin-kpi-header"><span class="admin-kpi-icon">👥</span><span class="admin-kpi-lbl">Студентов</span></div>
               <div class="admin-kpi-num" id="statTotalUsers">0</div>
-              <div class="admin-kpi-lbl">Уникальных пользователей</div>
             </div>
-            <div class="admin-kpi-card" title="Визит = одно открытие приложения, не считается повторно в течение 30 минут активности">
+            <div class="admin-kpi-card" title="Визиты / открытия расписания">
+              <div class="admin-kpi-header"><span class="admin-kpi-icon">👁️</span><span class="admin-kpi-lbl">Визитов</span></div>
               <div class="admin-kpi-num" id="statTotalViews">0</div>
-              <div class="admin-kpi-lbl">Сессий / Визитов</div>
             </div>
-            <div class="admin-kpi-card" title="Технические запросы к API бэкенда за последние 24 часа">
+            <div class="admin-kpi-card" title="Суммарное время студентов в приложении">
+              <div class="admin-kpi-header"><span class="admin-kpi-icon">⏳</span><span class="admin-kpi-lbl">Время в приложении</span></div>
+              <div class="admin-kpi-num" id="statTotalHours">0 ч</div>
+            </div>
+            <div class="admin-kpi-card" title="Сыграно дуэлей">
+              <div class="admin-kpi-header"><span class="admin-kpi-icon">⚔️</span><span class="admin-kpi-lbl">Дуэлей</span></div>
+              <div class="admin-kpi-num" id="statTotalDuels">0</div>
+            </div>
+            <div class="admin-kpi-card" title="Технические запросы к API бэкенда за 24ч">
+              <div class="admin-kpi-header"><span class="admin-kpi-icon">⚡</span><span class="admin-kpi-lbl">Запросов API (24ч)</span></div>
               <div class="admin-kpi-num" id="statTotalRequests">0</div>
-              <div class="admin-kpi-lbl">Запросов к API</div>
             </div>
-            <div class="admin-kpi-card">
-              <div class="admin-kpi-num" id="statBannedCount">0</div>
-              <div class="admin-kpi-lbl">Активных банов</div>
-            </div>
-            <div class="admin-kpi-card">
-              <div class="admin-kpi-num" id="statOpenReports">0</div>
-              <div class="admin-kpi-lbl">Открытых ошибок</div>
+            <div class="admin-kpi-card" title="Безопасность">
+              <div class="admin-kpi-header"><span class="admin-kpi-icon">🛡️</span><span class="admin-kpi-lbl">Защита / Баны</span></div>
+              <div class="admin-kpi-num" id="statBannedCount" style="font-size:16px;">0 банов · Норма 🟢</div>
             </div>
           </div>
 
-          <div class="admin-subhead-bar" style="margin-top:18px;">
-            <span class="admin-subhead-title">Нагрузка по часам (последние 24 ч):</span>
-          </div>
-          <div class="admin-chart-container" id="adminHourlyChart">
-            <!-- Rendered dynamically -->
+          <!-- Суточный пульс активности колледжа -->
+          <div class="admin-stat-section" style="margin-top:20px;">
+            <div class="admin-subhead-bar">
+              <span class="admin-subhead-title">🕒 Суточный ритм колледжа:</span>
+              <span class="admin-peak-badge" id="statPeakHourBadge">🔥 Пик нагрузки</span>
+            </div>
+            <div class="admin-rhythm-grid" id="adminRhythmGrid">
+              <!-- Rendered dynamically -->
+            </div>
           </div>
 
-          <div class="admin-subhead-bar" style="margin-top:20px;">
-            <span class="admin-subhead-title">Топ активных групп колледжа:</span>
+          <!-- Платформы и устройства -->
+          <div class="admin-stat-section" style="margin-top:20px;">
+            <div class="admin-subhead-bar">
+              <span class="admin-subhead-title">📱 Устройства и платформы:</span>
+            </div>
+            <div class="admin-platforms-card" id="adminPlatformsCard">
+              <!-- Rendered dynamically -->
+            </div>
           </div>
-          <div class="admin-ranking-list" id="adminTopGroupsList">
-            <!-- Rendered dynamically -->
+
+          <!-- Топ самых активных студентов -->
+          <div class="admin-stat-section" style="margin-top:20px;">
+            <div class="admin-subhead-bar">
+              <span class="admin-subhead-title">🏆 Топ активных студентов:</span>
+            </div>
+            <div class="admin-top-students-list" id="adminTopStudentsList">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Топ групп колледжа -->
+          <div class="admin-stat-section" style="margin-top:20px;">
+            <div class="admin-subhead-bar">
+              <span class="admin-subhead-title">🏫 Топ активных групп:</span>
+            </div>
+            <div class="admin-ranking-list" id="adminTopGroupsList">
+              <!-- Rendered dynamically -->
+            </div>
           </div>
         </div>
 
@@ -2910,7 +2942,7 @@
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260925_v1"></script>
   <script src="/static/games/duel_controller.js?v=20260929_v3"></script>
-  <script src="/static/app.js?v=20260929_v5"></script>
+  <script src="/static/app.js?v=20260929_v6"></script>
 
 </body>
 </html>
