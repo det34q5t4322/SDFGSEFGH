@@ -186,6 +186,7 @@ async def lifespan(app: FastAPI):
     global _bot_app
     # Запуск фонового сброса буфера активности
     activity_buffer.start()
+    duel_manager.ensure_cleanup_task()
 
     if os.getenv("RUN_BOT_IN_APP", "false").lower() == "true":
         try:

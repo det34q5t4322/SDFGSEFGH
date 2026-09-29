@@ -164,7 +164,20 @@ class DuelManager:
     def __init__(self):
         self._rooms: Dict[str, DuelRoom] = {}
         self._lock = asyncio.Lock()
-        asyncio.get_event_loop().create_task(self._cleanup_loop())
+        self._cleanup_task = None
+        try:
+            loop = asyncio.get_running_loop()
+            self._cleanup_task = loop.create_task(self._cleanup_loop())
+        except RuntimeError:
+            pass
+
+    def ensure_cleanup_task(self):
+        if self._cleanup_task is None or self._cleanup_task.done():
+            try:
+                loop = asyncio.get_running_loop()
+                self._cleanup_task = loop.create_task(self._cleanup_loop())
+            except RuntimeError:
+                pass
 
     async def _cleanup_loop(self):
         """Фоновая периодическая очистка протухших комнат каждые 5 минут."""
