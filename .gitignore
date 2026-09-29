@@ -25,6 +25,24 @@ verify_fix.py
 .DS_Store
 Thumbs.db
 
-# Diagnostic artifacts
+# Diagnostic artifacts & Archives
 .agents/
 ORIGINAL_REQUEST.md
+_archive/
+scratch/
+
+# Dependencies & Caches
+node_modules/
+avatars_cache/
+
+# Android build artifacts (excluding native project source)
+android/build/
+android/.gradle/
+android/app/build/
+android/.idea/
+android/*.iml
+android/app/*.iml
+android/local.properties
+
+# Root build artifacts
+/college-schedule.apk
