@@ -3654,7 +3654,7 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
     isGoing ? 'going' : '',
     cancelled ? 'cancelled' : '',
     replacement ? 'replacement' : '',
-    (dayName && pn >= 1 && pn <= 6 && S.telegramId && S.missedKeys.has(
+    (dayName && pn >= 1 && pn <= 6 && S.missedKeys.has(
       (() => { const d = getDayDate(DAYS.indexOf(dayName) || 0); return d ? `${d.toISOString().slice(0,10)}:${pn}` : ''; })()
     )) ? 'is-missed' : '',
   ].filter(Boolean).join(' ');
@@ -3671,7 +3671,7 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
 
   // Кнопка «Прогулял»
   let missedBtnHtml = '';
-  if (dayName && pn >= 1 && pn <= 6 && S.telegramId) {
+  if (dayName && pn >= 1 && pn <= 6) {
     const dateObj = getDayDate(DAYS.indexOf(dayName) || 0);
     if (dateObj) {
       const dateStr = dateObj.toISOString().slice(0, 10);
