@@ -51,8 +51,12 @@ def get_ssh_connection(timeout: int = 15):
             connect_kwargs["key_filename"] = expanded_key
         elif password:
             connect_kwargs["password"] = password
+            connect_kwargs["look_for_keys"] = False
+            connect_kwargs["allow_agent"] = False
     elif password:
         connect_kwargs["password"] = password
+        connect_kwargs["look_for_keys"] = False
+        connect_kwargs["allow_agent"] = False
 
     client.connect(**connect_kwargs)
     return client, sock
