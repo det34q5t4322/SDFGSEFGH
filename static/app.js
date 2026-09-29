@@ -261,26 +261,24 @@ function hideOfflineBanner() {
 }
 
 // ── AUTH & TELEGRAM GATE ─────────────────
-const VALID_WEB_SECRETS = ['dadrik2026', 'dadrik'];
-
-// Сохранение и проверка секретного ключа для автономного браузерного доступа
+// Сохранение ключа из URL для автономного браузерного доступа
 try {
   const _urlParams = new URLSearchParams(window.location.search);
   const _sec = _urlParams.get('secret') || _urlParams.get('key') || _urlParams.get('access');
-  if (_sec && VALID_WEB_SECRETS.includes(_sec)) {
+  if (_sec) {
     localStorage.setItem('web_secret_key', _sec);
     localStorage.setItem('onboarding_completed', 'true');
-    document.cookie = `secret_key=${_sec}; path=/; max-age=31536000; SameSite=Lax; Secure`;
+    document.cookie = `secret_key=${encodeURIComponent(_sec)}; path=/; max-age=31536000; SameSite=Lax; Secure`;
   }
 } catch (_) {}
 
 function hasWebSecretAccess() {
   try {
     const saved = localStorage.getItem('web_secret_key');
-    if (saved && VALID_WEB_SECRETS.includes(saved)) return true;
+    if (saved) return true;
     const match = document.cookie.match(/(?:^|;\s*)secret_key=([^;]+)/);
-    if (match && VALID_WEB_SECRETS.includes(match[1])) {
-      localStorage.setItem('web_secret_key', match[1]);
+    if (match && match[1]) {
+      localStorage.setItem('web_secret_key', decodeURIComponent(match[1]));
       localStorage.setItem('onboarding_completed', 'true');
       return true;
     }
@@ -301,7 +299,7 @@ function getAuthHeaders() {
     headers['X-Telegram-Auth-Token'] = linkedToken;
   }
   const secret = localStorage.getItem('web_secret_key') || (document.cookie.match(/(?:^|;\s*)secret_key=([^;]+)/) || [])[1];
-  if (secret && VALID_WEB_SECRETS.includes(secret)) {
+  if (secret) {
     headers['X-Secret-Key'] = secret;
   }
   const adminKey = localStorage.getItem('schedule_admin_master_key');
@@ -348,20 +346,37 @@ function renderTelegramGatePrompt() {
   `;
 }
 
-window.handleSecretKeySubmit = function(e) {
+window.handleSecretKeySubmit = async function(e) {
   if (e) e.preventDefault();
   const inp = document.getElementById('manualSecretInput');
   const err = document.getElementById('manualSecretError');
   const val = (inp?.value || '').trim();
-  if (VALID_WEB_SECRETS.includes(val)) {
-    if (err) err.style.display = 'none';
-    localStorage.setItem('web_secret_key', val);
-    localStorage.setItem('onboarding_completed', 'true');
-    document.cookie = `secret_key=${val}; path=/; max-age=31536000; SameSite=Lax; Secure`;
-    if (typeof showToast === 'function') showToast('Ключ принят! Загрузка расписания...', 2000);
-    loadSchedule(true);
-  } else {
-    if (err) err.style.display = 'block';
+  if (!val) return;
+
+  try {
+    const resp = await fetch(`${API}/auth/web-secret`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: val })
+    });
+    if (resp.ok) {
+      if (err) err.style.display = 'none';
+      localStorage.setItem('web_secret_key', val);
+      localStorage.setItem('onboarding_completed', 'true');
+      document.cookie = `secret_key=${encodeURIComponent(val)}; path=/; max-age=31536000; SameSite=Lax; Secure`;
+      if (typeof showToast === 'function') showToast('Ключ принят! Загрузка расписания...', 2000);
+      loadSchedule(true);
+    } else {
+      if (err) {
+        err.textContent = 'Неверный ключ доступа';
+        err.style.display = 'block';
+      }
+    }
+  } catch (errNet) {
+    if (err) {
+      err.textContent = 'Ошибка соединения с сервером';
+      err.style.display = 'block';
+    }
   }
 };
 
@@ -7461,7 +7476,7 @@ function handleAdminAuthError(res) {
     openAdminLoginModal();
     const err = document.getElementById('adminLoginError');
     if (err) {
-      err.textContent = 'Требуется подтвердить PIN создателя (202675)';
+      err.textContent = 'Требуется подтвердить PIN создателя';
       err.style.display = 'block';
     }
     return true;

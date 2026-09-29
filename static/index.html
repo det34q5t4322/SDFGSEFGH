@@ -325,14 +325,14 @@
           window.history.replaceState({}, '', window.location.pathname + newQuery);
         }
         var s = p.get('secret') || p.get('key') || p.get('access');
-        if (s === 'dadrik2026' || s === 'dadrik') {
+        if (s) {
           localStorage.setItem('web_secret_key', s);
           localStorage.setItem('onboarding_completed', 'true');
-          document.cookie = "secret_key=" + s + "; path=/; max-age=31536000; SameSite=Lax";
+          document.cookie = "secret_key=" + encodeURIComponent(s) + "; path=/; max-age=31536000; SameSite=Lax";
         } else {
           var saved = localStorage.getItem('web_secret_key');
-          if (saved === 'dadrik2026' || saved === 'dadrik') {
-            document.cookie = "secret_key=" + saved + "; path=/; max-age=31536000; SameSite=Lax";
+          if (saved) {
+            document.cookie = "secret_key=" + encodeURIComponent(saved) + "; path=/; max-age=31536000; SameSite=Lax";
             localStorage.setItem('onboarding_completed', 'true');
           }
         }

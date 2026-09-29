@@ -298,7 +298,7 @@ def get_real_client_ip(request: Request) -> str:
 PUBLIC_ROUTES = {
     "/api/ping", "/api/health", "/api/english-alarm", "/api/activity",
     "/api/report-bug", "/api/bug-reports", "/api/leaderboard",
-    "/api/auth/telegram-widget", "/api/games/stats", "/api/admin/login",
+    "/api/auth/telegram-widget", "/api/auth/web-secret", "/api/games/stats", "/api/admin/login",
     "/api/auth/telegram-link/create", "/api/auth/telegram-link/status",
     "/api/auth/telegram-link/poll",
     "/api/grades/auth", "/api/grades", "/api/grades/sync", "/api/grades/logout",
@@ -306,7 +306,15 @@ PUBLIC_ROUTES = {
 }
 
 
-ADMIN_MASTER_KEYS = {"dadrik_admin_2026", "202675", os.getenv("ADMIN_MASTER_KEY", "dadrik_admin_2026")}
+def _parse_keys_from_env(env_var_name: str, fallback_var_name: Optional[str] = None) -> set:
+    val = os.getenv(env_var_name, "")
+    if not val and fallback_var_name:
+        val = os.getenv(fallback_var_name, "")
+    return {k.strip() for k in val.split(",") if k.strip()}
+
+
+ADMIN_MASTER_KEYS = _parse_keys_from_env("ADMIN_MASTER_KEYS", "ADMIN_MASTER_KEY")
+VALID_WEB_SECRETS = _parse_keys_from_env("VALID_WEB_SECRETS", "WEB_SECRET")
 
 def get_verified_user_from_request(request: Request) -> Optional[dict]:
     """Извлекает и валидирует Telegram WebApp initData, Auth Token или Admin Master Key с кэшированием сессии в request.state."""
@@ -691,10 +699,10 @@ async def root(request: Request):
             or request.query_params.get("access")
             or request.cookies.get("secret_key")
         )
-        if sec in {"dadrik2026", "dadrik"}:
+        if sec and sec.strip() in VALID_WEB_SECRETS:
             resp.set_cookie(
                 key="secret_key",
-                value=sec,
+                value=sec.strip(),
                 max_age=31536000,
                 httponly=False,
                 samesite="lax",
@@ -1413,6 +1421,27 @@ async def report_client_bug(request: Request, payload: ClientBugReportPayload):
         url=payload.url or str(request.url)
     )
     return {"status": "ok", "report_id": report_id}
+
+
+class WebSecretVerifyPayload(BaseModel):
+    secret: str
+
+
+@app.post("/api/auth/web-secret")
+async def verify_web_secret_endpoint(payload: WebSecretVerifyPayload, response: Response):
+    """Проверка секретного ключа для автономного доступа в браузере без Telegram."""
+    val = (payload.secret or "").strip()
+    if val and val in VALID_WEB_SECRETS:
+        response.set_cookie(
+            key="secret_key",
+            value=val,
+            max_age=31536000,
+            httponly=False,
+            samesite="lax",
+            secure=True
+        )
+        return {"status": "ok", "valid": True}
+    raise HTTPException(status_code=403, detail="Неверный ключ доступа")
 
 
 class AdminLoginPayload(BaseModel):
