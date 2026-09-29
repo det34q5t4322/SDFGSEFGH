@@ -16,7 +16,290 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&family=Lexend:wght@400;600&family=Manrope:wght@400;600;700&family=Orbitron:wght@600;800&family=Press+Start+2P&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=20260927_v1">
+  <link rel="stylesheet" href="/static/style.css?v=20260929_v3">
+  <style id="missedLessonsStyles">
+    /* ═══ ТРЕКЕР ПРОГУЛОВ (RELIABLE INLINE STYLES) ═══ */
+    .pair-card.is-missed {
+      border-left: 3px solid var(--red, #ef4444) !important;
+      background: rgba(239, 68, 68, 0.08) !important;
+    }
+    .pair-card.is-missed::before {
+      background: var(--red, #ef4444) !important;
+    }
+    .missed-toggle-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 6px !important;
+      padding: 7px 14px !important;
+      border-radius: 8px !important;
+      border: 1px solid var(--border, rgba(255,255,255,0.12)) !important;
+      background: var(--bg-card2, #191b2c) !important;
+      color: var(--text-sub, #949cb8) !important;
+      font-size: 13px !important;
+      font-weight: 500 !important;
+      cursor: pointer !important;
+      transition: all 0.2s ease !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      margin-top: 6px !important;
+    }
+    .missed-toggle-btn:hover {
+      border-color: var(--red, #ef4444) !important;
+      color: var(--red, #ef4444) !important;
+    }
+    .missed-toggle-btn.is-missed {
+      background: rgba(239, 68, 68, 0.16) !important;
+      border-color: var(--red, #ef4444) !important;
+      color: var(--red, #ef4444) !important;
+    }
+    .missed-toggle-btn .lucide-icon {
+      width: 15px !important;
+      height: 15px !important;
+      flex-shrink: 0 !important;
+    }
+    .missed-detail-row {
+      grid-column: 1 / -1 !important;
+    }
+
+    #missedLessonsView {
+      padding: 4px 0 24px !important;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      animation: fadeIn 0.25s ease-out;
+    }
+    .missed-header {
+      margin-bottom: 8px !important;
+    }
+    .missed-month-nav {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 16px !important;
+      margin-bottom: 14px !important;
+    }
+    .missed-month-btn {
+      width: 38px !important;
+      height: 38px !important;
+      border-radius: 50% !important;
+      border: 1px solid var(--border, rgba(255,255,255,0.12)) !important;
+      background: var(--bg-card, #131422) !important;
+      color: var(--text, #f0f2fa) !important;
+      cursor: pointer !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      transition: all 0.2s ease !important;
+    }
+    .missed-month-btn:hover {
+      background: var(--accent, #4f8ef7) !important;
+      color: #fff !important;
+    }
+    .missed-month-btn .lucide-icon {
+      width: 18px !important;
+      height: 18px !important;
+    }
+    .missed-month-label {
+      font-size: 18px !important;
+      font-weight: 700 !important;
+      color: var(--text, #f0f2fa) !important;
+      min-width: 170px !important;
+      text-align: center !important;
+      letter-spacing: -0.01em !important;
+    }
+    .missed-summary {
+      display: flex !important;
+      justify-content: space-around !important;
+      align-items: center !important;
+      padding: 16px 20px !important;
+      background: var(--bg-card, #131422) !important;
+      border-radius: var(--radius, 10px) !important;
+      border: 1px solid var(--border, rgba(255,255,255,0.12)) !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2) !important;
+    }
+    .missed-stat {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      gap: 2px !important;
+    }
+    .missed-stat-num {
+      font-size: 28px !important;
+      font-weight: 800 !important;
+      color: var(--red, #ef4444) !important;
+      line-height: 1.1 !important;
+      font-variant-numeric: tabular-nums !important;
+    }
+    .missed-stat-label {
+      font-size: 13px !important;
+      color: var(--text-sub, #949cb8) !important;
+      font-weight: 500 !important;
+    }
+    .missed-tabs {
+      display: flex !important;
+      gap: 8px !important;
+      margin-bottom: 4px !important;
+    }
+    .missed-tab {
+      flex: 1 !important;
+      padding: 10px 14px !important;
+      border-radius: var(--radius, 10px) !important;
+      border: 1px solid var(--border, rgba(255,255,255,0.12)) !important;
+      background: var(--bg-card, #131422) !important;
+      color: var(--text-sub, #949cb8) !important;
+      font-size: 14px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      transition: all 0.2s ease !important;
+      text-align: center !important;
+    }
+    .missed-tab.active {
+      background: var(--accent, #4f8ef7) !important;
+      color: #fff !important;
+      border-color: var(--accent, #4f8ef7) !important;
+      box-shadow: 0 2px 10px rgba(79, 142, 247, 0.3) !important;
+    }
+    .missed-sort {
+      display: flex !important;
+      gap: 8px !important;
+      margin-bottom: 6px !important;
+    }
+    .missed-sort-btn {
+      padding: 6px 12px !important;
+      border-radius: 6px !important;
+      border: 1px solid var(--border, rgba(255,255,255,0.12)) !important;
+      background: transparent !important;
+      color: var(--text-sub, #949cb8) !important;
+      font-size: 12px !important;
+      font-weight: 500 !important;
+      cursor: pointer !important;
+      transition: all 0.2s ease !important;
+    }
+    .missed-sort-btn.active {
+      background: var(--bg-card2, #191b2c) !important;
+      color: var(--text, #f0f2fa) !important;
+      border-color: var(--accent, #4f8ef7) !important;
+    }
+    .missed-subject-card {
+      background: var(--bg-card, #131422) !important;
+      border-radius: var(--radius, 10px) !important;
+      border: 1px solid var(--border, rgba(255,255,255,0.12)) !important;
+      margin-bottom: 8px !important;
+      overflow: hidden !important;
+      transition: border-color 0.2s ease !important;
+    }
+    .missed-subject-header {
+      display: flex !important;
+      align-items: center !important;
+      padding: 14px !important;
+      cursor: pointer !important;
+      gap: 10px !important;
+    }
+    .missed-subject-name {
+      flex: 1 !important;
+      font-weight: 600 !important;
+      color: var(--text, #f0f2fa) !important;
+      font-size: 14px !important;
+    }
+    .missed-subject-stats {
+      color: var(--red, #ef4444) !important;
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      white-space: nowrap !important;
+    }
+    .missed-expand-icon {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      color: var(--text-muted, #596280) !important;
+      transition: transform 0.2s ease !important;
+    }
+    .missed-expand-icon .lucide-icon {
+      width: 16px !important;
+      height: 16px !important;
+    }
+    .missed-subject-card.expanded .missed-expand-icon {
+      transform: rotate(90deg) !important;
+    }
+    .missed-subject-dates {
+      display: none !important;
+      padding: 0 14px 14px !important;
+      border-top: 1px solid var(--border, rgba(255,255,255,0.08)) !important;
+    }
+    .missed-subject-card.expanded .missed-subject-dates {
+      display: block !important;
+    }
+    .missed-subitem {
+      padding: 9px 0 !important;
+      color: var(--text-sub, #949cb8) !important;
+      font-size: 13px !important;
+      border-bottom: 1px solid rgba(255,255,255,0.04) !important;
+    }
+    .missed-subitem:last-child { border-bottom: none !important; }
+    .missed-date-header {
+      padding: 14px 2px 8px !important;
+      font-weight: 700 !important;
+      color: var(--text, #f0f2fa) !important;
+      font-size: 14px !important;
+    }
+    .missed-date-numeric {
+      color: var(--text-muted, #596280) !important;
+      font-weight: 400 !important;
+      font-size: 12px !important;
+      margin-left: 8px !important;
+    }
+    .missed-date-item {
+      display: flex !important;
+      align-items: center !important;
+      gap: 12px !important;
+      padding: 12px 14px !important;
+      background: var(--bg-card, #131422) !important;
+      border-radius: var(--radius, 10px) !important;
+      border: 1px solid var(--border, rgba(255,255,255,0.12)) !important;
+      margin-bottom: 6px !important;
+    }
+    .missed-pair-num {
+      color: var(--accent, #4f8ef7) !important;
+      font-weight: 700 !important;
+      font-size: 13px !important;
+      min-width: 58px !important;
+    }
+    .missed-pair-subject {
+      flex: 1 !important;
+      color: var(--text, #f0f2fa) !important;
+      font-size: 14px !important;
+      font-weight: 500 !important;
+    }
+    .missed-pair-teacher {
+      color: var(--text-muted, #596280) !important;
+      font-size: 12px !important;
+    }
+    .missed-empty {
+      text-align: center !important;
+      padding: 48px 20px !important;
+      background: var(--bg-card, #131422) !important;
+      border-radius: var(--radius, 10px) !important;
+      border: 1px solid var(--border, rgba(255,255,255,0.08)) !important;
+      margin-top: 8px !important;
+    }
+    .missed-empty-icon {
+      margin-bottom: 14px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .missed-empty-text {
+      font-size: 19px !important;
+      font-weight: 700 !important;
+      color: var(--text, #f0f2fa) !important;
+      margin-bottom: 6px !important;
+    }
+    .missed-empty-sub {
+      color: var(--text-sub, #949cb8) !important;
+      font-size: 14px !important;
+    }
+  </style>
 
 
   <script>
@@ -2625,8 +2908,8 @@
 
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260925_v1"></script>
-  <script src="/static/games/duel_controller.js?v=20260929_v1"></script>
-  <script src="/static/app.js?v=20260929_v1"></script>
+  <script src="/static/games/duel_controller.js?v=20260929_v3"></script>
+  <script src="/static/app.js?v=20260929_v3"></script>
 
 </body>
 </html>

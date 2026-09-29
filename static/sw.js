@@ -2,7 +2,7 @@
    COLLEGE SCHEDULE APP — Resilient Offline Service Worker
    ════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'college-schedule-v50';
+const CACHE_NAME = 'college-schedule-v52';
 
 const STATIC_ASSETS = [
   '/',
@@ -85,7 +85,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Static assets: Stale-While-Revalidate with ignoreSearch for versioned queries (?v=...)
+  // 3. Static assets: Network-first for CSS and JS so design changes apply immediately, fallback to Cache
+  if (url.pathname.endsWith('.css') || url.pathname.endsWith('.js')) {
+    event.respondWith(
+      fetch(req)
+        .then((netRes) => {
+          if (netRes && netRes.status === 200) {
+            const clone = netRes.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(req, clone));
+          }
+          return netRes;
+        })
+        .catch(() => caches.match(req).then((cached) => cached || caches.match(req, { ignoreSearch: true })))
+    );
+    return;
+  }
+
+  // 4. Other static assets (images, fonts, offline sprites): Stale-While-Revalidate
   if (url.pathname.startsWith('/static/') || url.origin === self.location.origin) {
     event.respondWith(
       caches.match(req, { ignoreSearch: true }).then((cached) => {

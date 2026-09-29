@@ -2057,6 +2057,13 @@ function setView(view) {
   if (navWrap) navWrap.style.display = isSched ? 'block' : 'none';
   if (els.dayStrip?.parentElement) els.dayStrip.parentElement.style.display = isSched ? 'block' : 'none';
 
+  const liveWidget = document.querySelector('[data-widget="widget-live-status"]');
+  if (liveWidget) liveWidget.style.display = isSched ? '' : 'none';
+  const weekNavWidget = document.querySelector('[data-widget="widget-week-nav"]');
+  if (weekNavWidget) weekNavWidget.style.display = isSched ? '' : 'none';
+  const dayStripWidget = document.querySelector('[data-widget="widget-day-strip"]');
+  if (dayStripWidget) dayStripWidget.style.display = isSched ? '' : 'none';
+
   if (isSched) renderSchedule();
   if (view === 'teacher') initTeachersView();
   if (view === 'classroom') initClassroomsView();
