@@ -16409,4 +16409,247 @@ html.banned-lock #endlessBanLoader {
   margin-bottom: 4px;
 }
 
+/* ═══ ТРЕКЕР ПРОГУЛОВ ═══ */
+.pair-card.is-missed {
+  border-left: 3px solid var(--red) !important;
+  background: rgba(239, 68, 68, 0.06) !important;
+}
+.pair-card.is-missed::before {
+  background: var(--red) !important;
+}
+.missed-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card2);
+  color: var(--text-sub);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+}
+.missed-toggle-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+.missed-toggle-btn.is-missed {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: var(--red);
+  color: var(--red);
+}
+.missed-detail-row {
+  grid-column: 1 / -1;
+}
+
+/* Экран прогулов */
+.missed-header {
+  margin-bottom: 16px;
+}
+.missed-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.missed-month-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.missed-month-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.missed-month-label {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 180px;
+  text-align: center;
+}
+.missed-summary {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  padding: 16px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.missed-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.missed-stat-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--red);
+}
+.missed-stat-label {
+  font-size: 13px;
+  color: var(--text-sub);
+}
+.missed-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.missed-tab {
+  flex: 1;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-sub);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.missed-tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.missed-sort {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.missed-sort-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-sub);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.missed-sort-btn.active {
+  background: var(--bg-card2);
+  color: var(--text);
+  border-color: var(--accent);
+}
+.missed-subject-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.missed-subject-header {
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  cursor: pointer;
+  gap: 8px;
+}
+.missed-subject-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+}
+.missed-subject-stats {
+  color: var(--red);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.missed-expand-icon {
+  color: var(--text-muted);
+  transition: transform 0.2s;
+  font-size: 12px;
+}
+.missed-subject-card.expanded .missed-expand-icon {
+  transform: rotate(90deg);
+}
+.missed-subject-dates {
+  display: none;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+}
+.missed-subject-card.expanded .missed-subject-dates {
+  display: block;
+}
+.missed-subitem {
+  padding: 8px 0;
+  color: var(--text-sub);
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.missed-subitem:last-child { border-bottom: none; }
+.missed-date-header {
+  padding: 12px 0 6px;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+}
+.missed-date-numeric {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 12px;
+  margin-left: 8px;
+}
+.missed-date-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.missed-pair-num {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 60px;
+}
+.missed-pair-subject {
+  flex: 1;
+  color: var(--text);
+  font-size: 14px;
+}
+.missed-pair-teacher {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.missed-empty {
+  text-align: center;
+  padding: 60px 20px;
+}
+.missed-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+.missed-empty-text {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.missed-empty-sub {
+  color: var(--text-sub);
+  font-size: 14px;
+}
+
+
 

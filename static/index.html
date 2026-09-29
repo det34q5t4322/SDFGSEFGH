@@ -216,6 +216,11 @@
           <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
 
+        <button class="sidebar-nav-item" data-menu-id="menu-missed" id="sidebarMissedBtn" onclick="openMissedLessonsScreen()">
+          <span class="sidebar-nav-icon">📋</span>
+          <span class="sidebar-nav-text">Мои прогулы</span>
+        </button>
+
         <!-- До английского (СКРЫТ ПО УМОЛЧАНИЮ) -->
         <button class="sidebar-nav-item sidebar-alarm-nav-item menu-item-hidden menu-color-danger" data-menu-id="menu-english" data-section="services" data-view="english" id="sidebarEnglish" type="button" title="Сигнализация тревоги: обратный отсчёт до английского">
           <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
@@ -687,6 +692,35 @@
           </div>
         </div>
       </div>
+
+    <!-- ═══ ЭКРАН ПРОГУЛОВ ═══ -->
+    <div id="missedLessonsView" class="view-container" style="display:none">
+      <div class="missed-header">
+        <div class="missed-month-nav">
+          <button class="missed-month-btn" id="missedPrevMonth" onclick="missedChangeMonth(-1)">‹</button>
+          <span class="missed-month-label" id="missedMonthLabel">Сентябрь 2026</span>
+          <button class="missed-month-btn" id="missedNextMonth" onclick="missedChangeMonth(1)">›</button>
+        </div>
+        <div class="missed-summary" id="missedSummary">
+          <div class="missed-stat"><span class="missed-stat-num" id="missedTotalPairs">0</span><span class="missed-stat-label">пар</span></div>
+          <div class="missed-stat"><span class="missed-stat-num" id="missedTotalHours">0</span><span class="missed-stat-label">часов</span></div>
+        </div>
+      </div>
+      <div class="missed-tabs">
+        <button class="missed-tab active" data-tab="subjects" onclick="missedSwitchTab('subjects')">По предметам</button>
+        <button class="missed-tab" data-tab="dates" onclick="missedSwitchTab('dates')">По датам</button>
+      </div>
+      <div class="missed-sort" id="missedSortBar" style="display:none">
+        <button class="missed-sort-btn active" data-sort="count" onclick="missedSwitchSort('count')">По количеству</button>
+        <button class="missed-sort-btn" data-sort="name" onclick="missedSwitchSort('name')">По названию (А-Я)</button>
+      </div>
+      <div class="missed-list" id="missedList"></div>
+      <div class="missed-empty" id="missedEmpty" style="display:none">
+        <div class="missed-empty-icon">🎉</div>
+        <div class="missed-empty-text">Прогулов нет!</div>
+        <div class="missed-empty-sub">Так держать — все пары посещены</div>
+      </div>
+    </div>
     </main>
   </div><!-- /flow-widget widget-schedule-content -->
 
@@ -2589,8 +2623,8 @@
 
   <script src="/static/sortable.min.js"></script>
   <script src="/static/onboarding.js?v=20260925_v1"></script>
-  <script src="/static/games/duel_controller.js?v=20260927_v2"></script>
-  <script src="/static/app.js?v=20260927_v1"></script>
+  <script src="/static/games/duel_controller.js?v=20260929_v1"></script>
+  <script src="/static/app.js?v=20260929_v1"></script>
 
 </body>
 </html>

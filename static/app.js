@@ -16,6 +16,9 @@ const STORAGE_SHOW_ROOM    = 'schedule_show_room';
 const STORAGE_SHOW_BADGES  = 'schedule_show_badges';
 const STORAGE_SHOW_BREAKS  = 'schedule_show_breaks';
 const STORAGE_NAV_POSITION = 'schedule_nav_position';
+const STORAGE_MISSED_QUEUE = 'missed_lessons_queue';
+const STORAGE_MISSED_CACHE = 'missed_lessons_cache';
+const HOURS_PER_LESSON = 2;
 
 // ── SAFE LOCALSTORAGE ACCESSORS (Protects against SecurityError / Private mode) ─
 function safeGetItem(key, fallback = null) {
@@ -223,6 +226,10 @@ const S = {
   isAdmin:            false,
   telegramId:         null,
   telegramUsername:   null,
+  missedKeys:         new Set(),
+  missedMonth:        new Date(),
+  missedTab:          'subjects',
+  missedSort:         'count',
 };
 
 // ── FAULT TOLERANCE & NETWORK HELPERS ───
@@ -2033,6 +2040,8 @@ function setView(view) {
   if (els.classroomView) els.classroomView.style.display = view === 'classroom' ? 'block' : 'none';
   if (els.statsView) els.statsView.style.display = view === 'stats' ? 'block' : 'none';
   if (els.englishView) els.englishView.style.display = view === 'english' ? 'block' : 'none';
+  const missedView = document.getElementById('missedLessonsView');
+  if (missedView) missedView.style.display = view === 'missed' ? 'block' : 'none';
   
   const navWrap = document.querySelector('.week-nav-wrap');
   if (navWrap) navWrap.style.display = isSched ? 'block' : 'none';
@@ -2044,6 +2053,7 @@ function setView(view) {
   if (view === 'stats') initStatsView();
   if (view === 'english') startEnglishCountdown();
   else stopEnglishCountdown();
+  if (view === 'missed') initMissedLessonsView();
   updateTelegramBackButton();
 }
 window.setView = setView;
@@ -2481,6 +2491,12 @@ const BREAKS = [
   { s: 15 * 60 + 30, e: 15 * 60 + 40, dur: 10, name: 'Маленькая перемена (10 мин)', time: '15:30 – 15:40' },
   { s: 17 * 60 + 15, e: 17 * 60 + 25, dur: 10, name: 'Маленькая перемена (10 мин)', time: '17:15 – 17:25' },
 ];
+
+function formatBellTime(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${m.toString().padStart(2, '0')}`;
+}
 
 function fmtSec(totalSeconds) {
   if (totalSeconds < 0) totalSeconds = 0;
@@ -2951,6 +2967,8 @@ async function loadSchedule(force = false) {
       renderSchedule();
       updateLiveCard();
       updateSyncStatus(true, true);
+      loadMissedKeysForWeek();
+      syncMissedQueue();
       logApp('info', `Расписание мгновенно загружено из оффлайн-кэша для ${S.group}`);
     } else if (S.view === 'today' || S.view === 'week' || S.view === 'schedule') {
       renderSkeleton();
@@ -3104,6 +3122,8 @@ async function loadSchedule(force = false) {
     renderSchedule();
     updateLiveCard();
     updateSyncStatus(true, false);
+    loadMissedKeysForWeek();
+    syncMissedQueue();
     // Синхронизация с нативным Android-виджетом (если запущено внутри APK)
     try {
       if (window.AndroidWidget && typeof window.AndroidWidget.updateSchedule === 'function') {
@@ -3330,6 +3350,7 @@ function getDayDate(dow) {
   const { mon } = getWeekDateRange(S.weekOffset || 0);
   const d = new Date(mon);
   d.setDate(mon.getDate() + (dow - 1));
+  d.setHours(12, 0, 0, 0);
   return d;
 }
 
@@ -3616,6 +3637,9 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
     isGoing ? 'going' : '',
     cancelled ? 'cancelled' : '',
     replacement ? 'replacement' : '',
+    (dayName && pn >= 1 && pn <= 6 && S.telegramId && S.missedKeys.has(
+      (() => { const d = getDayDate(DAYS.indexOf(dayName) || 0); return d ? `${d.toISOString().slice(0,10)}:${pn}` : ''; })()
+    )) ? 'is-missed' : '',
   ].filter(Boolean).join(' ');
 
   const content = renderCardContentByTemplate(p, pn, bell, isGoing, parityBadge, cancelled, replacement, distant, dayName);
@@ -3627,6 +3651,28 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
 
   const lessonType = formatLessonType(p, cancelled, replacement, distant);
   const notes = p.notes || p.comment || (cancelled ? 'Занятие отменено' : (replacement ? 'Замена в расписании' : (distant ? 'Дистанционный формат' : '')));
+
+  // Кнопка «Прогулял»
+  let missedBtnHtml = '';
+  if (dayName && pn >= 1 && pn <= 6 && S.telegramId) {
+    const dateObj = getDayDate(DAYS.indexOf(dayName) || 0);
+    if (dateObj) {
+      const dateStr = dateObj.toISOString().slice(0, 10);
+      const missedKey = `${dateStr}:${pn}`;
+      const isMissed = S.missedKeys.has(missedKey);
+      missedBtnHtml = `<button class="missed-toggle-btn${isMissed ? ' is-missed' : ''}" 
+        data-date="${dateStr}" data-pn="${pn}" 
+        data-subject="${esc(p.subject || '')}" 
+        data-teacher="${esc(p.teacher || '')}" 
+        data-room="${esc(classroom)}" 
+        data-ts="${bell ? formatBellTime(bell.s) : ''}" 
+        data-te="${bell ? formatBellTime(bell.e) : ''}" 
+        onclick="event.stopPropagation(); toggleMissedLesson(this)" 
+        title="${isMissed ? 'Снять отметку прогула' : 'Отметить прогул'}">
+        ${isMissed ? '✅ Прогулял' : '⬜ Прогулял'}
+      </button>`;
+    }
+  }
 
   const expandedDetails = `
     <div class="card-expanded-view">
@@ -3652,6 +3698,10 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
         <div class="pair-detail-row">
           <span class="pair-detail-label">Заметки:</span>
           <span class="pair-detail-val">${esc(notes)}</span>
+        </div>` : ''}
+        ${missedBtnHtml ? `
+        <div class="pair-detail-row missed-detail-row">
+          ${missedBtnHtml}
         </div>` : ''}
       </div>
     </div>
@@ -5536,6 +5586,7 @@ const DEFAULT_MENU_SECTION_MAP = {
   'menu-leaderboard':   'services',
   'menu-games':         'services',
   'menu-graduation':    'services',
+  'menu-missed':        'services',
   'menu-english':       'services',
   'menu-onboarding':    'services',
   'menu-support':       'services',
@@ -5552,6 +5603,7 @@ const DEFAULT_MENU_CONFIG = [
   { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
   { id: 'menu-games',         visible: true,  section: 'services', color: 'default' },
   { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
+  { id: 'menu-missed',        visible: true,  section: 'services', color: 'default' },
   { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
   { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
   { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
@@ -5569,6 +5621,7 @@ const PRESETS_MENU = {
     { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
     { id: 'menu-games',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-missed',        visible: true,  section: 'services', color: 'default' },
     { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
     { id: 'menu-onboarding',    visible: true,  section: 'services', color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
@@ -5584,6 +5637,7 @@ const PRESETS_MENU = {
     { id: 'menu-leaderboard',   visible: true,  section: 'services', color: 'default' },
     { id: 'menu-games',         visible: true,  section: 'services', color: 'default' },
     { id: 'menu-graduation',    visible: true,  section: 'services', color: 'default' },
+    { id: 'menu-missed',        visible: true,  section: 'services', color: 'default' },
     { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
     { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
     { id: 'menu-support',       visible: true,  section: 'services', color: 'default' },
@@ -5599,6 +5653,7 @@ const PRESETS_MENU = {
     { id: 'menu-leaderboard',   visible: false, section: 'services', color: 'default' },
     { id: 'menu-games',         visible: false, section: 'services', color: 'default' },
     { id: 'menu-graduation',    visible: false, section: 'services', color: 'default' },
+    { id: 'menu-missed',        visible: false, section: 'services', color: 'default' },
     { id: 'menu-english',       visible: false, section: 'services', color: 'danger' },
     { id: 'menu-onboarding',    visible: false, section: 'services', color: 'default' },
     { id: 'menu-support',       visible: false, section: 'services', color: 'default' },
@@ -9251,6 +9306,264 @@ function esc(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// ── ТРЕКЕР ПРОГУЛОВ ──────────────────────────────────────────
+
+const MONTH_NAMES_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const DAY_NAMES_RU_FULL = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+const MONTH_NAMES_RU_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+
+function openMissedLessonsScreen() {
+  closeSidebar();
+  setView('missed');
+}
+window.openMissedLessonsScreen = openMissedLessonsScreen;
+
+async function initMissedLessonsView() {
+  const now = S.missedMonth || new Date();
+  await loadMissedStats(now.getFullYear(), now.getMonth() + 1);
+}
+window.initMissedLessonsView = initMissedLessonsView;
+
+function missedChangeMonth(delta) {
+  const d = S.missedMonth || new Date();
+  d.setMonth(d.getMonth() + delta);
+  S.missedMonth = d;
+  initMissedLessonsView();
+}
+window.missedChangeMonth = missedChangeMonth;
+
+function missedSwitchTab(tab) {
+  S.missedTab = tab;
+  document.querySelectorAll('.missed-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  const sortBar = document.getElementById('missedSortBar');
+  if (sortBar) sortBar.style.display = tab === 'subjects' ? 'flex' : 'none';
+  renderMissedList();
+}
+window.missedSwitchTab = missedSwitchTab;
+
+function missedSwitchSort(sort) {
+  S.missedSort = sort;
+  document.querySelectorAll('.missed-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === sort));
+  renderMissedList();
+}
+window.missedSwitchSort = missedSwitchSort;
+
+let _missedStatsCache = null;
+
+async function loadMissedStats(year, month) {
+  const label = document.getElementById('missedMonthLabel');
+  if (label) label.textContent = `${MONTH_NAMES_RU[month - 1]} ${year}`;
+
+  try {
+    const resp = await fetchWithTimeout(
+      `${API}/missed-lessons/stats?year=${year}&month=${month}`,
+      { headers: getAuthHeaders() }, 5000
+    );
+    const data = await resp.json();
+    _missedStatsCache = data;
+  } catch (e) {
+    // Try offline cache
+    const cached = safeGetItem(STORAGE_MISSED_CACHE);
+    if (cached) {
+      try { _missedStatsCache = JSON.parse(cached); } catch (_) { _missedStatsCache = null; }
+    }
+  }
+
+  if (_missedStatsCache) {
+    safeSetItem(STORAGE_MISSED_CACHE, JSON.stringify(_missedStatsCache));
+  }
+
+  renderMissedSummary();
+  renderMissedList();
+}
+window.loadMissedStats = loadMissedStats;
+
+function renderMissedSummary() {
+  const d = _missedStatsCache || {};
+  const tp = document.getElementById('missedTotalPairs');
+  const th = document.getElementById('missedTotalHours');
+  if (tp) tp.textContent = d.total_pairs || 0;
+  if (th) th.textContent = d.total_hours || 0;
+}
+
+function formatMissedDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDate();
+  const monthGen = MONTH_NAMES_RU_GEN[d.getMonth()];
+  const dowName = DAY_NAMES_RU_FULL[d.getDay()];
+  const dd = dateStr.slice(8, 10);
+  const mm = dateStr.slice(5, 7);
+  const yyyy = dateStr.slice(0, 4);
+  return `${day} ${monthGen}, ${dowName} <span class="missed-date-numeric">${dd}.${mm}.${yyyy}</span>`;
+}
+
+function renderMissedList() {
+  const container = document.getElementById('missedList');
+  const emptyEl = document.getElementById('missedEmpty');
+  const sortBar = document.getElementById('missedSortBar');
+  if (!container) return;
+
+  const d = _missedStatsCache || {};
+
+  if (!d.total_pairs) {
+    container.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = 'block';
+    if (sortBar) sortBar.style.display = 'none';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  if (S.missedTab === 'subjects') {
+    if (sortBar) sortBar.style.display = 'flex';
+    let subjects = [...(d.by_subject || [])];
+    if (S.missedSort === 'name') {
+      subjects.sort((a, b) => (a.subject || '').localeCompare(b.subject || '', 'ru'));
+    }
+    container.innerHTML = subjects.map(s => {
+      const datesHtml = (s.dates || []).map(dt => 
+        `<div class="missed-subitem">${formatMissedDate(dt.date)} — пара ${dt.pair_num}</div>`
+      ).join('');
+      return `<div class="missed-subject-card">
+        <div class="missed-subject-header" onclick="this.parentElement.classList.toggle('expanded')">
+          <div class="missed-subject-name">${esc(s.subject)}</div>
+          <div class="missed-subject-stats">${s.count} ${pluralPairs(s.count)} · ${s.hours} ч.</div>
+          <span class="missed-expand-icon">▸</span>
+        </div>
+        <div class="missed-subject-dates">${datesHtml}</div>
+      </div>`;
+    }).join('');
+  } else {
+    if (sortBar) sortBar.style.display = 'none';
+    const rows = d.by_date || [];
+    let lastDate = '';
+    let html = '';
+    rows.forEach(r => {
+      if (r.date !== lastDate) {
+        html += `<div class="missed-date-header">${formatMissedDate(r.date)}</div>`;
+        lastDate = r.date;
+      }
+      html += `<div class="missed-date-item">
+        <span class="missed-pair-num">Пара ${r.pair_num}</span>
+        <span class="missed-pair-subject">${esc(r.subject)}</span>
+        ${r.teacher ? `<span class="missed-pair-teacher">${esc(r.teacher)}</span>` : ''}
+      </div>`;
+    });
+    container.innerHTML = html;
+  }
+}
+window.renderMissedList = renderMissedList;
+
+function pluralPairs(n) {
+  const abs = Math.abs(n) % 100;
+  const last = abs % 10;
+  if (abs > 10 && abs < 20) return 'пар';
+  if (last === 1) return 'пара';
+  if (last >= 2 && last <= 4) return 'пары';
+  return 'пар';
+}
+
+async function toggleMissedLesson(btn) {
+  const { date, pn, subject, teacher, room, ts, te } = btn.dataset;
+  const key = `${date}:${pn}`;
+
+  // Optimistic UI toggle
+  const isMissed = S.missedKeys.has(key);
+  if (isMissed) {
+    S.missedKeys.delete(key);
+  } else {
+    S.missedKeys.add(key);
+  }
+  // Update button
+  btn.classList.toggle('is-missed', !isMissed);
+  btn.innerHTML = !isMissed ? '✅ Прогулял' : '⬜ Прогулял';
+  // Update card
+  const card = btn.closest('.pair-card, .split-row');
+  if (card) card.classList.toggle('is-missed', !isMissed);
+
+  const payload = {
+    date: date,
+    pair_num: parseInt(pn),
+    subject: subject || '',
+    time_start: ts || '',
+    time_end: te || '',
+    teacher: teacher || '',
+    classroom: room || ''
+  };
+
+  try {
+    await fetchWithTimeout(`${API}/missed-lessons/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(payload)
+    }, 5000);
+  } catch (e) {
+    // Offline: save to queue
+    const queue = JSON.parse(safeGetItem(STORAGE_MISSED_QUEUE) || '[]');
+    queue.push({ ...payload, _action: isMissed ? 'remove' : 'add', _ts: Date.now() });
+    safeSetItem(STORAGE_MISSED_QUEUE, JSON.stringify(queue));
+  }
+}
+window.toggleMissedLesson = toggleMissedLesson;
+
+async function loadMissedKeysForWeek() {
+  if (!S.telegramId) {
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (tgUser?.id) S.telegramId = tgUser.id;
+    else {
+      try {
+        const u = JSON.parse(localStorage.getItem('tg_auth_user') || localStorage.getItem('tg_widget_user') || '{}');
+        if (u.id) S.telegramId = u.id;
+      } catch (_) {}
+    }
+  }
+  if (!S.telegramId) return;
+  const { mon, sat } = getWeekDateRange(S.weekOffset || 0);
+  mon.setHours(12, 0, 0, 0);
+  sat.setHours(12, 0, 0, 0);
+  const from = mon.toISOString().slice(0, 10);
+  const to = sat.toISOString().slice(0, 10);
+  try {
+    const resp = await fetchWithTimeout(
+      `${API}/missed-lessons/keys?date_from=${from}&date_to=${to}`,
+      { headers: getAuthHeaders() }, 5000
+    );
+    const data = await resp.json();
+    S.missedKeys = new Set(data.keys || []);
+    if (S.view === 'today' || S.view === 'week' || S.view === 'schedule') {
+      renderSchedule();
+    }
+  } catch (e) {
+    // Keep existing keys
+  }
+}
+window.loadMissedKeysForWeek = loadMissedKeysForWeek;
+
+async function syncMissedQueue() {
+  const raw = safeGetItem(STORAGE_MISSED_QUEUE);
+  if (!raw) return;
+  let queue;
+  try { queue = JSON.parse(raw); } catch (_) { return; }
+  if (!queue.length) return;
+
+  const remaining = [];
+  for (const item of queue) {
+    try {
+      await fetchWithTimeout(`${API}/missed-lessons/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify(item)
+      }, 5000);
+    } catch (e) {
+      remaining.push(item);
+    }
+  }
+  safeSetItem(STORAGE_MISSED_QUEUE, JSON.stringify(remaining));
+  if (remaining.length < queue.length) {
+    await loadMissedKeysForWeek();
+  }
+}
+window.syncMissedQueue = syncMissedQueue;
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
