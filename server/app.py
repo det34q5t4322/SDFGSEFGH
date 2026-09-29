@@ -1080,6 +1080,18 @@ class DuelJoinPayload(BaseModel):
     room_id: str
 
 
+# ── MISSED LESSONS (ТРЕКЕР ПРОГУЛОВ) ────────────────────────
+class MissedLessonTogglePayload(BaseModel):
+    date: str
+    pair_num: int
+    subject: str = ''
+    time_start: str = ''
+    time_end: str = ''
+    teacher: str = ''
+    classroom: str = ''
+
+
+
 def get_duel_user_from_request(request: Request) -> Optional[dict]:
     # Прямая аутентификация через Telegram initData или auth_token
     auth_token = (
@@ -1817,6 +1829,69 @@ async def refresh_schedule(tab: Optional[str] = Query(None, description="GID и�
     except Exception as e:
         logger.error(f"Ошибка при обновлении расписания: {e}")
         raise HTTPException(status_code=500, detail=f"Не удалось обновить: {str(e)}")
+
+
+# ── ТРЕКЕР ПРОГУЛОВ ────────────────────────────────────────
+
+@app.post("/api/missed-lessons/toggle")
+async def toggle_missed_lesson_route(payload: MissedLessonTogglePayload, request: Request):
+    """Отметить/снять прогул пары."""
+    user = get_verified_user_from_request(request)
+    if not user or user.get("is_banned"):
+        raise HTTPException(status_code=401, detail="Требуется авторизация Telegram")
+    uid = int(user.get("id") or user.get("telegram_id") or 0)
+    result = db.toggle_missed_lesson(
+        telegram_id=uid,
+        date=payload.date,
+        pair_num=payload.pair_num,
+        subject=payload.subject,
+        time_start=payload.time_start,
+        time_end=payload.time_end,
+        teacher=payload.teacher,
+        classroom=payload.classroom
+    )
+    if result.get('action') == 'error':
+        raise HTTPException(status_code=500, detail=result.get('error', 'Ошибка сервера'))
+    return {"status": "ok", **result}
+
+
+@app.get("/api/missed-lessons")
+async def get_missed_lessons_route(request: Request,
+                                   date_from: str = Query(...),
+                                   date_to: str = Query(...)):
+    """Список прогулов за период."""
+    user = get_verified_user_from_request(request)
+    if not user or user.get("is_banned"):
+        raise HTTPException(status_code=401, detail="Требуется авторизация Telegram")
+    uid = int(user.get("id") or user.get("telegram_id") or 0)
+    lessons = db.get_missed_lessons(uid, date_from, date_to)
+    return {"status": "ok", "lessons": lessons}
+
+
+@app.get("/api/missed-lessons/keys")
+async def get_missed_keys_route(request: Request,
+                                 date_from: str = Query(...),
+                                 date_to: str = Query(...)):
+    """Ключи прогулов для текущей недели (для пометки в расписании)."""
+    user = get_verified_user_from_request(request)
+    if not user or user.get("is_banned"):
+        raise HTTPException(status_code=401, detail="Требуется авторизация Telegram")
+    uid = int(user.get("id") or user.get("telegram_id") or 0)
+    keys = db.get_missed_keys(uid, date_from, date_to)
+    return {"status": "ok", "keys": keys}
+
+
+@app.get("/api/missed-lessons/stats")
+async def get_missed_stats_route(request: Request,
+                                  year: int = Query(...),
+                                  month: int = Query(...)):
+    """Статистика прогулов за месяц."""
+    user = get_verified_user_from_request(request)
+    if not user or user.get("is_banned"):
+        raise HTTPException(status_code=401, detail="Требуется авторизация Telegram")
+    uid = int(user.get("id") or user.get("telegram_id") or 0)
+    stats = db.get_missed_stats_by_month(uid, year, month)
+    return {"status": "ok", **stats}
 
 
 # ─────────────────────────────────────────────

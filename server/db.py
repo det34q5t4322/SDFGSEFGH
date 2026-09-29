@@ -8,6 +8,9 @@ from datetime import datetime, timedelta
 import secrets
 import random
 
+# Одна пара = 2 академических часа
+HOURS_PER_LESSON = 2
+
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
@@ -344,6 +347,24 @@ def init_db() -> None:
                 )
             ''')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_grades_telegram_id ON grades_accounts(telegram_id);')
+
+            # 8. Трекер прогулов
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS missed_lessons (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    telegram_id INTEGER NOT NULL,
+                    date TEXT NOT NULL,
+                    pair_num INTEGER NOT NULL,
+                    subject TEXT NOT NULL DEFAULT '',
+                    time_start TEXT NOT NULL DEFAULT '',
+                    time_end TEXT NOT NULL DEFAULT '',
+                    teacher TEXT NOT NULL DEFAULT '',
+                    classroom TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    UNIQUE(telegram_id, date, pair_num)
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_missed_tid_date ON missed_lessons(telegram_id, date);')
 
             conn.commit()
 
@@ -1635,6 +1656,111 @@ def delete_grades_account(user_id: Any) -> bool:
         ''', (u_str, t_id))
         conn.commit()
         return cursor.rowcount > 0
+
+
+def toggle_missed_lesson(telegram_id: int, date: str, pair_num: int,
+                         subject: str = '', time_start: str = '', time_end: str = '',
+                         teacher: str = '', classroom: str = '') -> Dict[str, Any]:
+    """Переключает отметку прогула. Возвращает {'action': 'added'|'removed'}."""
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('SELECT id FROM missed_lessons WHERE telegram_id = ? AND date = ? AND pair_num = ?',
+                      (telegram_id, date, pair_num))
+            existing = c.fetchone()
+            if existing:
+                c.execute('DELETE FROM missed_lessons WHERE id = ?', (existing['id'],))
+                conn.commit()
+                return {'action': 'removed'}
+            else:
+                c.execute('''INSERT INTO missed_lessons
+                    (telegram_id, date, pair_num, subject, time_start, time_end, teacher, classroom, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (telegram_id, date, pair_num, subject, time_start, time_end, teacher, classroom,
+                     datetime.now().isoformat()))
+                conn.commit()
+                return {'action': 'added'}
+    except Exception as e:
+        logger.error(f'toggle_missed_lesson error: {e}')
+        return {'action': 'error', 'error': str(e)}
+
+
+def get_missed_lessons(telegram_id: int, date_from: str, date_to: str) -> List[Dict[str, Any]]:
+    """Возвращает список прогулов за период [date_from, date_to] включительно."""
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('''SELECT id, date, pair_num, subject, time_start, time_end,
+                                teacher, classroom, created_at
+                         FROM missed_lessons
+                         WHERE telegram_id = ? AND date >= ? AND date <= ?
+                         ORDER BY date ASC, pair_num ASC''',
+                      (telegram_id, date_from, date_to))
+            return [dict(row) for row in c.fetchall()]
+    except Exception as e:
+        logger.error(f'get_missed_lessons error: {e}')
+        return []
+
+
+def get_missed_keys(telegram_id: int, date_from: str, date_to: str) -> List[str]:
+    """Возвращает ключи 'YYYY-MM-DD:pair_num' для быстрой пометки в UI."""
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('''SELECT date, pair_num FROM missed_lessons
+                         WHERE telegram_id = ? AND date >= ? AND date <= ?''',
+                      (telegram_id, date_from, date_to))
+            return [f"{row['date']}:{row['pair_num']}" for row in c.fetchall()]
+    except Exception as e:
+        logger.error(f'get_missed_keys error: {e}')
+        return []
+
+
+def get_missed_stats_by_month(telegram_id: int, year: int, month: int) -> Dict[str, Any]:
+    """Статистика прогулов за месяц: общая и по предметам."""
+    date_from = f'{year:04d}-{month:02d}-01'
+    if month == 12:
+        date_to = f'{year + 1:04d}-01-01'
+    else:
+        date_to = f'{year:04d}-{month + 1:02d}-01'
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('''SELECT date, pair_num, subject, time_start, time_end, teacher, classroom
+                         FROM missed_lessons
+                         WHERE telegram_id = ? AND date >= ? AND date < ?
+                         ORDER BY date ASC, pair_num ASC''',
+                      (telegram_id, date_from, date_to))
+            rows = [dict(r) for r in c.fetchall()]
+
+        total_pairs = len(rows)
+        total_hours = total_pairs * HOURS_PER_LESSON
+
+        by_subject = {}
+        for r in rows:
+            subj = r['subject'] or 'Без названия'
+            if subj not in by_subject:
+                by_subject[subj] = {'subject': subj, 'count': 0, 'hours': 0, 'dates': []}
+            by_subject[subj]['count'] += 1
+            by_subject[subj]['hours'] += HOURS_PER_LESSON
+            by_subject[subj]['dates'].append({
+                'date': r['date'],
+                'pair_num': r['pair_num'],
+                'time_start': r['time_start'],
+                'time_end': r['time_end'],
+                'teacher': r['teacher'],
+                'classroom': r['classroom']
+            })
+
+        return {
+            'total_pairs': total_pairs,
+            'total_hours': total_hours,
+            'by_subject': sorted(by_subject.values(), key=lambda x: x['count'], reverse=True),
+            'by_date': rows
+        }
+    except Exception as e:
+        logger.error(f'get_missed_stats_by_month error: {e}')
+        return {'total_pairs': 0, 'total_hours': 0, 'by_subject': [], 'by_date': []}
 
 
 init_db()
