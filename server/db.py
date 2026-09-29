@@ -8,8 +8,8 @@ from datetime import datetime, timedelta
 import secrets
 import random
 
-# Одна пара = 2 академических часа
-HOURS_PER_LESSON = 2
+# Одна пара = 1.5 астрономических часа (обычные часы)
+HOURS_PER_LESSON = 1.5
 
 logger = logging.getLogger(__name__)
 
@@ -1734,7 +1734,7 @@ def get_missed_stats_by_month(telegram_id: int, year: int, month: int) -> Dict[s
             rows = [dict(r) for r in c.fetchall()]
 
         total_pairs = len(rows)
-        total_hours = total_pairs * HOURS_PER_LESSON
+        total_hours = round(total_pairs * HOURS_PER_LESSON, 2)
 
         by_subject = {}
         for r in rows:
@@ -1742,7 +1742,7 @@ def get_missed_stats_by_month(telegram_id: int, year: int, month: int) -> Dict[s
             if subj not in by_subject:
                 by_subject[subj] = {'subject': subj, 'count': 0, 'hours': 0, 'dates': []}
             by_subject[subj]['count'] += 1
-            by_subject[subj]['hours'] += HOURS_PER_LESSON
+            by_subject[subj]['hours'] = round(by_subject[subj]['hours'] + HOURS_PER_LESSON, 2)
             by_subject[subj]['dates'].append({
                 'date': r['date'],
                 'pair_num': r['pair_num'],

@@ -216,9 +216,11 @@
           <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
 
-        <button class="sidebar-nav-item" data-menu-id="menu-missed" id="sidebarMissedBtn" onclick="openMissedLessonsScreen()">
-          <span class="sidebar-nav-icon">📋</span>
-          <span class="sidebar-nav-text">Мои прогулы</span>
+        <button class="sidebar-nav-item" data-menu-id="menu-missed" data-section="services" id="sidebarMissedBtn" onclick="openMissedLessonsScreen()" type="button" title="Трекер пропущенных занятий">
+          <span class="menu-drag-handle" title="Перетащить пункт" aria-label="Перетащить">⠿</span>
+          <span class="sidebar-nav-icon"><svg class="lucide-icon" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span>
+          <span class="sidebar-nav-label">Мои прогулы</span>
+          <span class="menu-action-col"><span class="menu-vis-toggle-btn" role="button" tabindex="0" title="Скрыть/показать" aria-label="Видимость"><svg class="lucide-icon icon-eye-on" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="lucide-icon icon-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg></span></span>
         </button>
 
         <!-- До английского (СКРЫТ ПО УМОЛЧАНИЮ) -->
@@ -697,9 +699,9 @@
     <div id="missedLessonsView" class="view-container" style="display:none">
       <div class="missed-header">
         <div class="missed-month-nav">
-          <button class="missed-month-btn" id="missedPrevMonth" onclick="missedChangeMonth(-1)">‹</button>
+          <button class="missed-month-btn" id="missedPrevMonth" onclick="missedChangeMonth(-1)" aria-label="Предыдущий месяц"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
           <span class="missed-month-label" id="missedMonthLabel">Сентябрь 2026</span>
-          <button class="missed-month-btn" id="missedNextMonth" onclick="missedChangeMonth(1)">›</button>
+          <button class="missed-month-btn" id="missedNextMonth" onclick="missedChangeMonth(1)" aria-label="Следующий месяц"><svg class="lucide-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
         </div>
         <div class="missed-summary" id="missedSummary">
           <div class="missed-stat"><span class="missed-stat-num" id="missedTotalPairs">0</span><span class="missed-stat-label">пар</span></div>
@@ -716,7 +718,7 @@
       </div>
       <div class="missed-list" id="missedList"></div>
       <div class="missed-empty" id="missedEmpty" style="display:none">
-        <div class="missed-empty-icon">🎉</div>
+        <div class="missed-empty-icon"><svg class="lucide-icon" viewBox="0 0 24 24" style="width:48px;height:48px;stroke:var(--green);fill:none"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg></div>
         <div class="missed-empty-text">Прогулов нет!</div>
         <div class="missed-empty-sub">Так держать — все пары посещены</div>
       </div>

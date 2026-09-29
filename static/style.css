@@ -16442,6 +16442,11 @@ html.banned-lock #endlessBanLoader {
   border-color: var(--red);
   color: var(--red);
 }
+.missed-toggle-btn .lucide-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
 .missed-detail-row {
   grid-column: 1 / -1;
 }
@@ -16474,6 +16479,10 @@ html.banned-lock #endlessBanLoader {
 .missed-month-btn:hover {
   background: var(--accent);
   color: #fff;
+}
+.missed-month-btn .lucide-icon {
+  width: 18px;
+  height: 18px;
 }
 .missed-month-label {
   font-size: 18px;
@@ -16573,9 +16582,15 @@ html.banned-lock #endlessBanLoader {
   white-space: nowrap;
 }
 .missed-expand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
   transition: transform 0.2s;
-  font-size: 12px;
+}
+.missed-expand-icon .lucide-icon {
+  width: 16px;
+  height: 16px;
 }
 .missed-subject-card.expanded .missed-expand-icon {
   transform: rotate(90deg);

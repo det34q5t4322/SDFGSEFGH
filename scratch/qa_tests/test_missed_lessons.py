@@ -112,8 +112,8 @@ class TestMissedLessons(unittest.TestCase):
 
     def test_04_hours_and_month_boundary(self):
         """Подсчёт часов и корректность на границе месяцев"""
-        # 1 пара = 2 академических часа (db.HOURS_PER_LESSON == 2)
-        self.assertEqual(db.HOURS_PER_LESSON, 2)
+        # 1 пара = 1.5 астрономических часа (db.HOURS_PER_LESSON == 1.5)
+        self.assertEqual(db.HOURS_PER_LESSON, 1.5)
 
         # Сентябрь 2026: 30 сентября (2 пары)
         db.toggle_missed_lesson(self.user_a, "2026-09-30", 1, subject="История")
@@ -126,26 +126,26 @@ class TestMissedLessons(unittest.TestCase):
         # Статистика за сентябрь 2026
         sept_stats = db.get_missed_stats_by_month(self.user_a, 2026, 9)
         self.assertEqual(sept_stats["total_pairs"], 2)
-        self.assertEqual(sept_stats["total_hours"], 4) # 2 пары * 2 часа
+        self.assertEqual(sept_stats["total_hours"], 3.0) # 2 пары * 1.5 часа
         self.assertEqual(len(sept_stats["by_subject"]), 1)
         self.assertEqual(sept_stats["by_subject"][0]["subject"], "История")
-        self.assertEqual(sept_stats["by_subject"][0]["hours"], 4)
+        self.assertEqual(sept_stats["by_subject"][0]["hours"], 3.0)
 
         # Статистика за октябрь 2026
         oct_stats = db.get_missed_stats_by_month(self.user_a, 2026, 10)
         self.assertEqual(oct_stats["total_pairs"], 2)
-        self.assertEqual(oct_stats["total_hours"], 4)
+        self.assertEqual(oct_stats["total_hours"], 3.0)
         subj_map = {s["subject"]: s for s in oct_stats["by_subject"]}
         self.assertIn("История", subj_map)
         self.assertIn("Литература", subj_map)
-        self.assertEqual(subj_map["История"]["hours"], 2)
-        self.assertEqual(subj_map["Литература"]["hours"], 2)
+        self.assertEqual(subj_map["История"]["hours"], 1.5)
+        self.assertEqual(subj_map["Литература"]["hours"], 1.5)
 
         # Декабрь -> Январь граница (тест перехода года)
         db.toggle_missed_lesson(self.user_a, "2026-12-31", 1, subject="Новый Год")
         dec_stats = db.get_missed_stats_by_month(self.user_a, 2026, 12)
         self.assertEqual(dec_stats["total_pairs"], 1)
-        self.assertEqual(dec_stats["total_hours"], 2)
+        self.assertEqual(dec_stats["total_hours"], 1.5)
 
 if __name__ == "__main__":
     unittest.main()

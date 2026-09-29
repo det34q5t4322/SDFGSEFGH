@@ -18,7 +18,13 @@ const STORAGE_SHOW_BREAKS  = 'schedule_show_breaks';
 const STORAGE_NAV_POSITION = 'schedule_nav_position';
 const STORAGE_MISSED_QUEUE = 'missed_lessons_queue';
 const STORAGE_MISSED_CACHE = 'missed_lessons_cache';
-const HOURS_PER_LESSON = 2;
+const HOURS_PER_LESSON = 1.5;
+
+function formatHours(h) {
+  if (h === null || h === undefined) return '0';
+  const num = Number(h);
+  return (num % 1 === 0) ? num.toString() : num.toFixed(1);
+}
 
 // ── SAFE LOCALSTORAGE ACCESSORS (Protects against SecurityError / Private mode) ─
 function safeGetItem(key, fallback = null) {
@@ -121,7 +127,11 @@ const ICONS = {
   penTool: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>',
   trophy: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
   checkCircle: '<svg class="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
-  crown: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>'
+  crown: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.735H5.81a1 1 0 0 1-.957-.735L2.02 6.02a.5.5 0 0 1 .798-.52l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></svg>',
+  square: '<svg class="lucide-icon" viewBox="0 0 24 24" style="stroke:currentColor;fill:none"><rect width="18" height="18" x="3" y="3" rx="3"/></svg>',
+  checkSquare: '<svg class="lucide-icon" viewBox="0 0 24 24" style="stroke:currentColor;fill:none"><rect width="18" height="18" x="3" y="3" rx="3"/><path d="m9 12 2 2 4-4"/></svg>',
+  clipboardList: '<svg class="lucide-icon" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>',
+  chevronDown: '<svg class="lucide-icon" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>'
 };
 
 // ── CONFIG ──────────────────────────────
@@ -3669,7 +3679,7 @@ function renderSingleCard(p, pn, bell, isGoing, parityBadge = '', cardIndex = 0,
         data-te="${bell ? formatBellTime(bell.e) : ''}" 
         onclick="event.stopPropagation(); toggleMissedLesson(this)" 
         title="${isMissed ? 'Снять отметку прогула' : 'Отметить прогул'}">
-        ${isMissed ? '✅ Прогулял' : '⬜ Прогулял'}
+        ${isMissed ? ICONS.checkSquare : ICONS.square} <span>Прогулял</span>
       </button>`;
     }
   }
@@ -9384,7 +9394,7 @@ function renderMissedSummary() {
   const tp = document.getElementById('missedTotalPairs');
   const th = document.getElementById('missedTotalHours');
   if (tp) tp.textContent = d.total_pairs || 0;
-  if (th) th.textContent = d.total_hours || 0;
+  if (th) th.textContent = formatHours(d.total_hours || 0);
 }
 
 function formatMissedDate(dateStr) {
@@ -9427,8 +9437,8 @@ function renderMissedList() {
       return `<div class="missed-subject-card">
         <div class="missed-subject-header" onclick="this.parentElement.classList.toggle('expanded')">
           <div class="missed-subject-name">${esc(s.subject)}</div>
-          <div class="missed-subject-stats">${s.count} ${pluralPairs(s.count)} · ${s.hours} ч.</div>
-          <span class="missed-expand-icon">▸</span>
+          <div class="missed-subject-stats">${s.count} ${pluralPairs(s.count)} · ${formatHours(s.hours)} ч.</div>
+          <span class="missed-expand-icon">${ICONS.chevronRight}</span>
         </div>
         <div class="missed-subject-dates">${datesHtml}</div>
       </div>`;
@@ -9476,7 +9486,8 @@ async function toggleMissedLesson(btn) {
   }
   // Update button
   btn.classList.toggle('is-missed', !isMissed);
-  btn.innerHTML = !isMissed ? '✅ Прогулял' : '⬜ Прогулял';
+  btn.innerHTML = (!isMissed ? ICONS.checkSquare : ICONS.square) + ' <span>Прогулял</span>';
+  btn.title = !isMissed ? 'Снять отметку прогула' : 'Отметить прогул';
   // Update card
   const card = btn.closest('.pair-card, .split-row');
   if (card) card.classList.toggle('is-missed', !isMissed);
