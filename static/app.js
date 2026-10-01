@@ -5234,6 +5234,7 @@ async function loadDiaryGrades(forceRefresh = false) {
   const authView = document.getElementById('diaryAuthView');
   const gradesView = document.getElementById('diaryGradesView');
   const logoutBtn = document.getElementById('diaryLogoutBtn');
+  const reloadBtn = document.getElementById('diaryReloadBtn');
 
   try {
     const headers = {
@@ -5257,19 +5258,32 @@ async function loadDiaryGrades(forceRefresh = false) {
       if (authView) authView.style.display = 'none';
       if (gradesView) gradesView.style.display = 'flex';
       if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+      if (reloadBtn) reloadBtn.style.display = 'inline-flex';
 
       renderDiaryGrades();
+
+      if (data.sync_error) {
+        showToast(`⚠️ 1С: ${data.sync_error}`);
+      } else if (forceRefresh) {
+        showToast('Оценки успешно обновлены из 1С! ✅');
+      }
     } else {
       diaryState.authenticated = false;
       if (authView) authView.style.display = 'flex';
       if (gradesView) gradesView.style.display = 'none';
       if (logoutBtn) logoutBtn.style.display = 'none';
+      if (reloadBtn) reloadBtn.style.display = 'none';
+      if (data && data.sync_error) {
+        showToast(`⚠️ 1С: ${data.sync_error}`);
+      }
     }
   } catch (err) {
     console.error('Ошибка загрузки дневника 1С:', err);
+    showToast('Ошибка связи с сервером при получении оценок');
     if (!diaryState.authenticated) {
       if (authView) authView.style.display = 'flex';
       if (gradesView) gradesView.style.display = 'none';
+      if (reloadBtn) reloadBtn.style.display = 'none';
     }
   } finally {
     setDiaryLoading(false);
@@ -5345,9 +5359,11 @@ async function logoutDiary() {
     const authView = document.getElementById('diaryAuthView');
     const gradesView = document.getElementById('diaryGradesView');
     const logoutBtn = document.getElementById('diaryLogoutBtn');
+    const reloadBtn = document.getElementById('diaryReloadBtn');
     if (authView) authView.style.display = 'flex';
     if (gradesView) gradesView.style.display = 'none';
     if (logoutBtn) logoutBtn.style.display = 'none';
+    if (reloadBtn) reloadBtn.style.display = 'none';
     showToast('Дневник 1С отвязан');
   } catch (e) {
     console.error(e);

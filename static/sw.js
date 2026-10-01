@@ -2,7 +2,7 @@
    COLLEGE SCHEDULE APP — Resilient Offline Service Worker
    ════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'college-schedule-v56';
+const CACHE_NAME = 'college-schedule-v57';
 
 const STATIC_ASSETS = [
   '/',
@@ -69,7 +69,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. API requests (/api/schedule, /api/tabs, /api/groups)
+  // 2. API requests
+  // ВАЖНО: /api/grades — только сеть, никогда не сохранять в SW кэш,
+  // чтобы персональные оценки пользователей не кэшировались в браузере.
+  if (url.pathname.startsWith('/api/grades')) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  // Общие API запросы (/api/schedule, /api/tabs, /api/groups)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(req)

@@ -251,6 +251,10 @@ JOIN_RATE_LIMIT_WINDOW = 60  # секунд
 JOIN_MAX_ATTEMPTS = 10       # попыток в минуту на (IP, user_id)
 _join_rate_limit_timestamps = defaultdict(list)
 
+# Защита сервера 1С: принудительное обновление не чаще 1 раза в 60 секунд на пользователя
+GRADES_REFRESH_COOLDOWN = 60  # секунд
+_grades_refresh_timestamps = {}
+
 RATE_LIMIT_LOG_DIR = os.path.join(BASE_DIR, "logs")
 os.makedirs(RATE_LIMIT_LOG_DIR, exist_ok=True)
 RATE_LIMIT_LOG_PATH = os.path.join(RATE_LIMIT_LOG_DIR, "rate_limit.log")
@@ -2060,22 +2064,44 @@ async def get_grades(
 
     cached = account.get("cached_grades") or {}
 
-    # Защита от спама и частых запросов: минимальный интервал обращения к 1С — 15 минут (900 секунд).
-    # В остальное время всегда мгновенно отдаётся локальный кэш из базы данных SQLite (<2 мс).
+    # 1. Проверяем свежесть кэша (стандартный интервал обновления без кнопки: 15 минут)
     is_stale = True
     last_synced = account.get("last_synced")
     if last_synced:
-        try:
-            ls_dt = datetime.strptime(last_synced, "%Y-%m-%d %H:%M:%S")
-            if (datetime.now() - ls_dt).total_seconds() < 900:
-                is_stale = False
-        except Exception:
-            pass
+        for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+            try:
+                ls_dt = datetime.strptime(last_synced, fmt)
+                if (datetime.now() - ls_dt).total_seconds() < 900:
+                    is_stale = False
+                break
+            except Exception:
+                continue
 
-    # Обращаемся к 1С ТОЛЬКО если кэш пуст или (запрошено force_refresh И прошло более 15 минут)
-    should_fetch_1c = (not cached or not cached.get("subjects")) or (force_refresh and is_stale)
+    # 2. Защита от перегрузки 1С: force_refresh не чаще 1 раза в 60 секунд на пользователя
+    sync_error = None
+    now_ts = time.time()
+    last_forced = _grades_refresh_timestamps.get(uid, 0)
+
+    if force_refresh and (now_ts - last_forced < GRADES_REFRESH_COOLDOWN) and cached and cached.get("subjects"):
+        remaining = int(GRADES_REFRESH_COOLDOWN - (now_ts - last_forced))
+        return JSONResponse(content={
+            "authenticated": True,
+            "student": account["student_name"],
+            "group": account["group_name"],
+            "last_synced": account["last_synced"],
+            "grades": cached,
+            "sync_error": f"Слишком частое обновление. Подождите {remaining} сек."
+        })
+
+    # Обращаемся к 1С если:
+    # а) кэш пуст
+    # б) или принудительное обновление force_refresh
+    # в) или прошло более 15 минут (is_stale)
+    should_fetch_1c = force_refresh or (not cached or not cached.get("subjects")) or is_stale
 
     if should_fetch_1c:
+        if force_refresh:
+            _grades_refresh_timestamps[uid] = now_ts
         try:
             raw_pw = crypto_utils.decrypt_text(account["encrypted_password"])
             async with OneCGradessClient() as client:
@@ -2086,19 +2112,33 @@ async def get_grades(
                 )
                 if ok:
                     fresh_grades = await client.get_all_grades()
-                    fresh_cookies = crypto_utils.encrypt_cookies(client.get_cookies_dict())
-                    db.update_grades_cache(uid, fresh_grades, fresh_cookies)
-                    cached = fresh_grades
+                    if fresh_grades and not fresh_grades.get("error"):
+                        fresh_cookies = crypto_utils.encrypt_cookies(client.get_cookies_dict())
+                        db.update_grades_cache(uid, fresh_grades, fresh_cookies)
+                        cached = fresh_grades
+                        # Обновляем last_synced из аккаунта
+                        acc_fresh = db.get_grades_account(uid)
+                        if acc_fresh:
+                            account["last_synced"] = acc_fresh["last_synced"]
+                    else:
+                        sync_error = fresh_grades.get("error") or "Не удалось загрузить оценки из 1С"
+                else:
+                    sync_error = msg or "Ошибка авторизации в системе 1С"
         except Exception as e:
-            logger.warning(f"Ошибка фонового обновления оценок из 1С: {e}")
+            sync_error = f"Ошибка связи с сервером 1С: {str(e)}"
+            logger.warning(f"Ошибка фонового обновления оценок из 1С для {uid}: {e}")
 
-    resp = JSONResponse(content={
+    content = {
         "authenticated": True,
         "student": account["student_name"],
         "group": account["group_name"],
-        "last_synced": account["last_synced"],
+        "last_synced": account.get("last_synced"),
         "grades": cached
-    })
+    }
+    if sync_error:
+        content["sync_error"] = sync_error
+
+    resp = JSONResponse(content=content)
     if dev_id:
         resp.set_cookie(key="diary_device_id", value=dev_id, max_age=31536000, httponly=False, samesite="lax")
     return resp

@@ -266,21 +266,141 @@ class OneCGradessClient:
                 logger.error(f"Исключение при логине в 1C: {e}")
                 return False, f"Сетевая ошибка при обращении к 1С: {str(e)}"
 
-    async def get_all_grades(self) -> Dict[str, Any]:
+    async def get_study_periods(self) -> List[Dict[str, Any]]:
+        """
+        Запрашивает дерево учебных периодов/семестров через CommonJournalRemoteService.getTermsTree.
+        Возвращает список периодов: [{'id': int, 'parent_id': int, 'name': str, 'start_date': str, 'end_date': str}].
+        """
+        strings = [
+            f"{BASE_URL}/ui/diary/",
+            "9BADB37607F43AB198F92594745A4516",
+            "ru._1c.ui.common.client.CommonJournalRemoteService",
+            "getTermsTree",
+            "com.extjs.gxt.ui.client.data.BaseListLoadConfig/2201172752",
+            "Z"
+        ]
+        payload = f"7|0|{len(strings)}|{'|'.join(strings)}|1|2|3|4|3|5|6|6|0|0|0|"
+        headers = dict(DIARY_HEADERS)
+        headers["x-gwt-module-base"] = f"{BASE_URL}/ui/diary/"
+        headers["referer"] = f"{BASE_URL}/diary.html?db_name={self.db_name}"
+
+        try:
+            resp = await self.client.post(
+                f"{BASE_URL}/ui/commonJournal",
+                headers=headers,
+                content=payload.encode("utf-8")
+            )
+            if resp.status_code != 200 or not resp.text.startswith("//OK"):
+                return []
+
+            data = ast.literal_eval(resp.text[4:].strip())
+            str_tables = [x for x in reversed(data) if isinstance(x, list) and len(x) > 10]
+            if not str_tables:
+                return []
+            str_table = str_tables[0]
+
+            terms = []
+            for i in range(len(data) - 15):
+                val = data[i]
+                if isinstance(val, int) and 2020 <= val <= 2035:
+                    end_y = val
+                    end_m = data[i + 1]
+                    end_d = data[i + 2]
+                    if isinstance(end_m, int) and 1 <= end_m <= 12 and isinstance(end_d, int) and 1 <= end_d <= 31:
+                        for k in range(i + 3, min(len(data) - 3, i + 15)):
+                            val2 = data[k]
+                            if isinstance(val2, int) and 2020 <= val2 <= 2035:
+                                start_y = val2
+                                start_m = data[k + 1]
+                                start_d = data[k + 2]
+                                if isinstance(start_m, int) and 1 <= start_m <= 12 and isinstance(start_d, int) and 1 <= start_d <= 31:
+                                    term_id = data[i - 1] if isinstance(data[i - 1], int) else None
+                                    parent_id = data[i - 2] if isinstance(data[i - 2], int) else None
+
+                                    window = data[max(0, i - 25): min(len(data), k + 15)]
+                                    term_name = None
+                                    for tok in window:
+                                        if isinstance(tok, int) and 1 <= tok <= len(str_table):
+                                            st = str_table[tok - 1]
+                                            if any(w in st.lower() for w in ["семестр", "полугодие"]):
+                                                term_name = st
+                                                break
+                                    if not term_name:
+                                        for tok in window:
+                                            if isinstance(tok, int) and 1 <= tok <= len(str_table):
+                                                st = str_table[tok - 1]
+                                                if "учебный год" in st.lower():
+                                                    term_name = st
+                                                    break
+
+                                    if term_id is not None and term_id > 0:
+                                        s_dt = f"{start_y:04d}-{start_m:02d}-{start_d:02d}"
+                                        e_dt = f"{end_y:04d}-{end_m:02d}-{end_d:02d}"
+                                        if s_dt <= e_dt:
+                                            terms.append({
+                                                "id": term_id,
+                                                "parent_id": parent_id or 0,
+                                                "name": term_name or f"Период {term_id}",
+                                                "start_date": s_dt,
+                                                "end_date": e_dt
+                                            })
+                                    break
+
+            seen = set()
+            uniq = []
+            for t in terms:
+                if t["id"] not in seen:
+                    seen.add(t["id"])
+                    uniq.append(t)
+            return uniq
+        except Exception as e:
+            logger.warning(f"Ошибка получения периодов 1С: {e}")
+            return []
+
+    async def get_all_grades(self, target_term_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Получает полный список предметов с их средними баллами
         и детальными оценками по урокам/заданиям.
+        Автоматически определяет текущий семестр по дате, если target_term_id не указан.
         """
         async with _get_onec_semaphore():
             try:
                 # 1. Загрузка страницы дневника для настройки серверного контекста
                 await self.client.get(f"{BASE_URL}/diary.html?db_name={self.db_name}")
 
-                # 2. Запрос списка журналов студента
+                # 2. Определение актуального периода
+                active_term_id = target_term_id
+                active_term_name = ""
+                all_periods = []
+                try:
+                    all_periods = await self.get_study_periods()
+                    if all_periods:
+                        today = datetime.now().strftime("%Y-%m-%d")
+                        # Предпочитаем конкретные семестры (parent_id > 0)
+                        sub_terms = [p for p in all_periods if p.get("parent_id", 0) > 0]
+                        pool = sub_terms if sub_terms else all_periods
+
+                        matching = [p for p in pool if p["start_date"] <= today <= p["end_date"]]
+                        if matching:
+                            chosen = matching[0]
+                        else:
+                            # Если сегодня каникулы или дата между семестрами, берём последний по start_date
+                            chosen = sorted(pool, key=lambda x: x["start_date"])[-1]
+
+                        if not active_term_id:
+                            active_term_id = chosen["id"]
+                            active_term_name = chosen.get("name", "")
+                except Exception as ex:
+                    logger.warning(f"Не удалось динамически определить период 1С: {ex}")
+
+                if not active_term_id:
+                    active_term_id = 5014
+
+                # 3. Запрос списка журналов студента за выбранный период
                 j_payload = (
                     f"7|0|5|{BASE_URL}/ui/diary/|7B00848B1B9D192D0E4E6566698D029C|"
                     f"ru._1c.ui.diary.client.DiaryRemoteService|getStudentJournalList|I|"
-                    f"1|2|3|4|2|5|5|0|5014|"
+                    f"1|2|3|4|2|5|5|0|{active_term_id}|"
                 )
                 resp = await self.client.post(
                     f"{BASE_URL}/ui/diary",
@@ -420,6 +540,9 @@ class OneCGradessClient:
                 return {
                     "student": self.student_name or "Студент",
                     "group": self.group_name or "ИСС9-225",
+                    "term_id": active_term_id,
+                    "term_name": active_term_name,
+                    "periods": all_periods,
                     "overall_average": overall_avg,
                     "subjects_count": len(subjects),
                     "subjects_with_grades": len(valid_avgs),
