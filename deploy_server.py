@@ -7,6 +7,7 @@ def deploy():
 
     files = [
         ('server/app.py', '/var/www/college-schedule/server/app.py'),
+        ('server/parser.py', '/var/www/college-schedule/server/parser.py'),
         ('server/bot.py', '/var/www/college-schedule/server/bot.py'),
         ('server/db.py',  '/var/www/college-schedule/server/db.py'),
         ('server/duel_manager.py', '/var/www/college-schedule/server/duel_manager.py'),

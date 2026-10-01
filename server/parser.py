@@ -410,6 +410,52 @@ BREAK_TIMES = [
 
 DAYS_ORDER = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"]
 
+
+def parse_bell_time(text: str, pair_num: int = 1, default_times: Optional[Dict[int, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Парсинг времени звонков из ячейки таблицы для конкретной пары.
+    Понимает форматы:
+      - '8.00-9.00', '08:00-09:00', '8.00–9.00', '8.00 — 9.00'
+      - '8.00-8.45\\n8.50-9.35', '8.00-8.45 / 8.50-9.35' (берёт начало 1-й половины и конец 2-й)
+    При пустой строке или сбое распознавания возвращает сетку по умолчанию.
+    """
+    defaults = default_times or BELL_TIMES
+    fallback = defaults.get(pair_num, {
+        "start": "00:00",
+        "end": "00:00",
+        "display": "Не указано",
+        "s_min": 0,
+        "e_min": 0,
+    })
+
+    if not text or not str(text).strip():
+        return dict(fallback)
+
+    def _to_pt(t_str: str) -> Optional[Tuple[str, int]]:
+        cleaned = t_str.strip().replace(".", ":")
+        m = re.match(r"^(\d{1,2}):(\d{2})$", cleaned)
+        if not m:
+            return None
+        h, mn = int(m.group(1)), int(m.group(2))
+        return f"{h:02d}:{mn:02d}", h * 60 + mn
+
+    times = re.findall(r"\b\d{1,2}[.:]\d{2}\b", str(text))
+    if len(times) >= 2:
+        start_pt = _to_pt(times[0])
+        end_pt = _to_pt(times[-1])
+        if start_pt and end_pt:
+            start_str, s_min = start_pt
+            end_str, e_min = end_pt
+            return {
+                "start": start_str,
+                "end": end_str,
+                "display": f"{start_str} - {end_str}",
+                "s_min": s_min,
+                "e_min": e_min,
+            }
+
+    return dict(fallback)
+
+
 def get_academic_week_info(target_date=None) -> Dict[str, Any]:
     """Точный расчет учебной недели: номер, числитель (I) или знаменатель (II).
     Принимает datetime, date или None (текущее время).
@@ -1169,6 +1215,7 @@ class ScheduleParser:
             "classrooms": [],
             "classroom_schedules": {},
             "bell_times": BELL_TIMES,
+            "day_bell_times": {},
             "break_times": BREAK_TIMES,
             "week_info": current_week,
             "stale": False,
@@ -1281,6 +1328,37 @@ class ScheduleParser:
 
             days_data[current_day].append(r)
 
+        # Определение колонки «Время звонков» и считывание звонков по дням
+        bell_col = 2
+        for r in reader[:15]:
+            for c_idx, cell in enumerate(r):
+                if "звонк" in cell.lower():
+                    bell_col = c_idx
+                    break
+            if bell_col != 2:
+                break
+
+        day_bell_times: Dict[str, Dict[int, Dict[str, Any]]] = {}
+        for d_name in DAYS_ORDER:
+            s_rows = days_data.get(d_name, [])
+            day_bell_times[d_name] = {}
+            for p_num in range(1, 7):
+                r_top = (p_num - 1) * 2
+                r_bot = r_top + 1
+                row_t = s_rows[r_top] if r_top < len(s_rows) else []
+                row_b = s_rows[r_bot] if r_bot < len(s_rows) else []
+
+                b_cell = ""
+                if bell_col < len(row_t) and row_t[bell_col].strip():
+                    b_cell = row_t[bell_col].strip()
+                if bell_col < len(row_b) and row_b[bell_col].strip():
+                    if b_cell:
+                        b_cell = f"{b_cell}\n{row_b[bell_col].strip()}"
+                    else:
+                        b_cell = row_b[bell_col].strip()
+
+                day_bell_times[d_name][p_num] = parse_bell_time(b_cell, p_num, BELL_TIMES)
+
         # Формирование расписания по группам
         schedules_by_group: Dict[str, Dict[str, Any]] = {}
         all_teachers: Dict[str, List[Dict[str, Any]]] = {}
@@ -1318,9 +1396,12 @@ class ScheduleParser:
                             else ""
                         )
 
-                        time_info = BELL_TIMES.get(
+                        time_info = day_bell_times.get(day_name, {}).get(
                             pair_num,
-                            {"start": "00:00", "end": "00:00", "display": "Не указано"},
+                            BELL_TIMES.get(
+                                pair_num,
+                                {"start": "00:00", "end": "00:00", "display": "Не указано", "s_min": 0, "e_min": 0},
+                            ),
                         )
 
                         if not top_text and not bot_text:
@@ -1329,6 +1410,8 @@ class ScheduleParser:
                                 "time": time_info["display"],
                                 "start": time_info["start"],
                                 "end": time_info["end"],
+                                "s_min": time_info.get("s_min", 0),
+                                "e_min": time_info.get("e_min", 0),
                                 "is_empty": True,
                                 "both": None,
                                 "numerator": None,
@@ -1361,6 +1444,8 @@ class ScheduleParser:
                             "time": time_info["display"],
                             "start": time_info["start"],
                             "end": time_info["end"],
+                            "s_min": time_info.get("s_min", 0),
+                            "e_min": time_info.get("e_min", 0),
                             "is_empty": False,
                             "is_split": is_split,
                         }
@@ -1506,6 +1591,7 @@ class ScheduleParser:
             "classrooms": classrooms_sorted,
             "classroom_schedules": all_classrooms,
             "bell_times": BELL_TIMES,
+            "day_bell_times": day_bell_times,
             "break_times": BREAK_TIMES,
             "week_info": current_week,
         }
@@ -1747,10 +1833,10 @@ class ScheduleParser:
                             continue
                         subj = opt.get("subject", "")
                         if regex.search(subj):
-                            bell = BELL_TIMES.get(p_num) or BELL_TIMES.get(str(p_num)) or {}
-                            bell_start = bell.get("start", "08:30")
-                            bell_end = bell.get("end", "10:05")
-                            time_display = f"{bell_start} - {bell_end}"
+                            bell_fallback = BELL_TIMES.get(p_num) or BELL_TIMES.get(str(p_num)) or {}
+                            bell_start = p.get("start") or bell_fallback.get("start", "08:00")
+                            bell_end = p.get("end") or bell_fallback.get("end", "09:35")
+                            time_display = p.get("time") or f"{bell_start} - {bell_end}"
 
                             sh, sm = map(int, bell_start.split(":"))
                             eh, em = map(int, bell_end.split(":"))

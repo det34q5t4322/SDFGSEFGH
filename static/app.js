@@ -2530,6 +2530,44 @@ function formatBellTime(minutes) {
   return `${h}:${m.toString().padStart(2, '0')}`;
 }
 
+function getPairBell(p, dayName, pn) {
+  // 1. Из самого объекта пары p (s_min/e_min или start/end)
+  if (p) {
+    if (typeof p.s_min === 'number' && typeof p.e_min === 'number' && p.e_min > p.s_min) {
+      return { s: p.s_min, e: p.e_min };
+    }
+    if (p.start && p.end) {
+      const sParts = p.start.split(':').map(Number);
+      const eParts = p.end.split(':').map(Number);
+      if (sParts.length === 2 && eParts.length === 2 && !isNaN(sParts[0]) && !isNaN(eParts[0])) {
+        return { s: sParts[0] * 60 + sParts[1], e: eParts[0] * 60 + eParts[1] };
+      }
+    }
+  }
+  // 2. Из сетки дня day_bell_times, если передан dayName
+  if (dayName && pn && S.data && S.data.day_bell_times && S.data.day_bell_times[dayName]) {
+    const dayTimes = S.data.day_bell_times[dayName];
+    const item = dayTimes[pn] || dayTimes[String(pn)];
+    if (item) {
+      if (typeof item.s_min === 'number' && typeof item.e_min === 'number' && item.e_min > item.s_min) {
+        return { s: item.s_min, e: item.e_min };
+      }
+      if (item.start && item.end) {
+        const sParts = item.start.split(':').map(Number);
+        const eParts = item.end.split(':').map(Number);
+        if (sParts.length === 2 && eParts.length === 2 && !isNaN(sParts[0]) && !isNaN(eParts[0])) {
+          return { s: sParts[0] * 60 + sParts[1], e: eParts[0] * 60 + eParts[1] };
+        }
+      }
+    }
+  }
+  // 3. Fallback: стандартная сетка BELL
+  if (pn >= 1 && pn <= 6 && BELL[pn]) {
+    return BELL[pn];
+  }
+  return null;
+}
+
 function fmtSec(totalSeconds) {
   if (totalSeconds < 0) totalSeconds = 0;
   if (totalSeconds > 300) {
@@ -2747,40 +2785,51 @@ function updateLiveCard() {
     for (const p of pairs) {
       const pn = p.pair_num;
       if (!pn || pn < 1 || pn > 6) continue;
-      const bell = BELL[pn];
+      const bell = getPairBell(p, dayName, pn);
+      if (!bell) continue;
       const bellStartSec = bell.s * 60;
       const bellEndSec = bell.e * 60;
+      const pairDurSec = bellEndSec - bellStartSec;
 
       if (nowSec >= bellStartSec && nowSec < bellEndSec) {
         const elapsedSec = nowSec - bellStartSec;
         const totalLeftSec = bellEndSec - nowSec;
-        const totalPct = Math.min(100, Math.max(0, (elapsedSec / (bellEndSec - bellStartSec)) * 100));
+        const totalPct = pairDurSec > 0 ? Math.min(100, Math.max(0, (elapsedSec / pairDurSec) * 100)) : 100;
         const subj = p.subject ? esc(p.subject.slice(0, 45)) : '';
 
         updateBottomLiveStatusbar('Расписание синхронизировано', '');
 
-        if (elapsedSec < 45 * 60) {
-          // Первые 45 минут: два времени (до 5-минутки и до конца всей пары)
-          const to5minSec = (45 * 60) - elapsedSec;
+        // Если пара стандартная (от 90 минут) — показываем деление на две половины и 5-минутку
+        if (pairDurSec >= 90 * 60) {
+          if (elapsedSec < 45 * 60) {
+            // Первые 45 минут: два времени (до 5-минутки и до конца всей пары)
+            const to5minSec = (45 * 60) - elapsedSec;
+            setLiveCard('going', ICONS.book,
+              `Идёт ${pn} пара: ${subj}`,
+              `До 5-минутки: <b>${fmtSec(to5minSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
+              `<b>${pn} пара</b> • До 5-мин: <b>${fmtSec(to5minSec)}</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`);
+          } else if (elapsedSec < 50 * 60) {
+            // Пятиминутка внутри пары (45-50 мин)
+            const fiveLeftSec = (50 * 60) - elapsedSec;
+            setLiveCard('break', ICONS.coffee,
+              `Пятиминутка (${pn} пара): ${subj}`,
+              `Пятиминутный перерыв: <b>осталось ${fmtSec(fiveLeftSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
+              `<b>5-минутка (${pn} пара)</b>: осталось <b>${fmtSec(fiveLeftSec)}</b> • Конец: <b>${fmtSec(totalLeftSec)}</b>`,
+              fmtDigitalTimer(fiveLeftSec), 'до конца 5-минутки'
+            );
+          } else {
+            // Вторая половина пары (после 5-минутки)
+            setLiveCard('going', ICONS.book,
+              `Идёт ${pn} пара (2-я часть): ${subj}`,
+              `До конца пары: <b>${fmtSec(totalLeftSec)}</b> (до ${fmtTime(bell.e)})`,
+              `<b>${pn} пара (2-я часть)</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`);
+          }
+        } else {
+          // Сокращённая пара (например 60 мин) — без 5-минутки в середине
           setLiveCard('going', ICONS.book,
             `Идёт ${pn} пара: ${subj}`,
-            `До 5-минутки: <b>${fmtSec(to5minSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
-            `<b>${pn} пара</b> • До 5-мин: <b>${fmtSec(to5minSec)}</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`);
-        } else if (elapsedSec < 50 * 60) {
-          // Пятиминутка внутри пары (45-50 мин)
-          const fiveLeftSec = (50 * 60) - elapsedSec;
-          setLiveCard('break', ICONS.coffee,
-            `Пятиминутка (${pn} пара): ${subj}`,
-            `Пятиминутный перерыв: <b>осталось ${fmtSec(fiveLeftSec)}</b> • До конца пары: <b>${fmtSec(totalLeftSec)}</b>`,
-            `<b>5-минутка (${pn} пара)</b>: осталось <b>${fmtSec(fiveLeftSec)}</b> • Конец: <b>${fmtSec(totalLeftSec)}</b>`,
-            fmtDigitalTimer(fiveLeftSec), 'до конца 5-минутки'
-          );
-        } else {
-          // Вторая половина пары (после 5-минутки)
-          setLiveCard('going', ICONS.book,
-            `Идёт ${pn} пара (2-я часть): ${subj}`,
             `До конца пары: <b>${fmtSec(totalLeftSec)}</b> (до ${fmtTime(bell.e)})`,
-            `<b>${pn} пара (2-я часть)</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`);
+            `<b>${pn} пара</b> • До конца: <b>${fmtSec(totalLeftSec)}</b>`);
         }
 
         if (els.liveCardProgress) els.liveCardProgress.style.width = totalPct.toFixed(1) + '%';
@@ -2789,24 +2838,26 @@ function updateLiveCard() {
         return;
       }
 
-      // Перемена между парами сегодня: ТОЛЬКО если сегодня ещё будут пары после текущей!
+      // Перемена между парами сегодня: динамически определяем время до следующей пары
       if (pn < 6) {
-        const hasNextPairToday = pairs.some(other => (other.pair_num || other.pair_number) > pn);
-        if (hasNextPairToday) {
-          const brk = BREAKS[pn];
-          if (brk) {
-            const brkStartSec = brk.s * 60;
-            const brkEndSec = brk.e * 60;
+        const nextPairObj = pairs.find(other => (other.pair_num || other.pair_number) > pn);
+        if (nextPairObj) {
+          const nextPn = nextPairObj.pair_num || nextPairObj.pair_number;
+          const nextBell = getPairBell(nextPairObj, dayName, nextPn);
+          if (nextBell && nextBell.s > bell.e) {
+            const brkStartSec = bell.e * 60;
+            const brkEndSec = nextBell.s * 60;
             if (nowSec >= brkStartSec && nowSec < brkEndSec) {
-              const nextPairObj = pairs.find(other => (other.pair_num || other.pair_number) > pn);
-              const nextPn = nextPairObj ? (nextPairObj.pair_num || nextPairObj.pair_number) : (pn + 1);
+              const brkDurMin = Math.round(nextBell.s - bell.e);
+              const brkName = brkDurMin >= 20 ? `Большая перемена (${brkDurMin} мин)` : `Перемена (${brkDurMin} мин)`;
               const leftSec = brkEndSec - nowSec;
-              const pct = Math.min(100, Math.max(0, ((nowSec - brkStartSec) / (brk.dur * 60)) * 100));
+              const pct = Math.min(100, Math.max(0, ((nowSec - brkStartSec) / (brkDurMin * 60)) * 100));
+              const hudStr = fmtDigitalTimer(leftSec);
               updateBottomLiveStatusbar('Расписание синхронизировано', '');
-              setLiveCard('break', brk.dur >= 20 ? ICONS.utensils : ICONS.coffee,
-                `${brk.name} • до ${fmtTime(brk.e)}`,
+              setLiveCard('break', brkDurMin >= 20 ? ICONS.utensils : ICONS.coffee,
+                `${brkName} • до ${fmtTime(nextBell.s)}`,
                 `До начала ${nextPn} пары осталось <b>${fmtSec(leftSec)}</b>`,
-                `<b>${brk.name}</b>: осталось <b>${fmtSec(leftSec)}</b>`,
+                `<b>${brkName}</b>: осталось <b>${fmtSec(leftSec)}</b>`,
                 hudStr, `до ${nextPn} пары`
               );
               if (els.liveCardProgress) els.liveCardProgress.style.width = pct.toFixed(1) + '%';
@@ -2821,7 +2872,8 @@ function updateLiveCard() {
     for (const p of pairs) {
       const pn = p.pair_num;
       if (!pn || pn < 1 || pn > 6) continue;
-      const bell = BELL[pn];
+      const bell = getPairBell(p, dayName, pn);
+      if (!bell) continue;
       const bellStartSec = bell.s * 60;
       if (nowSec < bellStartSec) {
         const leftSec = bellStartSec - nowSec;
@@ -2847,7 +2899,7 @@ function updateLiveCard() {
     if (nextPairs && nextPairs.length > 0) {
       const firstPair = nextPairs[0];
       const pn = firstPair.pair_num;
-      const bell = pn >= 1 && pn <= 6 ? BELL[pn] : null;
+      const bell = getPairBell(firstPair, nextDayName, pn);
       if (bell) {
         const targetDate = new Date(now);
         targetDate.setDate(now.getDate() + offset);
@@ -3421,36 +3473,38 @@ function renderDayPairs(dayName) {
 
   validSlots.forEach((slot, idx) => {
     const pn = slot.pair_num;
-    const bell = pn >= 1 && pn <= 6 ? BELL[pn] : null;
+    const bell = getPairBell(slot, dayName, pn);
     const bellStartSec = bell ? bell.s * 60 : 0;
     const bellEndSec = bell ? bell.e * 60 : 0;
     const isGoing = bell && isToday && nowSec >= bellStartSec && nowSec < bellEndSec;
 
-    // Разделитель перемены между парами
+    // Разделитель перемены между парами (динамический расчет по реальному расписанию)
     if (idx > 0) {
-      const prevPn = validSlots[idx - 1].pair_num;
-      if (prevPn >= 1 && prevPn < pn && prevPn < 6) {
-        const brk = BREAKS[prevPn];
-        if (brk) {
-          const brkStartSec = brk.s * 60;
-          const brkEndSec = brk.e * 60;
-          const isBreakActive = isToday && (S.weekOffset === 0) && nowSec >= brkStartSec && nowSec < brkEndSec;
-          const leftSec = isBreakActive ? (brkEndSec - nowSec) : 0;
-          const glowClass = isBreakActive ? ' break-active-glow' : '';
-          const activeBadge = isBreakActive ? `<span class="break-active-badge">${ICONS.play} Идёт сейчас (${fmtSec(leftSec)})</span>` : '';
-          const breakIconSvg = brk.dur >= 20 ? ICONS.utensils : ICONS.coffee;
+      const prevSlot = validSlots[idx - 1];
+      const prevPn = prevSlot.pair_num;
+      const prevBell = getPairBell(prevSlot, dayName, prevPn);
+      if (prevBell && bell && bell.s > prevBell.e) {
+        const brkStartSec = prevBell.e * 60;
+        const brkEndSec = bell.s * 60;
+        const brkDurMin = Math.round(bell.s - prevBell.e);
+        const isBreakActive = isToday && (S.weekOffset === 0) && nowSec >= brkStartSec && nowSec < brkEndSec;
+        const leftSec = isBreakActive ? (brkEndSec - nowSec) : 0;
+        const glowClass = isBreakActive ? ' break-active-glow' : '';
+        const activeBadge = isBreakActive ? `<span class="break-active-badge">${ICONS.play} Идёт сейчас (${fmtSec(leftSec)})</span>` : '';
+        const breakIconSvg = brkDurMin >= 20 ? ICONS.utensils : ICONS.coffee;
+        const brkName = brkDurMin >= 20 ? `Большая перемена (${brkDurMin} мин)` : `Перемена (${brkDurMin} мин)`;
+        const brkTime = `${fmtTime(prevBell.e)} – ${fmtTime(bell.s)}`;
 
-          html += `<div class="schedule-break-divider${glowClass}" data-day="${esc(dayName)}" data-is-today="${isToday}" data-s-min="${brk.s}" data-e-min="${brk.e}">
-            <div class="break-info-left">
-              <span class="break-icon">${breakIconSvg}</span>
-              <span class="break-name">${brk.name}</span>
-            </div>
-            <div class="break-info-right">
-              ${activeBadge}
-              <span class="break-time">${brk.time}</span>
-            </div>
-          </div>`;
-        }
+        html += `<div class="schedule-break-divider${glowClass}" data-day="${esc(dayName)}" data-is-today="${isToday}" data-s-min="${prevBell.e}" data-e-min="${bell.s}">
+          <div class="break-info-left">
+            <span class="break-icon">${breakIconSvg}</span>
+            <span class="break-name">${brkName}</span>
+          </div>
+          <div class="break-info-right">
+            ${activeBadge}
+            <span class="break-time">${brkTime}</span>
+          </div>
+        </div>`;
       }
     }
 
